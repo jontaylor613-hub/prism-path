@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export default async function handler(req, res) {
-  // Allow CORS (Cross-Origin Resource Sharing) just in case
+  // --- 1. Security Headers (CORS) ---
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -10,20 +8,18 @@ export default async function handler(req, res) {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
-  // Handle "OPTIONS" request (the browser checking if it's safe to connect)
+  // Handle the browser "Knock Knock" check
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  // 1. Setup API Key
+  // --- 2. Get the Key ---
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "Server Error: API Key is missing." });
   }
 
-  // 2. Parse Input
-  // Vercel sometimes passes body as text, so we parse it safely
+  // --- 3. Parse the Input ---
   let prompt = "";
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -36,18 +32,44 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "No prompt provided" });
   }
 
-  // 3. Call Google
+  // --- 4. Call Google Directly (No Library!) ---
+  // We use the standard web 'fetch' command
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // We are manually building the URL here. This bypasses the broken library.
+    // Using the 'gemini-1.5-flash' model.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      })
+    });
 
+    const data = await response.json();
+
+    // Check if Google sent an error back
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Google refused the request");
+    }
+
+    // Extract the text safely
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      throw new Error("No text returned from AI");
+    }
+
+    // --- 5. Send Success ---
     return res.status(200).json({ result: text });
+
   } catch (error) {
-    console.error("Backend Error:", error);
-    return res.status(500).json({ error: "Google API Failed: " + error.message });
+    console.error("Direct API Error:", error);
+    return res.status(500).json({ error: "Failed: " + error.message });
   }
 }

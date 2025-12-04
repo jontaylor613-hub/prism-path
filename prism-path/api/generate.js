@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   // 2. Get Key
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = AIzaSyAceBRL_rC4e2tqhLA01MQcRCvfjRgTtmk;
   if (!apiKey) return res.status(500).json({ error: "Server Error: API Key is missing" });
 
   // 3. Parse Input

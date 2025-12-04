@@ -66,7 +66,7 @@ const Disclaimer = () => (
 export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+   
   // Gemini API State
   const [challenge, setChallenge] = useState('');
   const [subject, setSubject] = useState('');
@@ -96,15 +96,8 @@ export default function App() {
     setGeneratedPlan(null);
 
     try {
-      // SECURITY: Access key from environment variable
-      // Ensure you have a .env file with VITE_GEMINI_API_KEY=your_key
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-
-      if (!apiKey) {
-        throw new Error("API configuration missing. Please check your setup.");
-      }
-
       // IMPROVED PROMPT ENGINEERING
+      // We construct the prompt here, but send it to our backend to handle the API key
       const prompt = `
         Role: You are an expert Special Education Consultant and Occupational Therapist.
         Task: Create a mini-support plan for a homeschooling parent.
@@ -125,23 +118,24 @@ export default function App() {
         - Output as plain text/markdown.
       `;
       
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${apiKey}`, {
+      // ✅ CORRECTED: Call your Vercel Backend instead of Google directly
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
+        body: JSON.stringify({ prompt: prompt })
       });
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.error?.message || 'Failed to generate');
+        throw new Error(errData.error || 'Failed to generate');
       }
 
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      // ✅ CORRECTED: The backend returns { result: "text" }
+      const text = data.result;
       
       if (text) {
         setGeneratedPlan(text);
@@ -151,7 +145,7 @@ export default function App() {
 
     } catch (err) {
       console.error(err);
-      setError("System is busy or configured incorrectly. Please check console for details.");
+      setError("Failed to generate. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -159,7 +153,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200">
-      
+       
       {/* Background Grid Effect */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
@@ -215,19 +209,19 @@ export default function App() {
           <span className="w-2 h-2 rounded-full bg-cyan-400 motion-safe:animate-pulse"></span>
           <span>AI-Powered Homeschooling</span>
         </div>
-        
+         
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6">
           Personalized Learning <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400 animate-gradient-x">
             Without Limits.
           </span>
         </h1>
-        
+         
         <p className="mt-4 max-w-2xl mx-auto text-xl text-slate-300 leading-relaxed mb-10">
           Empowering parents of special needs students with custom accommodation plans. 
           Get instant, tailored support for your homeschooling journey.
         </p>
-        
+         
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
           <Button primary href={gemLink}>
             Open Accommodation Gem <Zap size={18} className="ml-2" />
@@ -312,7 +306,7 @@ export default function App() {
             description="Tips for sensory breaks and emotional check-ins integrated directly into your lesson plans."
             delay={200}
           />
-           <FeatureCard 
+            <FeatureCard 
             icon={ShieldCheck}
             title="Distraction Free"
             description="Get clean, text-based plans without the clutter of ad-heavy educational websites."
@@ -324,7 +318,7 @@ export default function App() {
             description="What used to take hours of research now takes seconds. Spend more time teaching, less time planning."
             delay={400}
           />
-           <FeatureCard 
+            <FeatureCard 
             icon={Zap}
             title="Instant Adaptation"
             description="Having a rough day? Ask the Gem to modify the day's load instantly to match your child's energy."
@@ -336,13 +330,13 @@ export default function App() {
       {/* Live AI Demo Section */}
       <section id="accommodations" className="relative z-10 py-20 bg-slate-900 border-y border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-start gap-12">
-          
+           
           <div className="lg:w-5/12">
             <h2 className="text-3xl font-bold text-white mb-6">
               Instant AI Accommodations <br />
               <span className="text-cyan-400">Try it right here</span>
             </h2>
-            
+             
             {/* SAFETY DISCLAIMER */}
             <Disclaimer />
 
@@ -401,9 +395,9 @@ export default function App() {
                   </div>
                   <div className="text-xs text-slate-600 font-mono">model: gemini-1.5-flash</div>
                 </div>
-                
+                 
                 <div className="flex-grow font-mono text-sm space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar">
-                  
+                   
                   {/* Default State */}
                   {!generatedPlan && !loading && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-50 pt-20">
@@ -435,7 +429,7 @@ export default function App() {
                       <div className="text-slate-300 leading-relaxed whitespace-pre-wrap">
                         {generatedPlan}
                       </div>
-                      
+                       
                       <div className="mt-8 flex items-center space-x-2 text-emerald-400/80 text-xs border-t border-slate-800 pt-4">
                         <CheckCircle2 size={14} />
                         <span>Generated by PrismPath AI. Verify with a specialist.</span>
@@ -464,7 +458,7 @@ export default function App() {
                 Built for the homeschool community.
               </p>
             </div>
-            
+             
             <div className="flex space-x-6">
               <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors">Privacy</a>
               <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors">Terms</a>
@@ -479,4 +473,5 @@ export default function App() {
     </div>
   );
 }
+
 

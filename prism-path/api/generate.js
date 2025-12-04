@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // --- 1. Security Headers ---
+  // 1. CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -7,11 +7,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // --- 2. Check Key ---
+  // 2. Get Key
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Server Error: API Key is missing." });
+  if (!apiKey) return res.status(500).json({ error: "Server Error: API Key is missing" });
 
-  // --- 3. Parse Input ---
+  // 3. Parse Input
   let prompt = "";
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -20,10 +20,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid JSON" });
   }
 
-  // --- 4. Call Google (Using gemini-pro) ---
+  // 4. Call Google (Using the modern Flash model)
   try {
-    // SWITCHED TO GEMINI-PRO on V1 (The most stable combination)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const response = await fetch(url, {
       method: 'POST',
@@ -36,15 +35,14 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      // If this fails, the error message from Google will be in 'data'
-      throw new Error(data.error?.message || "Google refused the request");
+      throw new Error(data.error?.message || "Google blocked the request");
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return res.status(200).json({ result: text });
 
   } catch (error) {
-    console.error("Direct API Error:", error);
+    console.error("API Error:", error);
     return res.status(500).json({ error: "Failed: " + error.message });
   }
 }

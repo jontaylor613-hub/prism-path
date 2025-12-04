@@ -1,32 +1,40 @@
+// /api/generate.js
+// NO IMPORTS - We use standard built-in tools only.
+
 export default async function handler(req, res) {
-  // 1. CORS Headers
+  // 1. Allow the frontend to talk to us (CORS)
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  // 2. Get Key
-  const apiKey = AIzaSyAceBRL_rC4e2tqhLA01MQcRCvfjRgTtmk;
-  if (!apiKey) return res.status(500).json({ error: "Server Error: API Key is missing" });
-
-  // 3. Parse Input
-  let prompt = "";
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    prompt = body.prompt;
-  } catch (e) {
-    return res.status(400).json({ error: "Invalid JSON" });
+  // Handle the browser "check"
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
-  // 4. Call Google (Using the modern Flash model)
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // 2. Setup the Key
+    // ⚠️ PASTE YOUR "PRISM PATH 11" KEY HERE inside the quotes
+    const apiKey = "AIzaSyAceBRL_rC4e2tqhLA01MQcRCvfjRgTtmk"; 
+
+    // 3. Check for Prompt
+    let prompt = "";
+    if (req.body) {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      prompt = body.prompt;
+    }
     
-    const response = await fetch(url, {
+    if (!prompt) {
+      return res.status(400).json({ error: "No prompt provided" });
+    }
+
+    // 4. Call Google (Directly via URL)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }]
       })
@@ -34,15 +42,17 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
+    // 5. Handle Google Errors
     if (!response.ok) {
       throw new Error(data.error?.message || "Google blocked the request");
     }
 
+    // 6. Success
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return res.status(200).json({ result: text });
 
   } catch (error) {
-    console.error("API Error:", error);
-    return res.status(500).json({ error: "Failed: " + error.message });
+    console.error("Crash:", error);
+    return res.status(500).json({ error: error.message });
   }
 }

@@ -1,31 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import ResumeBuilder from './ResumeBuilder';
 import SocialMap from './SocialMap';
+import EmotionalCockpit from './EmotionalCockpit';
 import { 
-  Sparkles, 
-  Brain, 
-  Heart, 
-  Calendar, 
-  ExternalLink, 
-  Menu, 
-  X, 
-  Zap, 
-  ShieldCheck, 
-  Clock,
-  MessageSquare,
-  Loader2,
-  Info,
-  CheckCircle2,
-  EyeOff
+  Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
+  ShieldCheck, Clock, MessageSquare, Loader2, Info, CheckCircle2, 
+  Eye, EyeOff, MapPin, FileText, ChevronDown, Activity
 } from 'lucide-react';
 
-// --- Components ---
+// --- COMPONENTS ---
 
 const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
-  const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
-  const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] focus:ring-cyan-400";
-  const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white focus:ring-slate-500";
+  const baseStyle = "inline-flex items-center px-5 py-2.5 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed";
+  const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]";
+  const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white";
 
   const classes = `${baseStyle} ${primary ? primaryStyle : secondaryStyle} ${className}`;
 
@@ -41,7 +30,7 @@ const Button = ({ children, primary, href, onClick, className = "", disabled }) 
 
 const FeatureCard = ({ icon: Icon, title, description, delay }) => (
   <div 
-    className="group relative p-1 rounded-2xl bg-gradient-to-b from-slate-700 to-slate-800 hover:from-cyan-500 hover:to-fuchsia-500 transition-all duration-500 motion-reduce:transition-none"
+    className="group relative p-1 rounded-2xl bg-gradient-to-b from-slate-700 to-slate-800 hover:from-cyan-500 hover:to-fuchsia-500 transition-all duration-500"
     style={{ animationDelay: `${delay}ms` }}
   >
     <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-fuchsia-500 rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-500" />
@@ -59,19 +48,20 @@ const Disclaimer = () => (
   <div className="bg-fuchsia-950/40 border border-fuchsia-500/30 rounded-lg p-4 mb-6 flex items-start gap-3">
     <Info className="text-fuchsia-400 shrink-0 mt-0.5" size={18} />
     <p className="text-sm text-fuchsia-100/90 leading-relaxed">
-      <strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice, diagnosis, or an official IEP. Always consult with your child's specialists before making significant changes.
+      <strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.
     </p>
   </div>
 );
 
-// --- Main Application ---
+// --- MAIN APPLICATION ---
 
 export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false); // Dropdown state
   const [isLowStim, setIsLowStim] = useState(false);
   
-  // VIEW STATE: 'home', 'resume', or 'map'
+  // VIEW STATE: 'home', 'resume', 'map', 'cockpit'
   const [view, setView] = useState('home'); 
    
   // Gemini API State
@@ -81,12 +71,24 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Dropdown ref for clicking outside
+  const toolsRef = useRef(null);
+
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    
+    const handleClickOutside = (event) => {
+      if (toolsRef.current && !toolsRef.current.contains(event.target)) {
+        setToolsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const gemLink = "https://gemini.google.com/gem/1l1CXxrHsHi41oCGW-In9-MSlSfanKbbB?usp=sharing";
@@ -96,7 +98,6 @@ export default function App() {
       setError("Please describe the challenge and the subject.");
       return;
     }
-
     setLoading(true);
     setError('');
     setGeneratedPlan(null);
@@ -105,21 +106,12 @@ export default function App() {
         const prompt = `
         Role: You are an expert Special Education Consultant and Occupational Therapist.
         Task: Create a mini-support plan for an educator or parent supporting a student.
-        
-        Input:
-        - Student's specific challenge: "${challenge}"
-        - Current Subject/Activity: "${subject}"
-        
+        Input: Student's challenge: "${challenge}", Subject: "${subject}"
         Output Instructions:
-        1. Empathy First: Start with 1 sentence validating why this combination is difficult for the learner.
-        2. Accommodations: List 3 bullet points of specific, low-prep modifications to the task (ensure suggestions work in both classroom and home settings).
-        3. Quick Win: Provide 1 "Emergency Reset" strategy if the student is already frustrated.
-        
-        Formatting:
-        - Use bolding for key terms.
-        - Use clear emojis.
-        - Keep it encouraging and concise.
-        - Output as plain text/markdown.
+        1. Empathy First: 1 sentence validating the difficulty.
+        2. Accommodations: 3 specific, low-prep modifications (classroom & home friendly).
+        3. Quick Win: 1 "Emergency Reset" strategy.
+        Formatting: Use bolding for keys. Use emojis. Keep it concise. Output plain text/markdown.
       `;
       
       const response = await fetch('/api/generate', {
@@ -128,19 +120,10 @@ export default function App() {
         body: JSON.stringify({ prompt: prompt })
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to generate');
-      }
-
+      if (!response.ok) throw new Error('Failed to generate');
       const data = await response.json();
-      const text = data.result;
-      
-      if (text) {
-        setGeneratedPlan(text);
-      } else {
-        setError("No suggestions could be generated. Please try again with more detail.");
-      }
+      if (data.result) setGeneratedPlan(data.result);
+      else setError("No suggestions generated.");
 
     } catch (err) {
       console.error(err);
@@ -167,26 +150,32 @@ export default function App() {
         ></div>
       </div>
 
-      {/* --- VIEW SWITCHING LOGIC --- */}
+      {/* --- VIEW SWITCHING --- */}
 
       {view === 'resume' ? (
-        // VIEW 1: RESUME BUILDER
         <div className="relative z-10 pt-10">
            <ResumeBuilder onBack={() => setView('home')} isLowStim={isLowStim} />
         </div>
       ) : view === 'map' ? (
-        // VIEW 2: SOCIAL MAP
         <div className="relative z-10 pt-20 h-screen">
            <SocialMap onBack={() => setView('home')} isLowStim={isLowStim} />
         </div>
+      ) : view === 'cockpit' ? (
+        <div className="relative z-[150] h-screen">
+           <EmotionalCockpit onBack={() => setView('home')} />
+        </div>
       ) : (
-        // VIEW 3: HOME PAGE (DEFAULT)
+        // === HOME VIEW ===
         <>
-          <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? 'bg-slate-950/80 backdrop-blur-md border-slate-800 py-4' : 'bg-transparent border-transparent py-6'}`}>
+          <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? 'bg-slate-950/90 backdrop-blur-md border-slate-800 py-3' : 'bg-transparent border-transparent py-6'}`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-              <div className="flex items-center space-x-2 group cursor-pointer">
+              {/* Logo */}
+              <div 
+                className="flex items-center space-x-2 group cursor-pointer" 
+                onClick={() => setView('home')}
+              >
                 <div className="relative">
-                  <Sparkles className={`text-cyan-400 transition-colors duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:text-fuchsia-400'}`} size={28} />
+                  <Sparkles className={`text-cyan-400 transition-colors duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:text-fuchsia-400'}`} size={26} />
                   <div className={`absolute inset-0 bg-cyan-400 blur-lg opacity-40 transition-all duration-1000 ${isLowStim ? 'opacity-0' : 'group-hover:bg-fuchsia-400 motion-safe:animate-pulse'}`} />
                 </div>
                 <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
@@ -194,36 +183,56 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Desktop Menu - REORDERED */}
-              <div className="hidden md:flex items-center space-x-8">
+              {/* Desktop Menu */}
+              <div className="hidden md:flex items-center space-x-6">
                 
-                {/* 1. Overwhelmed Button */}
+                {/* 1. Low Stim Toggle (Icon Only) */}
                 <button 
                   onClick={() => setIsLowStim(!isLowStim)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border ${
-                    isLowStim 
-                      ? 'bg-slate-800 text-white border-slate-600 hover:bg-slate-700' 
-                      : 'bg-slate-900/50 text-slate-300 border-slate-700 hover:border-slate-500'
-                  }`}
+                  title={isLowStim ? "Enable Colors" : "Low Stimulation Mode"}
+                  className={`p-2 rounded-full transition-all ${isLowStim ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                 >
-                  <EyeOff size={16} />
-                  {isLowStim ? "Restore Colors" : "Overwhelmed?"}
+                  {isLowStim ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
 
-                {/* 2. Features */}
-                <a href="#features" className="text-sm font-medium hover:text-cyan-400 transition-colors">Features</a>
-                
-                {/* 3. Live Demo */}
-                <a href="#accommodations" className="text-sm font-medium hover:text-cyan-400 transition-colors">Live Demo</a>
+                <div className="h-6 w-px bg-slate-800"></div>
 
-                {/* 4. Safe Village (Map) */}
-                <button onClick={() => setView('map')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Safe Village</button>
+                {/* 2. Core Links */}
+                <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Features</a>
+                <a href="#accommodations" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Live Demo</a>
 
-                {/* 5. Resume Builder */}
-                <button onClick={() => setView('resume')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Resume Builder</button>
+                {/* 3. Tools Dropdown */}
+                <div className="relative" ref={toolsRef}>
+                  <button 
+                    onClick={() => setToolsMenuOpen(!toolsMenuOpen)}
+                    className="flex items-center gap-1 text-sm font-medium text-slate-300 hover:text-cyan-400 transition-colors focus:outline-none"
+                  >
+                    Tools <ChevronDown size={14} className={`transition-transform ${toolsMenuOpen ? 'rotate-180' : ''}`}/>
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {toolsMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                        <button onClick={() => {setView('map'); setToolsMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-2 text-sm text-slate-200">
+                            <MapPin size={16} className="text-cyan-400"/> Safe Village Map
+                        </button>
+                        <button onClick={() => {setView('resume'); setToolsMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-2 text-sm text-slate-200 border-t border-slate-800">
+                            <FileText size={16} className="text-fuchsia-400"/> Resume Builder
+                        </button>
+                    </div>
+                  )}
+                </div>
 
-                {/* 6. Launch Gem */}
-                <Button href={gemLink} primary className="!px-5 !py-2 !text-sm">
+                {/* 4. Cool Down (Distinct) */}
+                <button 
+                    onClick={() => setView('cockpit')} 
+                    className="flex items-center gap-2 text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/30"
+                >
+                   <Activity size={16} /> Cool Down
+                </button>
+
+                {/* 5. Launch Gem */}
+                <Button href={gemLink} primary className="!px-4 !py-2 !text-sm">
                   Launch Gem <ExternalLink size={14} className="ml-2" />
                 </Button>
               </div>
@@ -239,21 +248,32 @@ export default function App() {
 
             {/* Mobile Menu Dropdown */}
             {mobileMenuOpen && (
-              <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl">
-                
+              <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5">
                 <button 
                   onClick={() => setIsLowStim(!isLowStim)}
                   className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-full"
                 >
-                  <EyeOff size={16} />
-                  {isLowStim ? "Restore Colors" : "Reduce Stimulation"}
+                  {isLowStim ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {isLowStim ? "Restore Colors" : "Low Stimulation Mode"}
                 </button>
 
-                <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Features</a>
-                <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Live Demo</a>
-                
-                <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400 w-full">Safe Village Map</button>
-                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400 w-full">Resume Builder</button>
+                <div className="h-px bg-slate-800 w-full my-1"></div>
+
+                <button onClick={() => { setView('cockpit'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-indigo-400 font-bold">
+                    <Activity size={18}/> Cool Down Corner
+                </button>
+
+                <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400">
+                    <MapPin size={18}/> Safe Village Map
+                </button>
+                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400">
+                    <FileText size={18}/> Resume Builder
+                </button>
+
+                <div className="h-px bg-slate-800 w-full my-1"></div>
+
+                <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-white">Features</a>
+                <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-white">Live Demo</a>
                 
                 <Button href={gemLink} primary className="justify-center w-full">
                   Launch Gem
@@ -292,54 +312,6 @@ export default function App() {
 
             <div className={`absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
             <div className={`absolute top-1/3 right-0 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
-          </section>
-
-          {/* How It Works Section */}
-          <section id="how-it-works" className="relative z-10 py-20 bg-slate-900/50 backdrop-blur-sm border-y border-slate-800">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center mb-16">
-                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Simple, Powerful Support</h2>
-                <p className="text-slate-400 max-w-xl mx-auto">
-                  Streamlining Individualized Education Plans (IEPs) and daily accommodations for home and classroom.
-                </p>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-8 relative">
-                <div className={`hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 -translate-y-1/2 transition-opacity duration-1000 ${isLowStim ? 'opacity-20' : 'opacity-100'}`}></div>
-
-                {[
-                  { 
-                    step: "01", 
-                    title: "Launch the Gem", 
-                    desc: "Click the button to open our custom Google Gemini AI assistant.",
-                    icon: ExternalLink 
-                  },
-                  { 
-                    step: "02", 
-                    title: "Describe Needs", 
-                    desc: "Tell the AI about your student's strengths, challenges, and current subjects.",
-                    icon: Brain 
-                  },
-                  { 
-                    step: "03", 
-                    title: "Get Results", 
-                    desc: "Receive a tailored list of accommodations, modifications, and strategies instantly.",
-                    icon: Sparkles 
-                  }
-                ].map((item, idx) => (
-                  <div key={idx} className="relative bg-slate-900 p-8 rounded-2xl border border-slate-800 hover:border-cyan-500/50 transition-colors z-10 group">
-                    <div className={`w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center mb-6 text-cyan-400 transition-all duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:scale-110 group-hover:bg-cyan-500/10'}`}>
-                      <item.icon size={24} />
-                    </div>
-                    <div className="absolute top-8 right-8 text-5xl font-bold text-slate-800 select-none group-hover:text-slate-700/50 transition-colors">
-                      {item.step}
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-3 relative">{item.title}</h3>
-                    <p className="text-slate-400 relative">{item.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </section>
 
           {/* Features Grid */}
@@ -540,4 +512,3 @@ export default function App() {
     </div>
   );
 }
-

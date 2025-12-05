@@ -309,33 +309,4 @@ export default function EmotionalCockpit({ onBack }) {
     </div>
   );
 }
-```
 
-### Step 2: Add it to `src/App.jsx`
-
-Now we just need to add the button to the navbar and handle the view switching.
-
-**In `src/App.jsx`:**
-
-1.  **Import the component:**
-    ```javascript
-    import EmotionalCockpit from './EmotionalCockpit';
-    ```
-
-2.  **Add the "Cool Down" Button:**
-    Add this button to your navbar (Desktop and Mobile), ideally in a prominent color like Indigo or Fuchsia.
-    ```jsx
-    <button onClick={() => setView('cockpit')} className="text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
-       Cool Down Corner
-    </button>
-    ```
-
-3.  **Update the View Logic:**
-    Add the condition for `'cockpit'`.
-
-    ```jsx
-    {/* VIEW SWITCHER */}
-    {view === 'cockpit' ? (
-       <EmotionalCockpit onBack={() => setView('home')} />
-    ) : view === 'resume' ? (
-       // ... existing resume code

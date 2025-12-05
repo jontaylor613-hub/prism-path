@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import ResumeBuilder from './ResumeBuilder';
+import SocialMap from './SocialMap';
 import { 
   Sparkles, 
   Brain, 
@@ -69,7 +70,9 @@ export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLowStim, setIsLowStim] = useState(false);
-  const [view, setView] = useState('home'); // 'home' or 'resume'
+  
+  // VIEW STATE: 'home', 'resume', or 'map'
+  const [view, setView] = useState('home'); 
    
   // Gemini API State
   const [challenge, setChallenge] = useState('');
@@ -101,16 +104,16 @@ export default function App() {
     try {
         const prompt = `
         Role: You are an expert Special Education Consultant and Occupational Therapist.
-        Task: Create a mini-support plan for a homeschooling parent.
+        Task: Create a mini-support plan for an educator or parent supporting a student.
         
         Input:
-        - Child's specific challenge: "${challenge}"
+        - Student's specific challenge: "${challenge}"
         - Current Subject/Activity: "${subject}"
         
         Output Instructions:
-        1. Empathy First: Start with 1 sentence validating why this combination is difficult.
-        2. Accommodations: List 3 bullet points of specific, low-prep modifications to the task.
-        3. Quick Win: Provide 1 "Emergency Reset" strategy if the child is already frustrated.
+        1. Empathy First: Start with 1 sentence validating why this combination is difficult for the learner.
+        2. Accommodations: List 3 bullet points of specific, low-prep modifications to the task (ensure suggestions work in both classroom and home settings).
+        3. Quick Win: Provide 1 "Emergency Reset" strategy if the student is already frustrated.
         
         Formatting:
         - Use bolding for key terms.
@@ -164,11 +167,20 @@ export default function App() {
         ></div>
       </div>
 
+      {/* --- VIEW SWITCHING LOGIC --- */}
+
       {view === 'resume' ? (
+        // VIEW 1: RESUME BUILDER
         <div className="relative z-10 pt-10">
            <ResumeBuilder onBack={() => setView('home')} isLowStim={isLowStim} />
         </div>
+      ) : view === 'map' ? (
+        // VIEW 2: SOCIAL MAP
+        <div className="relative z-10 pt-20 h-screen">
+           <SocialMap onBack={() => setView('home')} isLowStim={isLowStim} />
+        </div>
       ) : (
+        // VIEW 3: HOME PAGE (DEFAULT)
         <>
           <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? 'bg-slate-950/80 backdrop-blur-md border-slate-800 py-4' : 'bg-transparent border-transparent py-6'}`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
@@ -182,7 +194,7 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Desktop Menu */}
+              {/* Desktop Menu - REORDERED */}
               <div className="hidden md:flex items-center space-x-8">
                 
                 {/* 1. Overwhelmed Button */}
@@ -204,10 +216,13 @@ export default function App() {
                 {/* 3. Live Demo */}
                 <a href="#accommodations" className="text-sm font-medium hover:text-cyan-400 transition-colors">Live Demo</a>
 
-                {/* 4. Resume Builder */}
+                {/* 4. Safe Village (Map) */}
+                <button onClick={() => setView('map')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Safe Village</button>
+
+                {/* 5. Resume Builder */}
                 <button onClick={() => setView('resume')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Resume Builder</button>
 
-                {/* 5. Launch Gem */}
+                {/* 6. Launch Gem */}
                 <Button href={gemLink} primary className="!px-5 !py-2 !text-sm">
                   Launch Gem <ExternalLink size={14} className="ml-2" />
                 </Button>
@@ -228,7 +243,7 @@ export default function App() {
                 
                 <button 
                   onClick={() => setIsLowStim(!isLowStim)}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700"
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-full"
                 >
                   <EyeOff size={16} />
                   {isLowStim ? "Restore Colors" : "Reduce Stimulation"}
@@ -236,7 +251,9 @@ export default function App() {
 
                 <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Features</a>
                 <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Live Demo</a>
-                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400">Resume Builder</button>
+                
+                <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400 w-full">Safe Village Map</button>
+                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400 w-full">Resume Builder</button>
                 
                 <Button href={gemLink} primary className="justify-center w-full">
                   Launch Gem
@@ -435,7 +452,6 @@ export default function App() {
                       <div className="text-xs text-slate-600 font-mono">model: gemini-2.0-flash</div>
                     </div>
                     
-                    {/* UPDATED CONTAINER: NO FONT-MONO, BETTER SPACING */}
                     <div className="flex-grow font-sans text-[15px] space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar text-slate-300 leading-relaxed">
                       
                       {!generatedPlan && !loading && (
@@ -464,18 +480,13 @@ export default function App() {
                           </div>
                           <div className="h-px bg-slate-800 my-6"></div>
                           
-                          {/* UPDATED MARKDOWN STYLING */}
                           <ReactMarkdown 
                               components={{
-                                  // Bold Text
                                   strong: ({node, ...props}) => <span className="font-bold text-cyan-300" {...props} />,
-                                  // Paragraphs - added margin bottom
                                   p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
-                                  // Lists - added spacing and indentation
                                   ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-2 marker:text-fuchsia-500" {...props} />,
                                   ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-2 marker:text-cyan-500" {...props} />,
                                   li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                                  // Headers - bigger and distinct
                                   h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mb-4 mt-6" {...props} />,
                                   h2: ({node, ...props}) => <h2 className="text-xl font-bold text-fuchsia-300 mb-3 mt-5" {...props} />,
                                   h3: ({node, ...props}) => <h3 className="text-lg font-bold text-cyan-300 mb-2 mt-4" {...props} />,
@@ -529,3 +540,4 @@ export default function App() {
     </div>
   );
 }
+

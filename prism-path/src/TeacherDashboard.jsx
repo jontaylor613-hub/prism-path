@@ -133,7 +133,6 @@ export default function TeacherDashboard({ onBack }) {
   const [user, setUser] = useState(null);
   const [theme, setTheme] = useState('dark');
   const [activeTab, setActiveTab] = useState('home');
-  const [subTab, setSubTab] = useState('');
   const [currentStudentId, setCurrentStudentId] = useState(1);
   const activeStudent = INITIAL_STUDENTS.find(s => s.id === currentStudentId) || INITIAL_STUDENTS[0];
   const [plaafp, setPlaafp] = useState({ name: activeStudent.name, strength: activeStudent.strength, need: activeStudent.need, data: '', impact: '' });

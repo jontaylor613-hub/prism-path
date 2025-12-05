@@ -14,13 +14,15 @@ import {
   MessageSquare,
   Loader2,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  EyeOff // New icon for the "Overwhelmed" button
 } from 'lucide-react';
 
 // --- Components ---
 
 const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
-  const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+  // We added a transition-all class here so buttons fade smoothly too
+  const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-500 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
   const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] focus:ring-cyan-400";
   const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white focus:ring-slate-500";
 
@@ -66,6 +68,9 @@ const Disclaimer = () => (
 export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // NEW: State for "Low Stimulation" mode
+  const [isLowStim, setIsLowStim] = useState(false);
    
   // Gemini API State
   const [challenge, setChallenge] = useState('');
@@ -83,6 +88,7 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Your specific GEM link
   const gemLink = "https://gemini.google.com/gem/1l1CXxrHsHi41oCGW-In9-MSlSfanKbbB?usp=sharing";
 
   const handleGenerate = async () => {
@@ -96,35 +102,12 @@ export default function App() {
     setGeneratedPlan(null);
 
     try {
-      // IMPROVED PROMPT ENGINEERING
-      // We construct the prompt here, but send it to our backend to handle the API key
-      const prompt = `
-        Role: You are an expert Special Education Consultant and Occupational Therapist.
-        Task: Create a mini-support plan for a homeschooling parent.
-        
-        Input:
-        - Child's specific challenge: "${challenge}"
-        - Current Subject/Activity: "${subject}"
-        
-        Output Instructions:
-        1. Empathy First: Start with 1 sentence validating why this combination is difficult.
-        2. Accommodations: List 3 bullet points of specific, low-prep modifications to the task.
-        3. Quick Win: Provide 1 "Emergency Reset" strategy if the child is already frustrated.
-        
-        Formatting:
-        - Use bolding for key terms.
-        - Use clear emojis.
-        - Keep it encouraging and concise.
-        - Output as plain text/markdown.
-      `;
-      
-      // ✅ CORRECTED: Call your Vercel Backend instead of Google directly
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: prompt })
+        body: JSON.stringify({ prompt: `Challenge: ${challenge}, Subject: ${subject}` })
       });
 
       if (!response.ok) {
@@ -133,8 +116,6 @@ export default function App() {
       }
 
       const data = await response.json();
-      
-      // ✅ CORRECTED: The backend returns { result: "text" }
       const text = data.result;
       
       if (text) {
@@ -152,10 +133,21 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200">
+    <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200`}>
        
-      {/* Background Grid Effect */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      {/* THE LENS OVERLAY:
+         This invisible div sits on top of everything. 
+         When isLowStim is true, it applies a 'backdrop-grayscale' filter.
+         This turns everything behind it black & white without breaking layout.
+      */}
+      <div 
+        className={`fixed inset-0 pointer-events-none z-[100] transition-all duration-1000 ease-in-out ${
+          isLowStim ? 'backdrop-grayscale bg-slate-950/20' : 'backdrop-grayscale-0 bg-transparent'
+        }`}
+      ></div>
+
+      {/* Background Grid Effect - Fades out in Low Stim mode */}
+      <div className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
         <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-fuchsia-900/20 via-slate-950/50 to-slate-950"></div>
       </div>
@@ -165,16 +157,30 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <div className="flex items-center space-x-2 group cursor-pointer">
             <div className="relative">
-              <Sparkles className="text-cyan-400 group-hover:text-fuchsia-400 transition-colors duration-300" size={28} />
-              <div className="absolute inset-0 bg-cyan-400 blur-lg opacity-40 group-hover:bg-fuchsia-400 transition-colors duration-300 motion-safe:animate-pulse" />
+              <Sparkles className={`text-cyan-400 transition-colors duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:text-fuchsia-400'}`} size={28} />
+              {/* Hide the glow in Low Stim mode */}
+              <div className={`absolute inset-0 bg-cyan-400 blur-lg opacity-40 transition-all duration-1000 ${isLowStim ? 'opacity-0' : 'group-hover:bg-fuchsia-400 motion-safe:animate-pulse'}`} />
             </div>
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              Prism<span className="text-cyan-400">Path</span>
+              Prism<span className={`${isLowStim ? 'text-slate-400' : 'text-cyan-400'}`}>Path</span>
             </span>
           </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
+            {/* OVERWHELMED BUTTON */}
+            <button 
+              onClick={() => setIsLowStim(!isLowStim)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border ${
+                isLowStim 
+                  ? 'bg-slate-800 text-white border-slate-600 hover:bg-slate-700' 
+                  : 'bg-slate-900/50 text-slate-300 border-slate-700 hover:border-slate-500'
+              }`}
+            >
+              {isLowStim ? <EyeOff size={16} /> : <EyeOff size={16} />}
+              {isLowStim ? "Restore Colors" : "Overwhelmed?"}
+            </button>
+
             <a href="#features" className="text-sm font-medium hover:text-cyan-400 transition-colors">Features</a>
             <a href="#accommodations" className="text-sm font-medium hover:text-cyan-400 transition-colors">Live Demo</a>
             <Button href={gemLink} primary className="!px-5 !py-2 !text-sm">
@@ -194,6 +200,14 @@ export default function App() {
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl">
+             {/* Mobile Overwhelmed Button */}
+             <button 
+              onClick={() => setIsLowStim(!isLowStim)}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700"
+            >
+              <EyeOff size={16} />
+              {isLowStim ? "Restore Colors" : "Reduce Stimulation"}
+            </button>
             <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-cyan-400">Features</a>
             <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-cyan-400">Live Demo</a>
             <Button href={gemLink} primary className="justify-center">
@@ -205,21 +219,22 @@ export default function App() {
 
       {/* Hero Section */}
       <section className="relative z-10 pt-32 pb-20 lg:pt-48 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800/50 border border-cyan-500/30 text-cyan-400 text-xs font-bold tracking-wider uppercase mb-8 backdrop-blur-sm">
+        <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800/50 border border-cyan-500/30 text-cyan-400 text-xs font-bold tracking-wider uppercase mb-8 backdrop-blur-sm transition-all duration-1000 ${isLowStim ? 'grayscale' : ''}`}>
           <span className="w-2 h-2 rounded-full bg-cyan-400 motion-safe:animate-pulse"></span>
-          <span>AI-Powered Homeschooling</span>
+          <span>AI-Powered Accommodations</span>
         </div>
          
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6">
           Personalized Learning <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400 animate-gradient-x">
+          <span className={`text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400 ${isLowStim ? 'text-white bg-none' : 'animate-gradient-x'}`}>
             Without Limits.
           </span>
         </h1>
          
+        {/* UPDATED TEXT HERE */}
         <p className="mt-4 max-w-2xl mx-auto text-xl text-slate-300 leading-relaxed mb-10">
-          Empowering parents of special needs students with custom accommodation plans. 
-          Get instant, tailored support for your homeschooling journey.
+          Empowering <strong>educators</strong> and <strong>homeschool parents</strong> of special needs students. 
+          Get instant, AI-powered accommodations tailored to your student's unique learning profile.
         </p>
          
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
@@ -231,9 +246,9 @@ export default function App() {
           </Button>
         </div>
 
-        {/* Abstract Decorative Elements */}
-        <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute top-1/3 right-0 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+        {/* Abstract Decorative Elements - These vanish in Low Stim mode */}
+        <div className={`absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
+        <div className={`absolute top-1/3 right-0 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
       </section>
 
       {/* How It Works Section */}
@@ -242,13 +257,13 @@ export default function App() {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Simple, Powerful Support</h2>
             <p className="text-slate-400 max-w-xl mx-auto">
-              We've streamlined the process of creating Individualized Education Plans (IEPs) and daily accommodations.
+              Streamlining Individualized Education Plans (IEPs) and daily accommodations for home and classroom.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connecting Line */}
-            <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 -translate-y-1/2"></div>
+            {/* Connecting Line - Fades in Low Stim */}
+            <div className={`hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 -translate-y-1/2 transition-opacity duration-1000 ${isLowStim ? 'opacity-20' : 'opacity-100'}`}></div>
 
             {[
               { 
@@ -260,7 +275,7 @@ export default function App() {
               { 
                 step: "02", 
                 title: "Describe Needs", 
-                desc: "Tell the AI about your child's strengths, challenges, and current subjects.",
+                desc: "Tell the AI about your student's strengths, challenges, and current subjects.",
                 icon: Brain 
               },
               { 
@@ -271,7 +286,7 @@ export default function App() {
               }
             ].map((item, idx) => (
               <div key={idx} className="relative bg-slate-900 p-8 rounded-2xl border border-slate-800 hover:border-cyan-500/50 transition-colors z-10 group">
-                <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center mb-6 text-cyan-400 group-hover:scale-110 group-hover:bg-cyan-500/10 transition-all duration-300">
+                <div className={`w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center mb-6 text-cyan-400 transition-all duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:scale-110 group-hover:bg-cyan-500/10'}`}>
                   <item.icon size={24} />
                 </div>
                 <div className="absolute top-8 right-8 text-5xl font-bold text-slate-800 select-none group-hover:text-slate-700/50 transition-colors">
@@ -334,7 +349,7 @@ export default function App() {
           <div className="lg:w-5/12">
             <h2 className="text-3xl font-bold text-white mb-6">
               Instant AI Accommodations <br />
-              <span className="text-cyan-400">Try it right here</span>
+              <span className={`transition-colors duration-1000 ${isLowStim ? 'text-white' : 'text-cyan-400'}`}>Try it right here</span>
             </h2>
              
             {/* SAFETY DISCLAIMER */}
@@ -362,7 +377,7 @@ export default function App() {
                      value={subject}
                      onChange={(e) => setSubject(e.target.value)}
                      placeholder="e.g. Long Division, Silent Reading, Essay Writing"
-                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-fuchsia-400 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+                     className={`w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:border-transparent outline-none transition-all placeholder:text-slate-600 ${isLowStim ? 'focus:ring-white' : 'focus:ring-fuchsia-400'}`}
                    />
                  </div>
                </div>
@@ -384,16 +399,16 @@ export default function App() {
           </div>
 
           <div className="lg:w-7/12 w-full relative">
-             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-fuchsia-500 rounded-2xl blur-2xl opacity-10 transform rotate-1"></div>
+             <div className={`absolute inset-0 bg-gradient-to-r from-cyan-500 to-fuchsia-500 rounded-2xl blur-2xl transform rotate-1 transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-10'}`}></div>
              <div className="relative bg-slate-950 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl min-h-[500px] flex flex-col">
                 <div className="flex items-center justify-between mb-6 border-b border-slate-800 pb-4">
-                  <div className="flex items-center space-x-2">
+                  <div className={`flex items-center space-x-2 ${isLowStim ? 'grayscale opacity-50' : ''}`}>
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
                     <span className="ml-4 text-xs text-slate-500 font-mono">PrismPath Engine</span>
                   </div>
-                  <div className="text-xs text-slate-600 font-mono">model: gemini-1.5-flash</div>
+                  <div className="text-xs text-slate-600 font-mono">model: gemini-2.0-flash</div>
                 </div>
                  
                 <div className="flex-grow font-mono text-sm space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar">
@@ -449,9 +464,9 @@ export default function App() {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-6 md:mb-0">
                <div className="flex items-center space-x-2">
-                <Sparkles className="text-fuchsia-500" size={24} />
+                <Sparkles className={`transition-colors duration-1000 ${isLowStim ? 'text-slate-500' : 'text-fuchsia-500'}`} size={24} />
                 <span className="text-xl font-bold text-white">
-                  Prism<span className="text-cyan-400">Path</span>
+                  Prism<span className={`transition-colors duration-1000 ${isLowStim ? 'text-slate-400' : 'text-cyan-400'}`}>Path</span>
                 </span>
               </div>
               <p className="text-slate-500 text-sm mt-2">
@@ -473,10 +488,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
-
-
-
-

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ResumeBuilder from './ResumeBuilder';
 import ReactMarkdown from 'react-markdown'; // IMPORTED MARKDOWN RENDERER
 import { 
   Sparkles, 
@@ -506,3 +507,4 @@ export default function App() {
     </div>
   );
 }
+

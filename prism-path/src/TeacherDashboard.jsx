@@ -14,6 +14,7 @@ import {
 // API Key is handled via /api/generate in the backend
 
 // --- Security & Utility Services ---
+
 const SecurityService = {
   generatePseudonym: (realName) => {
     const hash = realName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -156,7 +157,7 @@ const getThemeClasses = (theme) => {
       chartLine: "#4f46e5", 
     };
   } else {
-    // PRISM PATH DARK THEME
+    // PrismPath Dark Mode
     return {
       bg: "bg-slate-950",
       text: "text-slate-200",
@@ -220,7 +221,7 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   );
 };
 
-const Badge = ({ children, color = "blue", theme = 'dark' }) => {
+const Badge = ({ children, color = "blue", icon: Icon, theme = 'dark' }) => {
   const isDark = theme === 'dark';
   const colors = {
     blue: isDark ? "bg-blue-500/10 text-blue-400 border-blue-500/30" : "bg-blue-100 text-blue-700 border-blue-200",
@@ -231,6 +232,7 @@ const Badge = ({ children, color = "blue", theme = 'dark' }) => {
   };
   return (
     <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-fit ${colors[color] || colors.blue}`}>
+      {Icon && <Icon size={10} />}
       {children}
     </span>
   );
@@ -368,6 +370,7 @@ const PaywallModal = ({ onClose, onUpgrade, onDistrictCode, theme = 'dark' }) =>
           </button>
         </div>
         <div className="flex-1 p-8 relative overflow-y-auto">
+           {/* Simplified content for brevity */}
            <h2 className="text-2xl font-black mb-4">{view === 'individual' ? 'Prism Pro' : 'District Access'}</h2>
            {view === 'district' && (
               <div className={`p-4 rounded-xl border mb-6 ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -751,7 +754,7 @@ export default function TeacherDashboard({ onBack }) {
       Data Source: ${plaafp.data}
       Impact Statement: ${plaafp.impact}
       
-      Write a concise paragraph summarizing this data.
+      Write a concise, professional paragraph suitable for an IEP document.
     `;
     const result = await callAI(prompt);
     setGeneratedPlaafp(result);
@@ -896,6 +899,7 @@ export default function TeacherDashboard({ onBack }) {
             </div>
         )}
 
+        {/* IDENTIFY TAB */}
         {activeTab === 'identify' && (
           <div className="space-y-6">
              <div className="flex gap-2 border-b border-slate-700/50 pb-2 mb-4 overflow-x-auto">
@@ -993,84 +997,24 @@ export default function TeacherDashboard({ onBack }) {
 
         {/* DEVELOP TAB - GOALS */}
         {activeTab === 'develop' && (
-          <div className="animate-fade-in space-y-6">
-             <div className="flex gap-2 border-b border-slate-700/50 pb-2 mb-4 overflow-x-auto">
-              {['wizard', 'tracker', 'services'].map(t => (<button key={t} onClick={() => setSubTab(t)} className={`px-4 py-2 rounded text-xs font-bold uppercase ${subTab === t || (subTab === '' && t === 'wizard') ? styles.navActive : styles.navInactive}`}>{t === 'wizard' ? 'Goal Wizard' : t === 'tracker' ? 'Data Tracker' : 'Services & LRE'}</button>))}
-            </div>
-            {(subTab === 'wizard' || subTab === '') && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card theme={'dark'} className="p-6">
-                   <div className="flex justify-between items-center mb-6"><h3 className={`text-lg font-bold flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><Target className="text-cyan-400" /> Goal Generator</h3><button onClick={() => handleAiAutoFill('goal')} className="text-xs flex items-center gap-1 px-3 py-1 rounded font-bold border transition-colors bg-fuchsia-900/20 text-fuchsia-400 border-fuchsia-500/50 hover:bg-fuchsia-900/40"><Wand2 size={12} /> ✨ Draft with AI</button></div>
-                   <div className="space-y-4">
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Condition (Given what?)" value={goalInputs.condition} onChange={e => setGoalInputs({...goalInputs, condition: e.target.value})} />
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Behavior (Will do what?)" value={goalInputs.behavior} onChange={e => setGoalInputs({...goalInputs, behavior: e.target.value})} />
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Criteria (How well?)" value={goalInputs.criteria} onChange={e => setGoalInputs({...goalInputs, criteria: e.target.value})} />
-                      <Button onClick={handleGenerateGoal} className="w-full mt-4" icon={ArrowRight} theme={'dark'}>Generate</Button>
-                   </div>
-                 </Card>
-                 <Card theme={'dark'} className="p-6">
-                   <h3 className={`text-lg font-bold mb-6 uppercase tracking-wide ${styles.text}`}>Draft</h3>
-                   <div className="p-6 rounded border bg-slate-950 border-slate-700 text-slate-300 font-serif min-h-[150px]">"{generatedGoal || "Awaiting inputs..."}"</div>
-                 </Card>
-              </div>
-            )}
-            {subTab === 'tracker' && (
-               <div className="space-y-6">
-                  <div className="flex justify-between items-center"><h2 className={`text-2xl font-black ${styles.text}`}>{trackers[0].name}</h2><Button onClick={() => window.print()} variant="secondary" icon={FileDown} theme={theme}>Print / Save PDF</Button></div>
-                  <Card theme={'dark'} className="p-6"><SimpleChart data={trackers[0].data} target={trackers[0].target} theme={'dark'} /></Card>
-                  <Card theme={'dark'} className="p-6">
-                    <h4 className={`font-bold mb-4 flex items-center gap-2 uppercase tracking-wide text-sm ${styles.text}`}><Plus size={16}/> Log New Data</h4>
-                    <div className="flex gap-4 items-end">
-                      <div className="flex-1"><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Date</label><input type="date" className={`w-full p-2 rounded outline-none border ${styles.input}`} value={newDataPoint.date} onChange={(e) => setNewDataPoint({...newDataPoint, date: e.target.value})} /></div>
-                      <div className="flex-1"><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Score (%)</label><input type="number" className={`w-full p-2 rounded outline-none border ${styles.input}`} placeholder="0-100" value={newDataPoint.score} onChange={(e) => setNewDataPoint({...newDataPoint, score: e.target.value})} /></div>
-                      <Button onClick={addDataPoint} icon={Save} theme={'dark'}>Log</Button>
-                    </div>
-                  </Card>
-               </div>
-            )}
-            {subTab === 'services' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card theme={'dark'} className="p-6">
-                  <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><Calculator className="text-cyan-400" /> LRE Calculator</h3>
-                  <div className="space-y-4">
-                    <div><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Total Minutes</label><input type="number" className={`w-full p-2 rounded outline-none ${styles.input}`} value={serviceMinutes.totalSchoolMinutes} onChange={e => setServiceMinutes({...serviceMinutes, totalSchoolMinutes: Number(e.target.value)})} /></div>
-                    <div><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>SpEd Minutes</label><input type="number" className={`w-full p-2 rounded outline-none ${styles.input}`} value={serviceMinutes.specialEdMinutes} onChange={e => setServiceMinutes({...serviceMinutes, specialEdMinutes: Number(e.target.value)})} /></div>
-                    <Button onClick={calculateLRE} className="w-full mt-4" icon={Calculator} theme={'dark'}>Calculate</Button>
-                  </div>
-                </Card>
-                <Card theme={'dark'} className="p-6 flex flex-col justify-center items-center text-center">
-                  <h3 className={`text-lg font-bold mb-2 uppercase tracking-wide ${styles.text}`}>Time in Regular Class</h3>
-                  {lreResult ? <div className="animate-fade-in-up w-full"><div className={`text-6xl font-black mb-2 ${Number(lreResult) >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>{lreResult}%</div><p className={`text-sm font-bold uppercase tracking-widest mb-6 ${styles.textMuted}`}>{Number(lreResult) >= 80 ? "Inside Regular Class (80%+)" : "Resource Room (40-79%)"}</p></div> : <div className={`text-sm ${styles.textMuted}`}>Enter minutes.</div>}
-                </Card>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'discover' && (
-          <div className="animate-fade-in space-y-6">
             <Card theme={'dark'} className="p-6">
-                <div className="flex justify-between items-center mb-6"><h3 className={`text-lg font-bold flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><BookOpen className="text-emerald-400" /> Strategies & UDL Index</h3><div className="flex gap-2 items-center"><button onClick={handleRecommendStrategies} className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center gap-2 ${sdiFilter === 'recommended' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-none shadow-lg' : 'border-slate-700 text-slate-500 hover:text-white'}`}><Sparkles size={12} /> Recommended</button><div className="h-4 w-[1px] bg-slate-700 mx-1"></div>{['all', 'Instruction', 'Accommodations'].map(filter => (<button key={filter} onClick={() => setSdiFilter(filter)} className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors ${sdiFilter === filter ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'border-slate-700 text-slate-500 hover:text-white'}`}>{filter}</button>))}</div></div>
-                <div className="mb-4 flex justify-end">{savedStrategies.length > 0 && (<Button onClick={() => copyToClipboard(savedStrategies.map(s => `- ${s.title}: ${s.desc}`).join('\n'))} variant="copy" icon={Copy} className="w-auto px-6 py-2 text-sm">Copy Strategies</Button>)}</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{getFilteredSDI().map((item, idx) => (<div key={idx} className="p-4 rounded border transition-all relative group bg-slate-950 border-slate-800 hover:border-emerald-500/50"><div className="absolute top-4 right-4 flex gap-2 z-20"><button onClick={(e) => { e.stopPropagation(); handleToggleSaveStrategy(item); }} className={`p-1.5 rounded-full transition-all hover:bg-slate-800 ${savedStrategies.find(s => s.id === item.id) ? 'text-fuchsia-500 bg-fuchsia-500/10' : 'text-slate-500'}`}><Heart size={16} fill={savedStrategies.find(s => s.id === item.id) ? "currentColor" : "none"} /></button></div><div onClick={() => setSelectedStrategy(item)} className="cursor-pointer"><div className="flex justify-between items-start mb-3"><Badge color="green" theme={'dark'}>{item.category}</Badge></div><h4 className={`font-bold mb-2 text-lg ${styles.text}`}>{item.title}</h4><p className={`text-sm mb-4 line-clamp-2 ${styles.textMuted}`}>{item.desc}</p></div></div>))}</div>
+                <h3 className={`text-lg font-bold mb-4 uppercase ${styles.text}`}>SMART Goal Builder</h3>
+                <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" placeholder="Condition (Given...)" value={goalInputs.condition} onChange={e => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full p-3 rounded ${styles.input}`} />
+                        <input type="text" placeholder="Behavior (Will...)" value={goalInputs.behavior} onChange={e => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full p-3 rounded ${styles.input}`} />
+                        <input type="text" placeholder="Criteria (Accuracy...)" value={goalInputs.criteria} onChange={e => setGoalInputs({...goalInputs, criteria: e.target.value})} className={`w-full p-3 rounded ${styles.input}`} />
+                    </div>
+                    <Button onClick={handleGenerateGoal} className="w-full mt-4" icon={Target} theme={'dark'}>
+                        {isAnalyzing ? "Thinking..." : "Draft Goal with AI"}
+                    </Button>
+                    {generatedGoal && (
+                        <div className="p-4 rounded border mt-4 bg-slate-950 border-slate-800 text-slate-300">
+                            {generatedGoal}
+                        </div>
+                    )}
+                </div>
             </Card>
-          </div>
-        )}
-
-        {activeTab === 'threads' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="rounded-2xl p-8 border relative overflow-hidden bg-gradient-to-r from-violet-900/50 to-fuchsia-900/50 border-fuchsia-500/20">
-               <h2 className="text-4xl font-black mb-4 flex items-center gap-3 uppercase italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-fuchsia-400"><Sparkles className="text-fuchsia-400" size={36} /> Threads AI</h2>
-               <p className={`text-lg mb-8 max-w-2xl ${styles.textMuted}`}>The neural backbone of Prism Path. Analyze any IEP component for legal compliance and research alignment.</p>
-               <Button onClick={runAiAnalysis} disabled={isAnalyzing} variant="ai" className="px-8 py-4 text-base" theme={'dark'}>{isAnalyzing ? "Processing..." : user.isPremium ? "Initialize Analysis" : "Unlock Neural Capabilities"}</Button>
-            </div>
-            {aiAnalysis && (
-              <Card theme={'dark'} className="p-6 border-t-4 border-t-fuchsia-500">
-                <div className="flex justify-between mb-4"><h3 className={`text-xl font-bold ${styles.text}`}>Analysis Report</h3><div className="px-4 py-1 rounded font-mono font-bold bg-slate-800 text-cyan-400">SCORE: {aiAnalysis.score}</div></div>
-                <div className="space-y-2">{aiAnalysis.coherence.map((c, i) => (<div key={i} className={`flex gap-2 ${styles.text}`}><CheckCircle className="text-emerald-500" size={16}/> {c.msg}</div>))}</div>
-              </Card>
-            )}
-          </div>
         )}
       </main>
     </div>

@@ -583,9 +583,16 @@ const LoginScreen = ({ onLogin, onBack }) => {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
       <div className="max-w-md w-full bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8 relative z-10">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-700 shadow-[0_0_20px_rgba(34,211,238,0.2)]"><GraduationCap className="text-cyan-400" size={32} /></div>
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-cyan-300 uppercase tracking-widest mb-1">Prism Path</h1>
-          <p className="text-xs text-slate-500 font-mono">SECURE EDUCATOR TERMINAL</p>
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              <Sparkles className="text-cyan-400 transition-colors duration-300" size={40} />
+              <div className="absolute inset-0 bg-cyan-400 blur-xl opacity-50 transition-all duration-1000 motion-safe:animate-pulse" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-widest mb-2">
+            Prism<span className="text-cyan-400">Path</span>
+          </h1>
+          <p className="text-xs text-slate-500 font-mono uppercase">SECURE EDUCATOR TERMINAL</p>
         </div>
         
         <div className="p-8 space-y-4">
@@ -960,10 +967,15 @@ export default function TeacherDashboard({ onBack }) {
           
           {/* Logo & Nav (Left) */}
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveTab('home')}>
-              <div className={`p-2 rounded-lg text-white ${theme === 'dark' ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-[0_0_15px_rgba(6,182,212,0.5)]' : 'bg-indigo-600'}`}><Layout size={20} /></div>
+            <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setActiveTab('home')}>
+              <div className="relative">
+                <Sparkles className={`text-cyan-400 transition-colors duration-300 group-hover:text-fuchsia-400 ${theme === 'light' ? 'text-indigo-600 group-hover:text-indigo-700' : ''}`} size={26} />
+                <div className={`absolute inset-0 bg-cyan-400 blur-lg opacity-40 transition-all duration-1000 group-hover:bg-fuchsia-400 motion-safe:animate-pulse ${theme === 'light' ? 'hidden' : ''}`} />
+              </div>
               <div className="hidden lg:block">
-                <h1 className={`text-xl font-black tracking-widest uppercase ${styles.logoText}`}>Prism Path</h1>
+                <span className={`text-xl font-bold ${theme === 'dark' ? 'bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400' : 'text-slate-800'}`}>
+                  Prism<span className={theme === 'dark' ? 'text-cyan-400' : 'text-indigo-600'}>Path</span>
+                </span>
               </div>
             </div>
 

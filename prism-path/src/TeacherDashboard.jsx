@@ -7,992 +7,549 @@ import {
   Grid, Building, Users, Search, List, Library, Compass, Sun, 
   Moon, School, Files, ArrowUpRight, X, ListOrdered, ChevronDown, 
   User, Wand2, Printer, Copy, Heart, Calendar, Clock, Calculator, 
-  Mail, MessageSquare, Edit2, FileDown, Upload
+  Mail, MessageSquare, Edit2, FileDown, Upload, LockKeyhole
 } from 'lucide-react';
 
-// --- Configuration ---
-// API Key is handled via /api/generate in the backend
+// --- CONFIGURATION ---
+// API calls are routed to your existing /api/generate backend
 
-// --- Security & Utility Services ---
-
+// --- SECURITY SERVICE (FERPA) ---
 const SecurityService = {
-  generatePseudonym: (realName) => {
-    const hash = realName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return `STU-${1000 + (hash % 9000)}`;
+  // Anonymizes student data before sending to AI
+  anonymize: (text, studentName) => {
+    if (!text) return "";
+    const nameRegex = new RegExp(studentName, 'gi');
+    return text.replace(nameRegex, "[STUDENT]");
   },
-  anonymizePayload: (studentData) => {
-    const { name, ...rest } = studentData;
-    return {
-      student_id: SecurityService.generatePseudonym(name),
-      ...rest,
-      narrative_safe: rest.impact.replace(new RegExp(name, 'gi'), '[STUDENT]')
-    };
-  },
-  encryptData: async (data) => {
-    console.log("🔒 Encrypting data chunk with AES-256...");
-    return btoa(JSON.stringify(data)); 
-  },
-  decodeJwt: (token) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      return JSON.parse(jsonPayload);
-    } catch (e) {
-      console.error("Failed to decode JWT", e);
-      return null;
-    }
+  // Re-inserts name after AI processing
+  deanonymize: (text, studentName) => {
+    if (!text) return "";
+    return text.replace(/\[STUDENT\]/g, studentName);
   }
 };
 
-// --- Mock Data ---
-
+// --- MOCK DATABASE ---
 const INITIAL_STUDENTS = [
   { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", strength: "Visual Memory", nextIep: "2024-11-15", nextReeval: "2025-03-10" },
   { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", strength: "Verbal Reasoning", nextIep: "2024-05-20", nextReeval: "2026-09-01" },
   { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", strength: "Creativity", nextIep: "2024-02-28", nextReeval: "2024-04-15" }
 ];
 
-// Expanded to allow custom additions
-const BASE_ASSESSMENT_LIBRARY = [
-  { name: 'DIBELS 8th Edition', type: 'Reading Fluency', grades: 'K-8', desc: 'Measures phonemic awareness, phonics, and fluency.' },
-  { name: 'WIAT-4', type: 'Achievement', grades: 'PK-12', desc: 'Comprehensive academic achievement test.' },
-  { name: 'KeyMath-3', type: 'Math', grades: 'K-12', desc: 'Diagnostic assessment of essential mathematical concepts and skills.' },
-  { name: 'BASC-3', type: 'Behavior', grades: 'PK-12', desc: 'Behavior assessment system for children (Teacher/Parent rating scales).' },
-  { name: 'Woodcock-Johnson IV', type: 'Cognitive/Achievement', grades: 'PK-Adult', desc: 'Identifies learning disabilities and academic strengths.' },
-  { name: 'CELF-5', type: 'Speech/Language', grades: '5-21', desc: 'Clinical evaluation of language fundamentals.' }
+const BASE_ASSESSMENTS = [
+  { name: 'DIBELS 8th', type: 'Reading', desc: 'Fluency & Phonemic Awareness' },
+  { name: 'WIAT-4', type: 'Achievement', desc: 'Broad academic achievement' },
+  { name: 'KeyMath-3', type: 'Math', desc: 'Diagnostic math concepts' },
+  { name: 'BASC-3', type: 'Behavior', desc: 'Behavioral rating scales' }
 ];
 
 const IMPACT_TEMPLATES = [
-  { label: "Reading Decoding", text: "The student's deficit in decoding fluency hinders their ability to comprehend grade-level texts in Science and Social Studies, requiring extended time and audio supports." },
-  { label: "Math Calculation", text: "Difficulty with basic calculation automaticity affects the student's ability to solve multi-step application problems, slowing progress in the general math curriculum." },
-  { label: "Executive Function", text: "Deficits in organization and task-initiation result in missing assignments and difficulty completing long-term projects without adult scaffolding." }
+  { label: "Reading", text: "Deficits in decoding fluency hinder comprehension of grade-level texts in Science and Social Studies, requiring extended time and audio supports." },
+  { label: "Math", text: "Difficulty with calculation automaticity affects ability to solve multi-step problems, slowing progress in the general curriculum." },
+  { label: "Executive Function", text: "Deficits in task-initiation result in missing assignments and difficulty completing long-term projects without scaffolding." }
 ];
 
 const SDI_RESOURCES = [
-  { 
-    id: 'sdi-1',
-    category: 'Instruction', 
-    title: 'Direct Instruction', 
-    desc: 'Explicitly teaching skills using a systematic "I do, We do, You do" approach.', 
-    tips: 'Ensure the "I Do" phase includes thinking aloud to model cognitive processes.', 
-    evidence: 'High Impact (Hattie d=0.60)', 
-    udl: 'Representation',
-    tags: ['Reading', 'Math', 'Writing'],
-    steps: [
-      "1. Review: Briefly recap previous learning or prerequisite skills.",
-      "2. Presentation (I Do): Explicitly model the skill. Think aloud to show your reasoning.",
-      "3. Guided Practice (We Do): Practice together with the class. Provide immediate corrective feedback.",
-      "4. Independent Practice (You Do): Student practices alone while you monitor.",
-      "5. Periodic Review: Revisit the skill weekly to ensure retention."
-    ]
-  },
-  { 
-    id: 'sdi-2',
-    category: 'Accommodations', 
-    title: 'Graphic Organizers', 
-    desc: 'Visual displays that demonstrate relationships between facts, concepts or ideas.', 
-    tips: 'Pre-fill parts of the organizer for students with processing speed deficits.', 
-    evidence: 'Moderate Impact (Hattie d=0.40)', 
-    udl: 'Action & Expression',
-    tags: ['Reading', 'Writing', 'Executive Function'],
-    steps: [
-      "1. Select: Choose an organizer that matches the text structure (e.g., Venn Diagram for comparison).",
-      "2. Model: Show students how to extract information from text and place it in the organizer.",
-      "3. Guide: Fill out the first few sections together.",
-      "4. Fade: Provide partially filled organizers, gradually removing support until students can complete it blank."
-    ]
-  },
-  { 
-    id: 'sdi-3',
-    category: 'Modifications', 
-    title: 'Modified Grading', 
-    desc: 'Changing the standard grading criteria to account for disability (e.g., grading on progress vs. standard).', 
-    tips: 'Ensure this is documented clearly in the IEP to avoid transcript issues.', 
-    evidence: 'Equity / Compliance', 
-    udl: 'Engagement',
-    tags: ['All'],
-    steps: [
-      "1. Define the essential standards the student MUST meet.",
-      "2. Determine if the student is being graded on 'effort', 'progress', or 'modified standards'.",
-      "3. Create a rubric specifically for that student.",
-      "4. Note 'Modified Curriculum' on report cards if required by district policy."
-    ]
-  },
-  {
-    id: 'sdi-4',
-    category: 'Behavior',
-    title: 'Check-In/Check-Out',
-    desc: 'A daily cycle of feedback and encouragement to self-monitor behavior.',
-    tips: 'Pick a facilitator the student likes.',
-    evidence: 'High Impact (Behavior)',
-    udl: 'Engagement',
-    tags: ['Behavior', 'Emotional Regulation'],
-    steps: [
-      "1. Morning Check-In: Student picks up daily point card, reviews goals with adult.",
-      "2. Class Feedback: Teachers provide quick feedback/points after each period.",
-      "3. Afternoon Check-Out: Review total points, calculate percentage, give reward if earned.",
-      "4. Home: Data goes home for parent signature."
-    ]
-  }
+  { id: 'sdi-1', category: 'Instruction', title: 'Direct Instruction', desc: 'Explicit teaching using "I do, We do, You do".', udl: 'Representation', steps: ["Review prereqs", "Model (I Do)", "Guided (We Do)", "Independent (You Do)"], tips: "Think aloud during modeling." },
+  { id: 'sdi-2', category: 'Accommodations', title: 'Graphic Organizers', desc: 'Visual maps for concepts.', udl: 'Action', steps: ["Select organizer", "Model use", "Partial fill", "Independent use"], tips: "Color code sections." },
+  { id: 'sdi-3', category: 'Modifications', title: 'Modified Grading', desc: 'Grading on IEP goals vs standard.', udl: 'Engagement', steps: ["Define essential standards", "Create rubric", "Adjust gradebook"], tips: "Document in IEP." },
+  { id: 'sdi-4', category: 'Behavior', title: 'Check-In/Check-Out', desc: 'Daily feedback cycle.', udl: 'Engagement', steps: ["Morning Goal Set", "Teacher Feedback", "End of Day Review"], tips: "Use preferred adult." }
 ];
 
-// --- Theme Management ---
-
+// --- THEME ENGINE ---
 const getThemeClasses = (theme) => {
-  // Forced Dark Mode to match PrismPath aesthetic
-  return {
-    bg: "bg-slate-950",
-    text: "text-slate-200",
-    textMuted: "text-slate-500",
-    card: "bg-slate-900/60 backdrop-blur-md border border-slate-700/50 shadow-lg",
-    header: "bg-slate-900/80 backdrop-blur-md border-b border-slate-800",
-    input: "bg-slate-900 border-slate-700 text-slate-200 focus:ring-cyan-500 focus:border-cyan-500",
-    navActive: "bg-slate-800 text-cyan-400 font-bold shadow-sm border border-slate-700",
-    navInactive: "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50",
-    logoText: "text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400",
-    chartGrid: "#334155",
-    chartLine: "#22d3ee",
-  };
+  if (theme === 'light') {
+    return {
+      bg: "bg-slate-50", text: "text-slate-800", textMuted: "text-slate-500",
+      card: "bg-white border border-slate-200 shadow-sm",
+      header: "bg-white border-b border-slate-200",
+      input: "bg-white border-slate-300 text-slate-800 focus:ring-indigo-500",
+      navActive: "bg-indigo-50 text-indigo-700 font-bold ring-1 ring-indigo-200",
+      navInactive: "text-slate-600 hover:bg-slate-100",
+      chartGrid: "#e2e8f0", chartLine: "#4f46e5"
+    };
+  } else {
+    // PrismPath Retrowave
+    return {
+      bg: "bg-slate-950", text: "text-slate-200", textMuted: "text-slate-500",
+      card: "bg-slate-900/60 backdrop-blur-md border border-slate-700/50 shadow-lg",
+      header: "bg-slate-900/80 backdrop-blur-md border-b border-slate-800",
+      input: "bg-slate-900 border-slate-700 text-slate-200 focus:ring-cyan-500 focus:border-cyan-500",
+      navActive: "bg-slate-800 text-cyan-400 font-bold shadow-sm border border-slate-700",
+      navInactive: "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50",
+      chartGrid: "#334155", chartLine: "#22d3ee"
+    };
+  }
 };
 
-// --- Components ---
+// --- REUSABLE COMPONENTS ---
 
-const Card = ({ children, className = "", theme = 'dark', onClick }) => {
+const Card = ({ children, className = "", theme, onClick }) => {
   const styles = getThemeClasses(theme);
   return (
     <div onClick={onClick} className={`rounded-xl overflow-hidden relative ${styles.card} ${className} ${onClick ? 'cursor-pointer hover:scale-[1.01] transition-transform' : ''}`}>
-      {theme === 'dark' && (
-        <div className="absolute -top-10 -left-10 w-20 h-20 bg-fuchsia-500/10 rounded-full blur-xl pointer-events-none"></div>
-      )}
+      {theme === 'dark' && <div className="absolute -top-10 -left-10 w-20 h-20 bg-fuchsia-500/10 rounded-full blur-xl pointer-events-none"></div>}
       <div className="relative z-10">{children}</div>
     </div>
   );
 };
 
-const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme = 'dark' }) => {
-  const baseStyle = "px-4 py-2 rounded-lg font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed uppercase text-sm";
-  
+const Button = ({ children, onClick, variant = "primary", icon: Icon, disabled, theme }) => {
+  const base = "px-4 py-2 rounded-lg font-bold tracking-wide transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50";
   const variants = {
-    primary: "bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg border border-fuchsia-500/30 hover:scale-[1.02]",
-    secondary: "bg-transparent text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/10 hover:border-cyan-400 hover:shadow-[0_0_10px_rgba(34,211,238,0.3)]",
-    danger: "bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40",
-    ghost: "bg-transparent text-slate-400 hover:text-white hover:bg-white/5",
-    ai: "bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 text-white animate-pulse-slow border-none",
-    premium: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md hover:brightness-110",
-    district: "bg-slate-800 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/20 shadow-[0_0_10px_rgba(34,211,238,0.1)]",
-    copy: "w-full py-4 text-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-md flex items-center justify-center gap-3 font-black tracking-widest border border-emerald-500/50"
+    primary: theme === 'dark' ? "bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg border border-fuchsia-500/30 hover:scale-[1.02]" : "bg-indigo-600 text-white hover:bg-indigo-700",
+    secondary: theme === 'dark' ? "bg-transparent text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/10" : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50",
+    ai: "bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 text-white animate-pulse-slow border-none shadow-[0_0_15px_rgba(6,182,212,0.5)]",
+    ghost: "bg-transparent hover:bg-slate-500/10 text-slate-500 hover:text-current",
+    premium: "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md"
   };
-  
-  return (
-    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}>
-      {Icon && <Icon size={18} />}
-      {children}
-    </button>
-  );
+  return <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]}`}>{Icon && <Icon size={16}/>}{children}</button>;
 };
 
-const Badge = ({ children, color = "blue", theme = 'dark' }) => {
+const Badge = ({ children, color = "blue", theme }) => {
+  const isDark = theme === 'dark';
   const colors = {
-    green: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-    purple: "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30",
-    blue: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-    amber: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-    indigo: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
+    green: isDark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-emerald-100 text-emerald-700 border-emerald-200",
+    purple: isDark ? "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30" : "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+    blue: isDark ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" : "bg-blue-100 text-blue-700 border-blue-200",
+    amber: "bg-amber-500/10 text-amber-400 border-amber-500/30"
   };
-  return (
-    <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-fit ${colors[color] || colors.blue}`}>{children}</span>
-  );
+  return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${colors[color]}`}>{children}</span>;
 };
 
-const CustomSelect = ({ options, value, onChange, theme, icon: Icon, label }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const selectedLabel = options.find(o => o.value === value)?.label || value;
-
-  return (
-    <div className="relative w-full" ref={dropdownRef}>
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center w-full px-3 py-2 rounded-lg border cursor-pointer transition-colors bg-slate-900 border-slate-700 hover:border-cyan-500`}
-      >
-        {Icon && <Icon size={16} className="mr-2 text-cyan-400" />}
-        <span className="flex-1 font-bold text-sm truncate text-slate-200">
-          {label ? `${label}: ${selectedLabel}` : selectedLabel}
-        </span>
-        <ChevronDown size={14} className="text-slate-500" />
-      </div>
-      
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-xl z-50 max-h-60 overflow-y-auto bg-slate-900 border-slate-700">
-          {options.map((option) => (
-            <div
-              key={option.value}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              className={`px-4 py-2 text-sm cursor-pointer transition-colors text-slate-300 hover:bg-slate-800 hover:text-cyan-400 ${value === option.value ? 'font-bold' : ''}`}
-            >
-              {option.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const Toast = ({ message }) => {
-  if (!message) return null;
-  return (
-    <div className="fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-xl z-50 animate-fade-in-up flex items-center gap-2 bg-slate-800 text-cyan-400 border border-cyan-500/30">
-      <CheckCircle size={18} className="text-fuchsia-400" />
-      <span className="font-bold text-sm">{message}</span>
-    </div>
-  );
-};
-
-// --- Simple Chart Component ---
-const SimpleChart = ({ data, target, theme = 'dark' }) => {
+const SimpleChart = ({ data, target, theme }) => {
+  if (!data || data.length === 0) return <div className="h-48 flex items-center justify-center border border-dashed rounded text-xs opacity-50">No Data Recorded</div>;
   const styles = getThemeClasses(theme);
-  if (!data || data.length === 0) return <div className={`h-64 flex items-center justify-center rounded-lg border border-dashed font-mono text-sm bg-slate-900/50 border-slate-700 text-slate-500`}>[NO_DATA_DETECTED]</div>;
-  
-  const height = 300; const width = 600; const padding = 40; const maxScore = 100;
-  const getX = (index) => padding + (index * ((width - (padding * 2)) / (data.length - 1 || 1)));
-  const getY = (value) => height - (padding + (value / maxScore) * (height - (padding * 2)));
+  const h=200, w=500, p=20;
+  const getX = (i) => p + (i * ((w - p*2) / (data.length - 1 || 1)));
+  const getY = (v) => h - (p + (v/100) * (h - p*2));
   const points = data.map((d, i) => `${getX(i)},${getY(d.score)}`).join(' ');
-  const targetY = getY(target);
   
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className={`w-full h-auto rounded-lg border bg-slate-900/50 border-slate-800`}>
-        <defs><linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee"/><stop offset="100%" stopColor="#e879f9"/></linearGradient></defs>
-        {[0, 25, 50, 75, 100].map(val => (<g key={val}><line x1={padding} y1={getY(val)} x2={width - padding} y2={getY(val)} stroke={styles.chartGrid} strokeWidth="1"/><text x={padding - 10} y={getY(val) + 4} fontSize="10" textAnchor="end" fill="#64748b" fontFamily="monospace">{val}%</text></g>))}
-        {target && (<g><line x1={padding} y1={targetY} x2={width - padding} y2={targetY} stroke="#10b981" strokeWidth="1" strokeDasharray="4,4" opacity="0.6"/><text x={width - padding + 5} y={targetY + 4} fontSize="10" fill="#10b981" fontWeight="bold" fontFamily="monospace">GOAL:{target}</text></g>)}
-        <polyline points={points} fill="none" stroke="url(#lineGradient)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {data.map((d, i) => (
-          <g key={i} className="group cursor-pointer">
-            <circle cx={getX(i)} cy={getY(d.score)} r="4" fill="#0f172a" stroke={styles.chartLine} strokeWidth="2" className="transition-all duration-200 group-hover:r-6"/>
-            <rect x={getX(i) - 35} y={getY(d.score) - 45} width="70" height="30" rx="4" fill="#1e293b" stroke="#334155" className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"/>
-            <text x={getX(i)} y={getY(d.score) - 26} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontFamily="monospace" className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">{d.date}: {d.score}%</text>
-          </g>
-        ))}
+    <div className="w-full overflow-hidden">
+      <svg viewBox={`0 0 ${w} ${h}`} className={`w-full h-auto rounded border ${theme==='dark'?'bg-slate-900/50 border-slate-800':'bg-white border-slate-200'}`}>
+        {[0,25,50,75,100].map(v => <line key={v} x1={p} y1={getY(v)} x2={w-p} y2={getY(v)} stroke={styles.chartGrid} strokeWidth="1" />)}
+        {target && <line x1={p} y1={getY(target)} x2={w-p} y2={getY(target)} stroke="#10b981" strokeWidth="2" strokeDasharray="4"/>}
+        <polyline points={points} fill="none" stroke={styles.chartLine} strokeWidth="3" />
+        {data.map((d, i) => <circle key={i} cx={getX(i)} cy={getY(d.score)} r="4" fill={styles.chartLine} />)}
       </svg>
     </div>
   );
 };
 
-const PaywallModal = ({ onClose, onUpgrade, onDistrictCode, theme = 'dark' }) => {
-  const [view, setView] = useState('individual');
-  const [districtCode, setDistrictCode] = useState('');
-  const [error, setError] = useState('');
-  const handleCodeSubmit = () => { if (districtCode.toUpperCase() === 'PRISM2025') { onDistrictCode(); } else { setError('Invalid District Access Code'); } };
-  
-  const bgClass = theme === 'dark' ? 'bg-slate-900 border-fuchsia-500/30 text-white' : 'bg-white border-slate-200 text-slate-800';
-  const sidebarClass = theme === 'dark' ? 'bg-slate-950 border-r border-slate-800' : 'bg-slate-50 border-r border-slate-200';
-  
-  return (
-    <div className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 bg-slate-950/80`}>
-      <div className={`${bgClass} border rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden relative flex flex-col md:flex-row h-[500px]`}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-current transition-colors z-20">✕</button>
-        <div className={`w-full md:w-1/3 ${sidebarClass} p-6 flex flex-col gap-2`}>
-          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">Select Plan Type</h3>
-          <button onClick={() => setView('individual')} className={`p-4 rounded-xl border text-left transition-all ${view === 'individual' ? 'bg-fuchsia-900/20 border-fuchsia-500/50' : 'border-transparent'}`}>
-             <p className={`font-bold text-sm ${view === 'individual' ? 'text-white' : 'text-slate-500'}`}>Individual</p>
-          </button>
-          <button onClick={() => setView('district')} className={`p-4 rounded-xl border text-left transition-all ${view === 'district' ? 'bg-cyan-900/20 border-cyan-500/50' : 'border-transparent'}`}>
-            <p className={`font-bold text-sm ${view === 'district' ? 'text-white' : 'text-slate-500'}`}>District</p>
-          </button>
-        </div>
-        <div className="flex-1 p-8 relative overflow-y-auto">
-           <h2 className="text-2xl font-black mb-4">{view === 'individual' ? 'Prism Pro' : 'District Access'}</h2>
-           {view === 'district' && (
-              <div className={`p-4 rounded-xl border mb-6 bg-slate-950 border-slate-800`}>
-                <div className="flex gap-2">
-                  <input type="text" placeholder="ENTER CODE" className="flex-1 p-2 rounded text-sm outline-none border bg-slate-900 border-slate-700 text-white" value={districtCode} onChange={(e) => setDistrictCode(e.target.value)} />
-                  <button onClick={handleCodeSubmit} className="bg-cyan-600 text-white px-4 rounded text-xs font-bold">Unlock</button>
-                </div>
-                {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
-              </div>
-           )}
-           <Button onClick={onUpgrade} variant="premium" className="w-full mt-auto" theme={theme}>Start Trial</Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const StrategyDetailModal = ({ strategy, onClose, theme = 'dark' }) => {
-  if (!strategy) return null;
-  return (
-    <div className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 bg-slate-950/80`}>
-      <div className="bg-slate-900 border-emerald-500/30 text-white border rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden relative flex flex-col max-h-[80vh] animate-fade-in-up">
-        <div className="p-6 border-b flex justify-between items-start border-slate-800">
-          <div>
-            <Badge color="green" theme={theme} className="mb-2">{strategy.category}</Badge>
-            <h2 className="text-2xl font-black uppercase tracking-wide">{strategy.title}</h2>
-            <p className="text-sm mt-1 text-emerald-400">UDL Focus: {strategy.udl}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-black/10 rounded-full transition-colors"><X size={20} /></button>
-        </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-widest opacity-70 flex items-center gap-2"><BookOpen size={14}/> Definition</h4>
-            <p className="text-sm leading-relaxed">{strategy.desc}</p>
-          </div>
-          <div className="p-4 rounded-lg border bg-slate-950 border-slate-800">
-            <h4 className="text-xs font-bold uppercase tracking-widest opacity-70 flex items-center gap-2 mb-3"><ListOrdered size={14}/> Implementation Steps</h4>
-            <div className="space-y-3">
-              {strategy.steps && strategy.steps.map((step, idx) => (
-                <div key={idx} className="text-sm flex gap-3">
-                  <span className="font-mono font-bold text-emerald-500">{(idx + 1).toString().padStart(2, '0')}</span>
-                  <span>{step.replace(/^\d+\.\s*/, '')}</span> 
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-             <div className="p-3 rounded border bg-amber-900/10 border-amber-500/20">
-                <h5 className="text-xs font-bold uppercase mb-1 text-amber-400">Pro Tip</h5>
-                <p className="text-xs opacity-80">{strategy.tips}</p>
-             </div>
-             <div className="p-3 rounded border bg-blue-900/10 border-blue-500/20">
-                <h5 className="text-xs font-bold uppercase mb-1 text-blue-400">Evidence Base</h5>
-                <p className="text-xs opacity-80">{strategy.evidence}</p>
-             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+// --- MODALS ---
 
 const SummaryModal = ({ student, plaafp, goal, strategies, parentInput, lre, trackers, onClose, theme }) => {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/90 backdrop-blur-sm flex justify-center py-8">
-      <div className="w-full max-w-4xl bg-slate-900 text-white rounded-xl shadow-2xl p-8 relative min-h-[80vh]">
+    <div className={`fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm flex justify-center py-8 ${theme==='dark'?'bg-slate-950/90':'bg-slate-500/50'}`}>
+      <div className={`w-full max-w-4xl rounded-xl shadow-2xl p-8 relative min-h-[80vh] ${theme==='dark'?'bg-slate-900 text-white':'bg-white text-slate-900'}`}>
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-black/10 rounded-full print:hidden"><X/></button>
-        <div className="text-center border-b border-slate-200/20 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tight mb-2">IEP Summary Draft</h1>
-          <p className="text-sm opacity-60 font-mono">CONFIDENTIAL: Generated by Prism Path | {new Date().toLocaleDateString()}</p>
+        <div className="text-center border-b border-slate-500/20 pb-6 mb-8">
+          <h1 className="text-3xl font-black uppercase">IEP Draft Document</h1>
+          <p className="text-sm opacity-60 font-mono">CONFIDENTIAL | Generated by PrismPath</p>
         </div>
-
         <div className="space-y-8">
-          {/* I. Profile */}
+          <section className="grid grid-cols-4 gap-4 p-4 rounded bg-slate-500/10">
+            <div><span className="text-[10px] opacity-70 block font-bold">STUDENT</span>{student.name}</div>
+            <div><span className="text-[10px] opacity-70 block font-bold">GRADE</span>{student.grade}</div>
+            <div><span className="text-[10px] opacity-70 block font-bold">PRIMARY NEED</span>{student.need}</div>
+            <div><span className="text-[10px] opacity-70 block font-bold">NEXT IEP</span>{student.nextIep}</div>
+          </section>
+          <section className="grid grid-cols-2 gap-6">
+            <div><h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">II. Present Levels (PLAAFP)</h3><div className="p-4 border rounded border-slate-500/20 text-sm leading-relaxed">{plaafp || "Not drafted."}</div></div>
+            <div><h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">III. Parent Input</h3><div className="p-4 border rounded border-slate-500/20 text-sm leading-relaxed">{parentInput || "None recorded."}</div></div>
+          </section>
           <section>
-            <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">I. Student Profile</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded bg-slate-500/5">
-              <div><span className="font-bold block text-[10px] opacity-70 uppercase">Name</span> <span className="text-lg font-bold">{student.name}</span></div>
-              <div><span className="font-bold block text-[10px] opacity-70 uppercase">Grade</span> <span className="text-lg">{student.grade}</span></div>
-              <div><span className="font-bold block text-[10px] opacity-70 uppercase">Primary Need</span> <span className="text-lg">{student.need}</span></div>
-              <div><span className="font-bold block text-[10px] opacity-70 uppercase">Next IEP</span> <span className="text-lg font-mono">{student.nextIep}</span></div>
-            </div>
+            <h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">IV. Measurable Goal</h3>
+            <div className="p-4 border rounded border-slate-500/20 font-medium flex gap-3"><Target size={18} className="mt-1 opacity-50"/> {goal || "No goal drafted."}</div>
           </section>
-
-          {/* II. PLAAFP & Parent Input */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">II. Present Levels (PLAAFP)</h2>
-              <div className="p-4 rounded-lg border border-slate-800 h-full">
-                <p className="leading-relaxed font-serif text-sm">{plaafp || "No PLAAFP generated."}</p>
-              </div>
-            </div>
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">III. Parent Input</h2>
-              <div className="p-4 rounded-lg border border-slate-800 h-full">
-                <p className="leading-relaxed font-serif text-sm">{parentInput || "No parent input recorded."}</p>
-              </div>
-            </div>
+          <section className="grid grid-cols-2 gap-6">
+             <div><h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">V. LRE & Services</h3><div className="p-4 border rounded border-slate-500/20"><div className="text-3xl font-black">{lre.percentage}%</div><div className="text-xs opacity-70">Inside Regular Class</div></div></div>
+             <div><h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">VI. Accommodations</h3><ul className="p-4 border rounded border-slate-500/20 text-sm list-disc pl-5">{strategies.map(s => <li key={s.id}>{s.title}</li>)}</ul></div>
           </section>
-
-          {/* IV. Goals */}
           <section>
-            <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">IV. Measurable Goals</h2>
-            <div className="p-4 rounded-lg border border-slate-800">
-              <div className="flex items-start gap-4">
-                <Target className="mt-1 opacity-50" size={20}/>
-                <p className="leading-relaxed font-serif font-medium">{goal || "No goal generated."}</p>
-              </div>
-            </div>
-          </section>
-
-          {/* V. Services & Data */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">V. Services & LRE</h2>
-                <div className="p-4 rounded-lg border border-slate-800">
-                   <div className="flex justify-between mb-2">
-                      <span className="text-sm">Special Ed Minutes:</span>
-                      <span className="font-mono font-bold">{lre?.specialEdMinutes || 0} / week</span>
-                   </div>
-                   <div className="flex justify-between mb-2">
-                      <span className="text-sm">Total School Minutes:</span>
-                      <span className="font-mono font-bold">{lre?.totalSchoolMinutes || 0} / week</span>
-                   </div>
-                   <div className="mt-4 pt-4 border-t border-slate-500/20">
-                      <span className="block text-xs uppercase font-bold opacity-70 mb-1">Calculated LRE Percentage</span>
-                      <span className="text-2xl font-black">{lre?.percentage ? `${lre.percentage}%` : "N/A"}</span>
-                   </div>
-                </div>
+             <h3 className="text-sm font-bold uppercase border-b border-slate-500/20 pb-2 mb-2">VII. Progress Data</h3>
+             <div className="p-4 border rounded border-slate-500/20">
+                <table className="w-full text-sm text-left"><thead><tr><th>Date</th><th>Score</th></tr></thead><tbody>{trackers[0].data.map((d,i)=><tr key={i}><td className="py-1">{d.date}</td><td>{d.score}%</td></tr>)}</tbody></table>
              </div>
-             <div>
-                <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">VI. Progress Data Summary</h2>
-                <div className="p-4 rounded-lg border border-slate-800">
-                   <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left opacity-50 border-b border-slate-500/20">
-                          <th className="pb-2">Date</th>
-                          <th className="pb-2 text-right">Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {trackers[0].data.slice(-5).map((d, i) => (
-                          <tr key={i}>
-                            <td className="py-2 font-mono">{d.date}</td>
-                            <td className="py-2 text-right font-bold">{d.score}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                   </table>
-                </div>
-             </div>
-          </section>
-
-          {/* VII. Accommodations */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-widest opacity-50 mb-3 border-b border-slate-500/20 pb-1">VII. Strategies & Accommodations</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {strategies.length > 0 ? strategies.map(s => (
-                <div key={s.id} className="p-3 rounded border flex justify-between items-center border-slate-800">
-                  <span className="font-bold text-sm">{s.title}</span>
-                  <span className="text-[10px] opacity-70 uppercase border border-slate-500/30 px-2 py-0.5 rounded">{s.category}</span>
-                </div>
-              )) : <p className="text-sm opacity-50 italic">No strategies saved to plan.</p>}
-            </div>
           </section>
         </div>
-
-        <div className="mt-12 pt-6 border-t border-slate-200/20 flex justify-end gap-4 print:hidden">
-          <Button onClick={onClose} variant="ghost" theme={theme}>Close</Button>
-          <Button onClick={() => window.print()} variant="primary" icon={Printer} theme={theme}>Print / Save PDF</Button>
+        <div className="mt-12 flex justify-end gap-4 print:hidden">
+          <Button onClick={() => window.print()} icon={Printer} theme={theme}>Print / Save PDF</Button>
         </div>
       </div>
     </div>
   );
 };
 
-const LoginScreen = ({ onLogin, onBack }) => {
-  const [role, setRole] = useState('Special Education Teacher');
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
-      <div className="max-w-md w-full bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8 relative z-10">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="relative">
-              <Sparkles className="text-cyan-400 transition-colors duration-300" size={40} />
-              <div className="absolute inset-0 bg-cyan-400 blur-xl opacity-50 transition-all duration-1000 motion-safe:animate-pulse" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-widest mb-2">
-            Prism<span className="text-cyan-400">Path</span>
-          </h1>
-          <p className="text-xs text-slate-500 font-mono uppercase">SECURE EDUCATOR TERMINAL</p>
-        </div>
-        
-        <div className="p-8 space-y-4">
-          <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-cyan-400 uppercase mb-1">District</label>
-                <input type="text" className="w-full p-2 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:border-cyan-500 outline-none focus:ring-0" placeholder="e.g. Fayette County" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-cyan-400 uppercase mb-1">School</label>
-                <input type="text" className="w-full p-2 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:border-cyan-500 outline-none focus:ring-0" placeholder="e.g. Lincoln Elementary" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-fuchsia-400 uppercase mb-1">Subject</label>
-                  <input type="text" className="w-full p-2 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:border-fuchsia-500 outline-none focus:ring-0" placeholder="e.g. Math" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-fuchsia-400 uppercase mb-1">Grade</label>
-                  <input type="text" className="w-full p-2 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:border-fuchsia-500 outline-none focus:ring-0" placeholder="e.g. 3rd" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-emerald-400 uppercase mb-1">Role</label>
-                <div className="relative">
-                  <select 
-                    className="w-full p-2 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:border-emerald-500 outline-none appearance-none focus:ring-0"
-                    value={role}
-                    onChange={e => setRole(e.target.value)}
-                  >
-                    <option className="bg-slate-900 text-slate-200">Special Education Teacher</option>
-                    <option className="bg-slate-900 text-slate-200">General Education Teacher</option>
-                    <option className="bg-slate-900 text-slate-200">Administrator</option>
-                    <option className="bg-slate-900 text-slate-200">Related Service Provider</option>
-                    <option className="bg-slate-900 text-slate-200">Other Educator</option>
-                  </select>
-                  <ChevronDown size={14} className="text-slate-500 pointer-events-none absolute right-3 top-3" />
-                </div>
-              </div>
-          </div>
+// --- MAIN DASHBOARD ---
 
-          <div className="pt-4 border-t border-slate-800">
-              <p className="text-[10px] text-slate-500 text-center mb-3">DEV BYPASS (Requires Fields Above)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => onLogin({ name: "Teacher", role, isPremium: false })} className="text-[10px] text-slate-400 py-3 border border-slate-700 rounded hover:bg-slate-800 uppercase tracking-wider">Free Tier</button>
-                <button onClick={() => onLogin({ name: "Pro Teacher", role, isPremium: true })} className="text-[10px] text-amber-500 py-3 border border-amber-900/30 bg-amber-900/10 rounded hover:bg-amber-900/20 uppercase tracking-wider font-bold">Pro Tier</button>
-              </div>
-          </div>
-        </div>
-        
-        <div className="px-8 pb-8">
-          <button onClick={onBack} className="w-full py-2 text-slate-500 text-xs hover:text-white transition-colors">← Back to Main Site</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- MAIN COMPONENT ---
 export default function TeacherDashboard({ onBack }) {
   const [user, setUser] = useState(null);
   const [theme, setTheme] = useState('dark');
   const [activeTab, setActiveTab] = useState('home');
   const [subTab, setSubTab] = useState('');
+  
+  // Student & Data State
   const [currentStudentId, setCurrentStudentId] = useState(1);
   const activeStudent = INITIAL_STUDENTS.find(s => s.id === currentStudentId) || INITIAL_STUDENTS[0];
-  
-  // Assessment & Data State
-  const [plaafp, setPlaafp] = useState({ name: activeStudent.name, strength: activeStudent.strength, need: activeStudent.need, data: '', impact: '' });
-  const [generatedPlaafp, setGeneratedPlaafp] = useState('');
-  
-  // --- CUSTOM DATA UPLOAD STATE ---
   const [assessments, setAssessments] = useState(BASE_ASSESSMENTS);
-  const [newAssessment, setNewAssessment] = useState({ name: '', type: 'Custom', desc: '' });
-
-  // Goal State
-  const [goalInputs, setGoalInputs] = useState({ student: activeStudent.name, timeframe: 'By end of year', condition: 'given a text', behavior: 'will answer', criteria: '80%', measurement: 'probes' });
+  const [customData, setCustomData] = useState({ name: '', result: '' });
+  
+  // Work State
+  const [plaafp, setPlaafp] = useState({ name: activeStudent.name, strength: activeStudent.strength, need: activeStudent.need, data: '', impact: '' });
+  const [goalInputs, setGoalInputs] = useState({ student: activeStudent.name, condition: '', behavior: '', criteria: '', measurement: '', timeframe: 'By end of IEP' });
+  const [generatedPlaafp, setGeneratedPlaafp] = useState('');
   const [generatedGoal, setGeneratedGoal] = useState('');
+  const [parentInput, setParentInput] = useState({ topic: 'Reading', script: '', response: '', formatted: '' });
   
-  // Trackers
-  const [trackers, setTrackers] = useState([{ id: 1, name: `${activeStudent.name} - ${activeStudent.need}`, target: 80, data: [{ date: '10/01', score: 45 }, { date: '10/22', score: 60 }] }]);
-  const [selectedTracker, setSelectedTracker] = useState(trackers[0].id);
-  const [newDataPoint, setNewDataPoint] = useState({ date: '', score: '' });
-
-  // General State
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [notification, setNotification] = useState(null);
-  const [showSummary, setShowSummary] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState(null);
-  const [savedStrategies, setSavedStrategies] = useState([]);
-  const [sdiFilter, setSdiFilter] = useState('all');
-  const [aiAnalysis, setAiAnalysis] = useState(null);
-  const [showPaywall, setShowPaywall] = useState(false);
-
-  // New State for Services/LRE Calculator
-  const [serviceMinutes, setServiceMinutes] = useState({
-    totalSchoolMinutes: 1800, // Weekly (e.g. 6 hours * 5 days)
-    specialEdMinutes: 300 // e.g. 60 mins x 5 days
-  });
+  // Tools State
+  const [serviceMinutes, setServiceMinutes] = useState({ total: 1800, sped: 300 });
   const [lreResult, setLreResult] = useState(null);
-  
-  // Compliance Editing State
+  const [trackers, setTrackers] = useState([{ id: 1, name: "Goal 1 Data", target: 80, data: [{date:'2023-10-01', score:40}, {date:'2023-10-15', score:55}] }]);
+  const [newDataPoint, setNewDataPoint] = useState({ date: '', score: '' });
+  const [savedStrategies, setSavedStrategies] = useState([]);
   const [isEditingCompliance, setIsEditingCompliance] = useState(false);
-  const [complianceDates, setComplianceDates] = useState({ nextIep: activeStudent.nextIep, nextReeval: activeStudent.nextReeval });
+  const [complianceDates, setComplianceDates] = useState({ iep: activeStudent.nextIep, reeval: activeStudent.nextReeval });
 
-  // Parent Input State
-  const [parentInput, setParentInput] = useState({ topic: 'General', script: '', response: '', formatted: '' });
+  // UI State
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [notification, setNotification] = useState(null);
 
-  const styles = getThemeClasses('dark');
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const styles = getThemeClasses(theme);
   const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
 
+  // Update fields when student changes
   useEffect(() => {
-    setPlaafp({ name: activeStudent.name, strength: activeStudent.strength, need: activeStudent.need, data: '', impact: '' });
-    setGoalInputs(prev => ({ ...prev, student: activeStudent.name }));
-    setComplianceDates({ nextIep: activeStudent.nextIep, nextReeval: activeStudent.nextReeval });
-    setNotification(`Switched to ${activeStudent.name}`);
-    setTimeout(() => setNotification(null), 3000);
+    setPlaafp(prev => ({ ...prev, name: activeStudent.name, strength: activeStudent.strength, need: activeStudent.need }));
+    setComplianceDates({ iep: activeStudent.nextIep, reeval: activeStudent.nextReeval });
+    showNotification(`Switched to ${activeStudent.name}`);
   }, [currentStudentId]);
 
-  // --- REAL AI HELPER ---
+  // --- REAL AI ENGINE ---
   const callAI = async (prompt) => {
     setIsAnalyzing(true);
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt })
+        body: JSON.stringify({ prompt: SecurityService.anonymize(prompt, activeStudent.name) }) // FERPA PROTECT
       });
       const data = await response.json();
       setIsAnalyzing(false);
-      return data.result;
+      return SecurityService.deanonymize(data.result, activeStudent.name); // RE-INSERT NAME
     } catch (error) {
-      console.error("AI Error:", error);
       setIsAnalyzing(false);
-      return "Error generating content. Please try again.";
+      console.error(error);
+      return "Error generating content.";
     }
   };
 
   // --- HANDLERS ---
-  const handleAddCustomAssessment = () => {
-    if (newAssessment.name && newAssessment.desc) {
-        const newItem = { name: newAssessment.name, type: 'Uploaded Data', desc: newAssessment.desc };
-        setAssessments([...assessments, newItem]);
-        // Auto-add to PLAAFP data field
-        const newDataString = plaafp.data ? `${plaafp.data}, ${newItem.name} (${newItem.desc})` : `${newItem.name} (${newItem.desc})`;
-        setPlaafp(prev => ({ ...prev, data: newDataString }));
-        setNewAssessment({ name: '', type: 'Custom', desc: '' });
-        showNotification("Data uploaded & applied to PLAAFP");
-    }
+  const handleAddCustomData = () => {
+    if (!customData.name || !customData.result) return;
+    const newAssessment = { name: customData.name, type: 'Custom', desc: customData.result };
+    setAssessments([...assessments, newAssessment]);
+    setPlaafp(prev => ({ ...prev, data: prev.data ? `${prev.data}, ${newAssessment.name} (${newAssessment.desc})` : `${newAssessment.name} (${newAssessment.desc})` }));
+    setCustomData({ name: '', result: '' });
+    showNotification("Data added & synced to PLAAFP");
   };
 
   const handleGeneratePlaafp = async () => {
-    const prompt = `
-      Role: Special Education Teacher.
-      Task: Write a PLAAFP (Present Levels of Academic Achievement and Functional Performance) statement.
-      Student: ${plaafp.name}
-      Strength: ${plaafp.strength}
-      Need: ${plaafp.need}
-      Data Source: ${plaafp.data}
-      Impact Statement: ${plaafp.impact}
-      
-      Write a concise, professional paragraph suitable for an IEP document.
-    `;
-    const result = await callAI(prompt);
-    setGeneratedPlaafp(result);
+    const p = `Write a professional IEP PLAAFP statement. Student Strength: ${plaafp.strength}. Area of Need: ${plaafp.need}. Assessment Data: ${plaafp.data}. Educational Impact: ${plaafp.impact}. Tone: Formal.`;
+    setGeneratedPlaafp(await callAI(p));
   };
 
   const handleGenerateGoal = async () => {
-    const prompt = `
-      Role: Special Education Teacher.
-      Task: Write a SMART Goal.
-      Student: ${activeStudent.name}
-      Area of Need: ${activeStudent.need}
-      Condition: ${goalInputs.condition}
-      Behavior: ${goalInputs.behavior}
-      Criteria: ${goalInputs.criteria}
-      
-      Format: "By [Timeframe], given [Condition], [Student] will [Behavior] with [Criteria] as measured by [Measurement]."
-    `;
-    const result = await callAI(prompt);
-    setGeneratedGoal(result);
+    const p = `Write a SMART IEP Goal. Area: ${activeStudent.need}. Condition: ${goalInputs.condition}. Behavior: ${goalInputs.behavior}. Criteria: ${goalInputs.criteria}. Measurement: ${goalInputs.measurement}.`;
+    setGeneratedGoal(await callAI(p));
   };
 
-  const handleAddAssessment = (name) => {
-    const newData = plaafp.data ? `${plaafp.data}, ${name}` : name;
-    setPlaafp(prev => ({ ...prev, data: newData }));
-    showNotification(`Added ${name} to Data Sources`);
+  const handleLreCalc = () => {
+    const percent = ((serviceMinutes.total - serviceMinutes.sped) / serviceMinutes.total * 100).toFixed(1);
+    setLreResult(percent);
   };
 
-  const handleSelectImpact = (text) => {
-    setPlaafp({ ...plaafp, impact: text });
-    showNotification("Impact Statement Updated");
-  };
-  
-  const calculateLRE = () => {
-    const regularEdMinutes = serviceMinutes.totalSchoolMinutes - serviceMinutes.specialEdMinutes;
-    const percentage = (regularEdMinutes / serviceMinutes.totalSchoolMinutes) * 100;
-    setLreResult(percentage.toFixed(1));
-  };
-  
-  const runAiAnalysis = () => {
-    if (!user.isPremium) { setShowPaywall(true); return; }
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      setAiAnalysis({ score: 92, coherence: [{ item: "Alignment", status: "pass", msg: "Goal aligns with deficit." }], research: "Hattie (2018): Direct Instruction d=0.60" });
-      setIsAnalyzing(false);
-    }, 1500);
-  };
-  
-  const handleSelectStrategy = (text) => { setPlaafp({ ...plaafp, impact: text }); showNotification("Impact Statement Updated"); };
-  const handleSaveCompliance = () => { setIsEditingCompliance(false); showNotification("Compliance dates updated"); };
-  const handleGenerateParentScript = () => { setParentInput(prev => ({ ...prev, script: `Dear Parent, regarding ${parentInput.topic}...` })); };
-  const handleFormatParentResponse = () => { setParentInput(prev => ({ ...prev, formatted: `Parent reported: "${parentInput.response}"` })); };
-  const handleRecommendStrategies = () => { setSdiFilter(sdiFilter === 'recommended' ? 'all' : 'recommended'); showNotification("Strategies filtered"); };
-  const handleToggleSaveStrategy = (s) => { 
-      if (savedStrategies.find(x => x.id === s.id)) setSavedStrategies(prev => prev.filter(x => x.id !== s.id));
-      else setSavedStrategies(prev => [...prev, s]);
-  };
-  const addDataPoint = () => { 
-    const updated = trackers.map(t => t.id === selectedTracker ? { ...t, data: [...t.data, { date: newDataPoint.date, score: parseInt(newDataPoint.score) }] } : t);
-    setTrackers(updated); setNewDataPoint({ date: '', score: '' });
-  };
-  const handleUpgrade = () => { setUser({ ...user, isPremium: true }); setShowPaywall(false); };
-  const handleDistrictUnlock = () => { setUser({ ...user, isPremium: true }); setShowPaywall(false); };
-  const copyToClipboard = (text) => { navigator.clipboard.writeText(text); showNotification("Copied!"); };
-
-  const getFilteredSDI = () => {
-    if (sdiFilter === 'recommended') {
-      if (activeStudent.need.includes('Reading')) return SDI_RESOURCES.filter(s => s.tags.includes('Reading'));
-      return SDI_RESOURCES;
-    }
-    return sdiFilter === 'all' ? SDI_RESOURCES : SDI_RESOURCES.filter(s => s.category === sdiFilter);
+  const handleParentScript = () => {
+    setParentInput(prev => ({ ...prev, script: `Dear Family,\n\nWe are preparing for the upcoming IEP. I would value your input regarding ${parentInput.topic}.\n\n1. What strengths do you see at home?\n2. Do you have concerns in this area?\n\nBest,\nThe IEP Team` }));
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} onBack={onBack} />;
+  const handleFormatParent = async () => {
+    const p = `Summarize this parent email response for an IEP "Parent Concerns" section: "${parentInput.response}"`;
+    const res = await callAI(p);
+    setParentInput(prev => ({ ...prev, formatted: res }));
+  };
+
+  const handleAddDataPoint = () => {
+    setTrackers(prev => [{ ...prev[0], data: [...prev[0].data, { date: newDataPoint.date, score: parseInt(newDataPoint.score) }] }]);
+    setNewDataPoint({ date: '', score: '' });
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    showNotification("Copied to Clipboard");
+  };
+
+  if (!user) return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full relative z-10 text-center">
+        <div className="mb-8 flex flex-col items-center">
+            <Sparkles className="text-cyan-400 mb-4" size={48}/>
+            <h1 className="text-3xl font-black text-white tracking-widest uppercase mb-2">Prism<span className="text-cyan-400">Path</span></h1>
+            <p className="text-xs text-slate-500 font-mono">EDUCATOR PORTAL ACCESS</p>
+        </div>
+        <div className="space-y-4">
+            <input className="w-full p-3 bg-slate-950 border border-slate-700 rounded text-white outline-none focus:border-cyan-500 transition-colors" placeholder="District ID" />
+            <input className="w-full p-3 bg-slate-950 border border-slate-700 rounded text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password" type="password" />
+            <button onClick={() => setUser({ name: "Educator" })} className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded shadow-lg hover:brightness-110 transition-all">SECURE LOGIN</button>
+            <button onClick={onBack} className="text-xs text-slate-500 hover:text-white transition-colors">← Return to Main Site</button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className={`min-h-screen font-sans pb-20 ${styles.bg} ${styles.text}`}>
-      <Toast message={notification} theme={theme} />
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} onUpgrade={handleUpgrade} onDistrictCode={handleDistrictUnlock} theme={theme} />}
-      {showSummary && <SummaryModal student={activeStudent} plaafp={generatedPlaafp} goal={generatedGoal} strategies={savedStrategies} parentInput={parentInput.formatted} lre={{ ...serviceMinutes, percentage: lreResult }} trackers={trackers} onClose={() => setShowSummary(false)} theme={theme} />}
-      {selectedStrategy && <StrategyDetailModal strategy={selectedStrategy} onClose={() => setSelectedStrategy(null)} theme={theme} />}
+      {notification && <div className="fixed bottom-6 right-6 bg-slate-800 border border-cyan-500 text-cyan-400 px-4 py-3 rounded shadow-xl z-[100] flex items-center gap-2 animate-fade-in-up"><CheckCircle size={16}/> {notification}</div>}
+      {showSummary && <SummaryModal student={activeStudent} plaafp={generatedPlaafp} goal={generatedGoal} strategies={savedStrategies} parentInput={parentInput.formatted} lre={{...serviceMinutes, percentage: lreResult}} trackers={trackers} onClose={() => setShowSummary(false)} theme={theme} />}
 
+      {/* HEADER */}
       <header className={`sticky top-0 z-40 ${styles.header}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveTab('home')}>
-              <div className={`p-2 rounded-lg text-white ${theme === 'dark' ? 'bg-gradient-to-br from-cyan-500 to-blue-600' : 'bg-indigo-600'}`}><Layout size={20} /></div>
-              <h1 className={`hidden lg:block text-xl font-black tracking-widest uppercase ${styles.logoText}`}>Prism Path</h1>
+             <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setActiveTab('home')}>
+                <div className="relative"><Sparkles className="text-cyan-400" size={26} /><div className="absolute inset-0 bg-cyan-400 blur-lg opacity-40 animate-pulse" /></div>
+                <span className={`text-xl font-black tracking-widest uppercase ${styles.logoText}`}>Prism Path</span>
             </div>
-            <div className={`hidden md:flex gap-1 p-1 rounded-lg border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
-               <button onClick={() => { setActiveTab('identify'); setSubTab('wizard'); }} className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${activeTab === 'identify' ? styles.navActive : styles.navInactive}`}><FileText size={14}/> Identify</button>
-               <button onClick={() => { setActiveTab('develop'); setSubTab('wizard'); }} className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${activeTab === 'develop' ? styles.navActive : styles.navInactive}`}><Target size={14}/> Develop</button>
-               <button onClick={() => { setActiveTab('discover'); setSubTab('sdi'); }} className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${activeTab === 'discover' ? styles.navActive : styles.navInactive}`}><BookOpen size={14}/> Discover</button>
-               <button onClick={() => { setActiveTab('threads'); }} className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${activeTab === 'threads' ? styles.navActive : styles.navInactive}`}><Sparkles size={14}/> Threads AI</button>
+            <div className={`hidden md:flex gap-1 p-1 rounded-lg border ${theme==='dark'?'bg-slate-950/50 border-slate-800':'bg-slate-100 border-slate-200'}`}>
+               {['Identify', 'Develop', 'Discover'].map(t => (
+                 <button key={t} onClick={() => { setActiveTab(t.toLowerCase()); setSubTab(''); }} className={`px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${activeTab === t.toLowerCase() ? styles.navActive : styles.navInactive}`}>{t}</button>
+               ))}
             </div>
           </div>
-          <div className="flex-1 max-w-xs mx-4 hidden sm:block">
-            <CustomSelect value={currentStudentId} onChange={setCurrentStudentId} theme={'dark'} icon={User} options={INITIAL_STUDENTS.map(s => ({ value: s.id, label: s.name }))} />
-          </div>
-          <div className="flex items-center gap-3">
-             <button onClick={() => setShowSummary(true)} className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border transition-colors border-fuchsia-500/50 text-fuchsia-400 hover:bg-fuchsia-500/10"><ClipboardList size={14} /> Summary</button>
-             <button onClick={() => setUser(null)} className="p-2 transition-colors text-slate-600 hover:text-red-400"><LogOut size={18} /></button>
+          <div className="flex items-center gap-4">
+             {/* Custom Student Select */}
+             <div className="relative hidden sm:block group">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded border cursor-pointer ${theme==='dark'?'bg-slate-900 border-slate-700':'bg-white border-slate-200'}`}>
+                   <User size={14} className="text-cyan-400"/>
+                   <span className="text-sm font-bold">{activeStudent.name}</span>
+                   <ChevronDown size={14} className="text-slate-500"/>
+                </div>
+                <div className="absolute top-full right-0 mt-1 w-48 bg-slate-900 border border-slate-700 rounded shadow-xl hidden group-hover:block z-50">
+                   {INITIAL_STUDENTS.map(s => <div key={s.id} onClick={() => setCurrentStudentId(s.id)} className="px-4 py-2 text-sm hover:bg-slate-800 cursor-pointer text-slate-300">{s.name}</div>)}
+                   <div className="border-t border-slate-800 px-4 py-2 text-xs text-cyan-400 font-bold cursor-pointer hover:bg-slate-800">+ Add Student</div>
+                </div>
+             </div>
+             <button onClick={() => setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full hover:bg-white/10">{theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>
+             <button onClick={() => setUser(null)} className="p-2 text-slate-500 hover:text-red-400"><LogOut size={18}/></button>
           </div>
         </div>
       </header>
 
-      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8`}>
+      {/* MAIN CONTENT */}
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        
+        {/* 1. HOME DASHBOARD */}
         {activeTab === 'home' && (
-            <div className="space-y-8 animate-fade-in">
-                <div className={`p-6 rounded-2xl border flex flex-col md:flex-row justify-between items-center gap-6 ${styles.card}`}>
-                    <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-800 text-cyan-400' : 'bg-slate-100 text-indigo-600'}`}><User size={24} /></div>
-                        <div><h2 className={`text-xl font-bold ${styles.text}`}>Welcome back, Educator</h2><p className={`text-sm ${styles.textMuted}`}>Active Student: {activeStudent.name}</p></div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                       {isEditingCompliance ? (
-                         <div className="flex gap-4 items-end">
-                           <div><label className="block text-[10px] uppercase font-bold mb-1 text-slate-500">IEP Due</label><input type="date" className={`p-2 rounded text-sm outline-none border ${styles.input}`} value={complianceDates.nextIep} onChange={(e) => setComplianceDates({...complianceDates, nextIep: e.target.value})} /></div>
-                           <button onClick={handleSaveCompliance} className="p-2 bg-emerald-600 text-white rounded hover:bg-emerald-500"><Check size={16}/></button>
-                         </div>
-                       ) : (
-                         <>
-                           <div className="px-6 py-3 rounded-xl border text-center min-w-[140px] bg-slate-950 border-slate-800"><p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Annual Review</p><div className="flex items-center justify-center gap-2"><Calendar size={16} className="text-emerald-400" /><span className="font-mono font-bold text-slate-200">{activeStudent.nextIep}</span></div></div>
-                           <button onClick={() => setIsEditingCompliance(true)} className="p-2 rounded-full hover:bg-white/10 transition-colors text-slate-500"><Edit2 size={16}/></button>
-                         </>
-                       )}
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[{id:'identify', label:'Identify', icon:FileText, desc:'Present Levels & Needs'}, {id:'develop', label:'Develop', icon:Target, desc:'Goals & Data Tracking'}, {id:'discover', label:'Discover', icon:BookOpen, desc:'Strategies & UDL'}].map(item => (
-                        <div key={item.id} onClick={() => setActiveTab(item.id)} className={`group h-64 rounded-2xl border flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-[1.02] ${styles.card}`}>
-                            <item.icon className="mb-4 text-fuchsia-400" size={40}/>
-                            <h3 className={`text-xl font-bold uppercase ${styles.text}`}>{item.label}</h3>
-                            <p className={`text-sm ${styles.textMuted}`}>{item.desc}</p>
+           <div className="space-y-6 animate-fade-in">
+              <Card theme={theme} className="p-6 flex justify-between items-center">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-800 text-cyan-400"><User size={24}/></div>
+                    <div><h2 className={`text-xl font-bold ${styles.text}`}>Dashboard: {activeStudent.name}</h2><p className={`text-sm ${styles.textMuted}`}>{activeStudent.grade} Grade • {activeStudent.need}</p></div>
+                 </div>
+                 <div className="flex items-center gap-6">
+                    {isEditingCompliance ? (
+                        <div className="flex gap-2 items-end">
+                            <div><label className="text-[10px] font-bold block mb-1">IEP Due</label><input type="date" className={`p-1 rounded text-xs ${styles.input}`} value={complianceDates.iep} onChange={e => setComplianceDates({...complianceDates, iep: e.target.value})}/></div>
+                            <button onClick={() => setIsEditingCompliance(false)} className="p-1 bg-green-500 text-white rounded"><Check size={16}/></button>
                         </div>
-                    ))}
-                </div>
-            </div>
+                    ) : (
+                        <div className="text-right group cursor-pointer relative" onClick={() => setIsEditingCompliance(true)}>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Next IEP Due</p>
+                            <div className="flex items-center justify-end gap-2 text-emerald-400 font-mono font-bold text-lg"><Calendar size={16}/> {complianceDates.iep} <Edit2 size={12} className="opacity-0 group-hover:opacity-100"/></div>
+                        </div>
+                    )}
+                 </div>
+              </Card>
+              <div className="grid grid-cols-3 gap-6">
+                 {[{id:'identify', icon:FileText, lbl:'Identify'}, {id:'develop', icon:Target, lbl:'Develop'}, {id:'discover', icon:BookOpen, lbl:'Discover'}].map(m => (
+                    <div key={m.id} onClick={() => setActiveTab(m.id)} className={`h-40 rounded-xl border flex flex-col items-center justify-center cursor-pointer hover:scale-[1.02] transition-all ${styles.card}`}>
+                        <m.icon size={32} className="mb-2 text-fuchsia-400"/>
+                        <h3 className={`text-lg font-bold uppercase ${styles.text}`}>{m.lbl}</h3>
+                    </div>
+                 ))}
+              </div>
+           </div>
         )}
 
-        {/* IDENTIFY TAB */}
+        {/* 2. IDENTIFY MODULE */}
         {activeTab === 'identify' && (
-          <div className="space-y-6">
-             <div className="flex gap-2 border-b border-slate-700/50 pb-2 mb-4 overflow-x-auto">
-               <button onClick={() => setSubTab('wizard')} className={`px-4 py-2 rounded text-xs font-bold uppercase ${subTab === 'wizard' || subTab === '' ? styles.navActive : styles.navInactive}`}>PLAAFP Wizard</button>
-               <button onClick={() => setSubTab('assessments')} className={`px-4 py-2 rounded text-xs font-bold uppercase ${subTab === 'assessments' ? styles.navActive : styles.navInactive}`}>Assessment Library</button>
-               <button onClick={() => setSubTab('impact')} className={`px-4 py-2 rounded text-xs font-bold uppercase ${subTab === 'impact' ? styles.navActive : styles.navInactive}`}>Impact</button>
-             </div>
+           <div className="space-y-6 animate-fade-in">
+              <div className="flex gap-2 border-b border-slate-700/50 pb-2">
+                 {['Wizard', 'Assessments', 'Parent Input'].map(t => <button key={t} onClick={() => setSubTab(t)} className={`px-4 py-1 text-xs font-bold uppercase rounded ${subTab===t||(subTab===''&&t==='Wizard') ? styles.navActive : ''}`}>{t}</button>)}
+              </div>
 
-             {(subTab === 'wizard' || subTab === '') && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card theme={'dark'} className="p-6">
-                        <h3 className={`text-lg font-bold mb-4 uppercase ${styles.text}`}>PLAAFP Generator</h3>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <input type="text" value={plaafp.strength} onChange={e=>setPlaafp({...plaafp, strength:e.target.value})} placeholder="Strength" className={`w-full p-3 rounded outline-none ${styles.input}`} />
-                                <input type="text" value={plaafp.need} onChange={e=>setPlaafp({...plaafp, need:e.target.value})} placeholder="Need" className={`w-full p-3 rounded outline-none ${styles.input}`} />
-                            </div>
-                            <textarea value={plaafp.data} onChange={e=>setPlaafp({...plaafp, data:e.target.value})} placeholder="Data Sources (e.g. WIAT-4 scores, observations)..." className={`w-full p-3 rounded outline-none h-24 ${styles.input}`} />
-                            <textarea value={plaafp.impact} onChange={e=>setPlaafp({...plaafp, impact:e.target.value})} placeholder="Impact Statement..." className={`w-full p-3 rounded outline-none h-24 ${styles.input}`} />
-                            
-                            <Button onClick={handleGeneratePlaafp} className="w-full mt-4" icon={Brain} theme={'dark'}>
-                                {isAnalyzing ? "Generating..." : "Generate Draft with AI"}
-                            </Button>
+              {(subTab === 'Wizard' || subTab === '') && (
+                  <div className="grid grid-cols-2 gap-6">
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${styles.text}`}><FileText size={18}/> PLAAFP Builder</h3>
+                        <div className="space-y-3">
+                           <div className="grid grid-cols-2 gap-3">
+                              <input className={`w-full p-2 rounded text-sm ${styles.input}`} placeholder="Strength" value={plaafp.strength} onChange={e => setPlaafp({...plaafp, strength: e.target.value})} />
+                              <input className={`w-full p-2 rounded text-sm ${styles.input}`} placeholder="Need" value={plaafp.need} onChange={e => setPlaafp({...plaafp, need: e.target.value})} />
+                           </div>
+                           <textarea className={`w-full p-2 rounded text-sm h-20 ${styles.input}`} placeholder="Data Sources (Auto-filled from Assessments)" value={plaafp.data} onChange={e => setPlaafp({...plaafp, data: e.target.value})} />
+                           <textarea className={`w-full p-2 rounded text-sm h-20 ${styles.input}`} placeholder="Educational Impact" value={plaafp.impact} onChange={e => setPlaafp({...plaafp, impact: e.target.value})} />
+                           <div className="flex gap-2 mt-2 overflow-x-auto pb-1">{IMPACT_TEMPLATES.map((t,i) => <button key={i} onClick={() => setPlaafp({...plaafp, impact: t.text})} className="whitespace-nowrap px-2 py-1 rounded border border-slate-700 text-[10px] hover:bg-slate-800 text-slate-400">{t.label}</button>)}</div>
+                           <Button onClick={handleGeneratePlaafp} theme={theme} icon={Brain} className="w-full">{isAnalyzing ? "Generating..." : "Draft PLAAFP with AI"}</Button>
                         </div>
-                    </Card>
-                    <Card theme={'dark'} className="p-6">
-                        <h3 className={`text-lg font-bold mb-4 uppercase ${styles.text}`}>AI Output</h3>
-                         {generatedPlaafp ? (
-                            <div className="p-4 rounded border mt-4 whitespace-pre-wrap bg-slate-950 border-slate-800 text-slate-300">
-                                {generatedPlaafp}
-                            </div>
-                        ) : (
-                            <div className="p-6 border border-dashed rounded flex flex-col items-center justify-center text-slate-500 h-64 border-slate-800">
-                                <Sparkles className="mb-2 opacity-50"/>
-                                <p>Fill out the form to generate a draft</p>
-                            </div>
-                        )}
-                        {generatedPlaafp && <Button onClick={() => copyToClipboard(generatedPlaafp)} variant="copy" icon={Copy} className="w-full mt-4">Copy</Button>}
-                    </Card>
-                </div>
-             )}
+                     </Card>
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>AI Draft</h3>
+                        <div className={`p-4 rounded border h-64 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap ${theme==='dark'?'bg-slate-950 border-slate-800 text-slate-300':'bg-white border-slate-200'}`}>{generatedPlaafp || "Waiting for input..."}</div>
+                        {generatedPlaafp && <Button onClick={() => copyToClipboard(generatedPlaafp)} variant="copy" icon={Copy} className="w-full mt-4">Copy to Clipboard</Button>}
+                     </Card>
+                  </div>
+              )}
 
-             {/* ASSESSMENT TAB - WITH CUSTOM UPLOAD */}
-             {subTab === 'assessments' && (
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card theme={'dark'} className="p-6">
-                        <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 uppercase ${styles.text}`}><Upload size={20}/> Upload / Paste Data</h3>
+              {subTab === 'Assessments' && (
+                  <div className="grid grid-cols-2 gap-6">
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${styles.text}`}><Upload size={18}/> Upload Custom Data</h3>
                         <div className="space-y-4">
-                            <input 
-                            type="text" 
-                            placeholder="Test Name (e.g. MAP Reading)" 
-                            value={newAssessment.name} 
-                            onChange={e => setNewAssessment({...newAssessment, name: e.target.value})}
-                            className={`w-full p-3 rounded outline-none ${styles.input}`}
-                            />
-                            <textarea 
-                            placeholder="Paste scores or notes here (e.g. RIT 185, needs phonics support)" 
-                            value={newAssessment.desc}
-                            onChange={e => setNewAssessment({...newAssessment, desc: e.target.value})}
-                            className={`w-full p-3 rounded outline-none h-32 ${styles.input}`}
-                            />
-                            <Button onClick={handleAddCustomAssessment} icon={Plus} theme={'dark'}>Add to Library & PLAAFP</Button>
+                           <input className={`w-full p-3 rounded ${styles.input}`} placeholder="Test Name (e.g. WISC-V)" value={customData.name} onChange={e => setCustomData({...customData, name: e.target.value})} />
+                           <textarea className={`w-full p-3 rounded h-32 ${styles.input}`} placeholder="Scores & Notes (e.g. FSIQ 92, low working memory)" value={customData.result} onChange={e => setCustomData({...customData, result: e.target.value})} />
+                           <Button onClick={handleAddCustomData} icon={Plus} theme={theme}>Add to Library & PLAAFP</Button>
                         </div>
+                     </Card>
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>Assessment Library</h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                           {assessments.map((a, i) => (
+                              <div key={i} className={`p-3 rounded border flex justify-between items-center ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-white border-slate-200'}`}>
+                                 <div><span className={`font-bold text-sm block ${styles.text}`}>{a.name}</span><span className={`text-xs ${styles.textMuted}`}>{a.desc}</span></div>
+                                 <button onClick={() => { setPlaafp(prev => ({...prev, data: prev.data ? `${prev.data}, ${a.name}` : a.name})); showNotification("Added to Data Source"); }} className="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded hover:bg-cyan-500/20">+ Add</button>
+                              </div>
+                           ))}
+                        </div>
+                     </Card>
+                  </div>
+              )}
+
+              {subTab === 'Parent Input' && (
+                  <div className="grid grid-cols-2 gap-6">
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>Input Request Generator</h3>
+                        <CustomSelect options={[{value:'Reading', label:'Reading'}, {value:'Behavior', label:'Behavior'}]} value={parentInput.topic} onChange={v => setParentInput({...parentInput, topic: v})} theme={theme} label="Topic" />
+                        <Button onClick={handleParentScript} className="w-full mt-4" icon={Mail} theme={theme}>Generate Email Script</Button>
+                        {parentInput.script && <div className={`mt-4 p-3 rounded text-xs whitespace-pre-wrap border ${theme==='dark'?'bg-slate-950 border-slate-800 text-slate-400':'bg-white border-slate-200'}`}>{parentInput.script} <div className="mt-2 pt-2 border-t border-slate-700"><button onClick={() => copyToClipboard(parentInput.script)} className="text-cyan-400 font-bold">Copy Email</button></div></div>}
+                     </Card>
+                     <Card theme={theme} className="p-6">
+                        <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>Summarize Reply</h3>
+                        <textarea className={`w-full p-3 rounded h-32 ${styles.input}`} placeholder="Paste parent email reply here..." value={parentInput.response} onChange={e => setParentInput({...parentInput, response: e.target.value})} />
+                        <Button onClick={handleFormatParent} className="w-full mt-4" icon={MessageSquare} theme={theme}>Format for IEP</Button>
+                        {parentInput.formatted && <div className={`mt-4 p-3 rounded text-sm border ${theme==='dark'?'bg-slate-950 border-slate-800 text-emerald-400':'bg-white border-slate-200 text-emerald-700'}`}>{parentInput.formatted} <button onClick={() => copyToClipboard(parentInput.formatted)} className="ml-2 underline text-xs">Copy</button></div>}
+                     </Card>
+                  </div>
+              )}
+           </div>
+        )}
+
+        {/* 3. DEVELOP MODULE */}
+        {activeTab === 'develop' && (
+           <div className="space-y-6 animate-fade-in">
+              <div className="flex gap-2 border-b border-slate-700/50 pb-2">
+                 {['Goal Wizard', 'Data Tracker', 'LRE Calc'].map(t => <button key={t} onClick={() => setSubTab(t)} className={`px-4 py-1 text-xs font-bold uppercase rounded ${subTab===t||(subTab===''&&t==='Goal Wizard') ? styles.navActive : ''}`}>{t}</button>)}
+              </div>
+
+              {(subTab === 'Goal Wizard' || subTab === '') && (
+                 <div className="grid grid-cols-2 gap-6">
+                    <Card theme={theme} className="p-6">
+                       <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${styles.text}`}><Target size={18}/> SMART Goal Builder</h3>
+                       <div className="space-y-3">
+                          <input className={`w-full p-2 rounded ${styles.input}`} placeholder="Condition (Given what?)" value={goalInputs.condition} onChange={e => setGoalInputs({...goalInputs, condition: e.target.value})} />
+                          <input className={`w-full p-2 rounded ${styles.input}`} placeholder="Behavior (Will do what?)" value={goalInputs.behavior} onChange={e => setGoalInputs({...goalInputs, behavior: e.target.value})} />
+                          <input className={`w-full p-2 rounded ${styles.input}`} placeholder="Criteria (Accuracy?)" value={goalInputs.criteria} onChange={e => setGoalInputs({...goalInputs, criteria: e.target.value})} />
+                          <Button onClick={handleGenerateGoal} className="w-full mt-2" icon={Brain} theme={theme}>{isAnalyzing ? "Thinking..." : "Draft Goal"}</Button>
+                       </div>
                     </Card>
-                    
-                    <Card theme={'dark'} className="p-6">
-                        <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 uppercase ${styles.text}`}><Library size={20} /> Assessment Library</h3>
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar">
-                            {assessments.map((a, i) => (
-                                <div key={i} className="p-3 rounded border transition-colors bg-slate-950 border-slate-800 hover:border-fuchsia-500/50">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h4 className={`font-bold ${styles.text}`}>{a.name}</h4>
-                                        <Badge color="purple" theme={'dark'}>{a.type}</Badge>
-                                    </div>
-                                    <p className={`text-xs mb-2 ${styles.textMuted}`}>{a.desc}</p>
-                                    <Button onClick={() => handleAddAssessment(a.name + ": " + (a.desc || ""))} variant="secondary" theme={'dark'} className="w-full text-xs py-1" icon={Plus}>Add to PLAAFP</Button>
-                                </div>
-                            ))}
-                        </div>
+                    <Card theme={theme} className="p-6">
+                       <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>Draft</h3>
+                       <div className={`p-4 rounded border h-40 ${theme==='dark'?'bg-slate-950 border-slate-800 text-slate-300':'bg-white border-slate-200'}`}>{generatedGoal}</div>
+                       {generatedGoal && <Button onClick={() => copyToClipboard(generatedGoal)} variant="copy" icon={Copy} className="w-full mt-4">Copy Goal</Button>}
                     </Card>
                  </div>
-             )}
+              )}
 
-             {subTab === 'impact' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card theme={'dark'} className="p-6">
-                  <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><Compass className="text-fuchsia-400" /> Impact Templates</h3>
-                  <div className="space-y-3">{IMPACT_TEMPLATES.map((t, i) => (<div key={i} onClick={() => handleSelectImpact(t.text)} className="p-3 border rounded cursor-pointer group bg-slate-950 border-slate-800 hover:bg-slate-800"><div className="flex justify-between mb-1"><span className="font-bold text-sm text-fuchsia-400 group-hover:text-fuchsia-300">{t.label}</span><ArrowRight size={14} className={styles.textMuted}/></div><p className={`text-xs line-clamp-2 ${styles.textMuted}`}>{t.text}</p></div>))}</div>
-                </Card>
-                <Card theme={'dark'} className="p-6"><h3 className={`text-lg font-bold mb-4 uppercase tracking-wide ${styles.text}`}>Current Impact Statement</h3><textarea className={`w-full p-4 rounded h-48 outline-none ${styles.input}`} value={plaafp.impact} onChange={(e) => setPlaafp({...plaafp, impact: e.target.value})} placeholder="Select a template or type here..."/></Card>
-              </div>
-            )}
-          </div>
+              {subTab === 'Data Tracker' && (
+                 <div className="space-y-6">
+                    <Card theme={theme} className="p-6">
+                       <div className="flex justify-between mb-4"><h3 className={`text-lg font-bold ${styles.text}`}>Progress Monitoring</h3><Button onClick={() => window.print()} variant="secondary" icon={Printer} theme={theme}>Print Chart</Button></div>
+                       <SimpleChart data={trackers[0].data} target={80} theme={theme} />
+                    </Card>
+                    <Card theme={theme} className="p-6">
+                       <div className="flex gap-4 items-end">
+                          <div className="flex-1"><label className="text-xs font-bold mb-1 block">Date</label><input type="date" className={`w-full p-2 rounded ${styles.input}`} value={newDataPoint.date} onChange={e => setNewDataPoint({...newDataPoint, date: e.target.value})}/></div>
+                          <div className="flex-1"><label className="text-xs font-bold mb-1 block">Score</label><input type="number" className={`w-full p-2 rounded ${styles.input}`} value={newDataPoint.score} onChange={e => setNewDataPoint({...newDataPoint, score: e.target.value})}/></div>
+                          <Button onClick={handleAddDataPoint} icon={Save} theme={theme}>Log Data</Button>
+                       </div>
+                    </Card>
+                 </div>
+              )}
+
+              {subTab === 'LRE Calc' && (
+                 <div className="grid grid-cols-2 gap-6">
+                    <Card theme={theme} className="p-6">
+                       <h3 className={`text-lg font-bold mb-4 ${styles.text}`}>Minutes Calculator</h3>
+                       <div className="space-y-3">
+                          <label className="text-xs font-bold">Total School Minutes (Weekly)</label><input type="number" className={`w-full p-2 rounded ${styles.input}`} value={serviceMinutes.total} onChange={e => setServiceMinutes({...serviceMinutes, total: e.target.value})} />
+                          <label className="text-xs font-bold">Special Ed Minutes (Weekly)</label><input type="number" className={`w-full p-2 rounded ${styles.input}`} value={serviceMinutes.sped} onChange={e => setServiceMinutes({...serviceMinutes, sped: e.target.value})} />
+                          <Button onClick={handleLreCalc} className="w-full mt-2" icon={Calculator} theme={theme}>Calculate</Button>
+                       </div>
+                    </Card>
+                    <Card theme={theme} className="p-6 flex flex-col items-center justify-center text-center">
+                       <h3 className="text-sm font-bold uppercase tracking-widest mb-2">Time in Regular Class</h3>
+                       {lreResult ? <div className="animate-fade-in-up"><div className={`text-6xl font-black mb-2 ${lreResult>=80 ? 'text-emerald-400' : 'text-amber-400'}`}>{lreResult}%</div><p className="text-xs opacity-50">{lreResult>=80 ? "Inside Regular Class (80%+)" : "Resource Room"}</p><button onClick={() => copyToClipboard(`LRE: ${lreResult}%`)} className="mt-4 text-xs underline text-cyan-400">Copy</button></div> : <span className="text-xs opacity-50">Enter minutes...</span>}
+                    </Card>
+                 </div>
+              )}
+           </div>
         )}
 
-        {/* DEVELOP TAB - GOALS */}
-        {activeTab === 'develop' && (
-          <div className="animate-fade-in space-y-6">
-             <div className="flex gap-2 border-b border-slate-700/50 pb-2 mb-4 overflow-x-auto">
-              {['wizard', 'tracker', 'services'].map(t => (<button key={t} onClick={() => setSubTab(t)} className={`px-4 py-2 rounded text-xs font-bold uppercase ${subTab === t || (subTab === '' && t === 'wizard') ? styles.navActive : styles.navInactive}`}>{t === 'wizard' ? 'Goal Wizard' : t === 'tracker' ? 'Data Tracker' : 'Services & LRE'}</button>))}
-            </div>
-            {(subTab === 'wizard' || subTab === '') && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card theme={'dark'} className="p-6">
-                   <div className="flex justify-between items-center mb-6"><h3 className={`text-lg font-bold flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><Target className="text-cyan-400" /> Goal Generator</h3><button onClick={() => handleAiAutoFill('goal')} className="text-xs flex items-center gap-1 px-3 py-1 rounded font-bold border transition-colors bg-fuchsia-900/20 text-fuchsia-400 border-fuchsia-500/50 hover:bg-fuchsia-900/40"><Wand2 size={12} /> ✨ Draft with AI</button></div>
-                   <div className="space-y-4">
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Condition (Given what?)" value={goalInputs.condition} onChange={e => setGoalInputs({...goalInputs, condition: e.target.value})} />
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Behavior (Will do what?)" value={goalInputs.behavior} onChange={e => setGoalInputs({...goalInputs, behavior: e.target.value})} />
-                      <input type="text" className={`w-full p-2 rounded outline-none ${styles.input}`} placeholder="Criteria (How well?)" value={goalInputs.criteria} onChange={e => setGoalInputs({...goalInputs, criteria: e.target.value})} />
-                      <Button onClick={handleGenerateGoal} className="w-full mt-4" icon={ArrowRight} theme={'dark'}>Generate</Button>
-                   </div>
-                 </Card>
-                 <Card theme={'dark'} className="p-6">
-                   <h3 className={`text-lg font-bold mb-6 uppercase tracking-wide ${styles.text}`}>Draft</h3>
-                   <div className="p-6 rounded border bg-slate-950 border-slate-700 text-slate-300 font-serif min-h-[150px]">"{generatedGoal || "Awaiting inputs..."}"</div>
-                   {generatedGoal && (<div className="mt-4"><Button onClick={() => copyToClipboard(generatedGoal)} variant="copy" icon={Copy}>Copy to Documentation</Button></div>)}
-                 </Card>
-              </div>
-            )}
-            {subTab === 'tracker' && (
-               <div className="space-y-6">
-                  <div className="flex justify-between items-center"><h2 className={`text-2xl font-black ${styles.text}`}>{trackers[0].name}</h2><Button onClick={() => window.print()} variant="secondary" icon={FileDown} theme={theme}>Print / Save PDF</Button></div>
-                  <Card theme={'dark'} className="p-6"><SimpleChart data={trackers[0].data} target={trackers[0].target} theme={'dark'} /></Card>
-                  <Card theme={'dark'} className="p-6">
-                    <h4 className={`font-bold mb-4 flex items-center gap-2 uppercase tracking-wide text-sm ${styles.text}`}><Plus size={16}/> Log New Data</h4>
-                    <div className="flex gap-4 items-end">
-                      <div className="flex-1"><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Date</label><input type="date" className={`w-full p-2 rounded outline-none border ${styles.input}`} value={newDataPoint.date} onChange={(e) => setNewDataPoint({...newDataPoint, date: e.target.value})} /></div>
-                      <div className="flex-1"><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Score (%)</label><input type="number" className={`w-full p-2 rounded outline-none border ${styles.input}`} placeholder="0-100" value={newDataPoint.score} onChange={(e) => setNewDataPoint({...newDataPoint, score: e.target.value})} /></div>
-                      <Button onClick={addDataPoint} icon={Save} theme={'dark'}>Log</Button>
-                    </div>
-                  </Card>
-               </div>
-            )}
-            {subTab === 'services' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card theme={'dark'} className="p-6">
-                  <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><Calculator className="text-cyan-400" /> LRE Calculator</h3>
-                  <div className="space-y-4">
-                    <div><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>Total Minutes</label><input type="number" className={`w-full p-2 rounded outline-none ${styles.input}`} value={serviceMinutes.totalSchoolMinutes} onChange={e => setServiceMinutes({...serviceMinutes, totalSchoolMinutes: Number(e.target.value)})} /></div>
-                    <div><label className={`block text-[10px] uppercase font-bold mb-1 ${styles.textMuted}`}>SpEd Minutes</label><input type="number" className={`w-full p-2 rounded outline-none ${styles.input}`} value={serviceMinutes.specialEdMinutes} onChange={e => setServiceMinutes({...serviceMinutes, specialEdMinutes: Number(e.target.value)})} /></div>
-                    <Button onClick={calculateLRE} className="w-full mt-4" icon={Calculator} theme={'dark'}>Calculate</Button>
-                  </div>
-                </Card>
-                <Card theme={'dark'} className="p-6 flex flex-col justify-center items-center text-center">
-                  <h3 className={`text-lg font-bold mb-2 uppercase tracking-wide ${styles.text}`}>Time in Regular Class</h3>
-                  {lreResult ? <div className="animate-fade-in-up w-full"><div className={`text-6xl font-black mb-2 ${Number(lreResult) >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>{lreResult}%</div><p className={`text-sm font-bold uppercase tracking-widest mb-6 ${styles.textMuted}`}>{Number(lreResult) >= 80 ? "Inside Regular Class (80%+)" : "Resource Room (40-79%)"}</p></div> : <div className={`text-sm ${styles.textMuted}`}>Enter minutes.</div>}
-                </Card>
-              </div>
-            )}
-          </div>
-        )}
-
+        {/* 4. DISCOVER MODULE */}
         {activeTab === 'discover' && (
-          <div className="space-y-6 animate-fade-in">
-            <Card theme={'dark'} className="p-6">
-                <div className="flex justify-between items-center mb-6"><h3 className={`text-lg font-bold flex items-center gap-2 uppercase tracking-wide ${styles.text}`}><BookOpen className="text-emerald-400" /> Strategies & UDL Index</h3><div className="flex gap-2 items-center"><button onClick={handleRecommendStrategies} className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center gap-2 ${sdiFilter === 'recommended' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-none shadow-lg' : 'border-slate-700 text-slate-500 hover:text-white'}`}><Sparkles size={12} /> Recommended</button><div className="h-4 w-[1px] bg-slate-700 mx-1"></div>{['all', 'Instruction', 'Accommodations'].map(filter => (<button key={filter} onClick={() => setSdiFilter(filter)} className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors ${sdiFilter === filter ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'border-slate-700 text-slate-500 hover:text-white'}`}>{filter}</button>))}</div></div>
-                <div className="mb-4 flex justify-end">{savedStrategies.length > 0 && (<Button onClick={() => copyToClipboard(savedStrategies.map(s => `- ${s.title}: ${s.desc}`).join('\n'))} variant="copy" icon={Copy} className="w-auto px-6 py-2 text-sm">Copy Strategies</Button>)}</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{getFilteredSDI().map((item, idx) => (<div key={idx} className="p-4 rounded border transition-all relative group bg-slate-950 border-slate-800 hover:border-emerald-500/50"><div className="absolute top-4 right-4 flex gap-2 z-20"><button onClick={(e) => { e.stopPropagation(); handleToggleSaveStrategy(item); }} className={`p-1.5 rounded-full transition-all hover:bg-slate-800 ${savedStrategies.find(s => s.id === item.id) ? 'text-fuchsia-500 bg-fuchsia-500/10' : 'text-slate-500'}`}><Heart size={16} fill={savedStrategies.find(s => s.id === item.id) ? "currentColor" : "none"} /></button></div><div onClick={() => setSelectedStrategy(item)} className="cursor-pointer"><div className="flex justify-between items-start mb-3"><Badge color="green" theme={'dark'}>{item.category}</Badge></div><h4 className={`font-bold mb-2 text-lg ${styles.text}`}>{item.title}</h4><p className={`text-sm mb-4 line-clamp-2 ${styles.textMuted}`}>{item.desc}</p></div></div>))}</div>
-            </Card>
-          </div>
+           <div className="space-y-6 animate-fade-in">
+              <Card theme={theme} className="p-6">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className={`text-lg font-bold ${styles.text}`}>Strategy Index</h3>
+                    <div className="flex gap-2">
+                       <button onClick={() => setSdiFilter(sdiFilter === 'recommended' ? 'all' : 'recommended')} className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${sdiFilter === 'recommended' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-none' : 'border-slate-700 text-slate-500'}`}><Sparkles size={12} className="inline mr-1"/> Recommended</button>
+                       {['all', 'Instruction', 'Accommodations'].map(f => <button key={f} onClick={() => setSdiFilter(f)} className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${sdiFilter === f ? styles.navActive : 'border-slate-700 text-slate-500'}`}>{f}</button>)}
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-3 gap-4">
+                    {getFilteredSDI().map((s, i) => (
+                       <div key={i} className={`p-4 rounded border relative group ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-white border-slate-200'}`}>
+                          <button onClick={() => handleToggleSaveStrategy(s)} className={`absolute top-3 right-3 p-1 rounded-full ${savedStrategies.find(x=>x.id===s.id) ? 'text-fuchsia-500' : 'text-slate-600 hover:text-white'}`}><Heart size={16} fill={savedStrategies.find(x=>x.id===s.id)?"currentColor":"none"}/></button>
+                          <Badge theme={theme} color="green">{s.category}</Badge>
+                          <h4 className={`font-bold mt-2 ${styles.text}`}>{s.title}</h4>
+                          <p className={`text-xs mt-1 line-clamp-2 ${styles.textMuted}`}>{s.desc}</p>
+                          <button onClick={() => setSelectedStrategy(s)} className="text-xs text-cyan-400 mt-3 hover:underline">View Steps</button>
+                       </div>
+                    ))}
+                 </div>
+                 {savedStrategies.length > 0 && <div className="mt-6 flex justify-end"><Button onClick={() => copyToClipboard(savedStrategies.map(s => `- ${s.title}`).join('\n'))} variant="copy" icon={Copy} className="w-auto">Copy Saved Strategies</Button></div>}
+              </Card>
+           </div>
         )}
 
-        {activeTab === 'threads' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="rounded-2xl p-8 border relative overflow-hidden bg-gradient-to-r from-violet-900/50 to-fuchsia-900/50 border-fuchsia-500/20">
-               <h2 className="text-4xl font-black mb-4 flex items-center gap-3 uppercase italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-fuchsia-400"><Sparkles className="text-fuchsia-400" size={36} /> Threads AI</h2>
-               <p className={`text-lg mb-8 max-w-2xl ${styles.textMuted}`}>The neural backbone of Prism Path. Analyze any IEP component for legal compliance and research alignment.</p>
-               <Button onClick={runAiAnalysis} disabled={isAnalyzing} variant="ai" className="px-8 py-4 text-base" theme={'dark'}>{isAnalyzing ? "Processing..." : user.isPremium ? "Initialize Analysis" : "Unlock Neural Capabilities"}</Button>
-            </div>
-            {aiAnalysis && (
-              <Card theme={'dark'} className="p-6 border-t-4 border-t-fuchsia-500">
-                <div className="flex justify-between mb-4"><h3 className={`text-xl font-bold ${styles.text}`}>Analysis Report</h3><div className="px-4 py-1 rounded font-mono font-bold bg-slate-800 text-cyan-400">SCORE: {aiAnalysis.score}</div></div>
-                <div className="space-y-2">{aiAnalysis.coherence.map((c, i) => (<div key={i} className={`flex gap-2 ${styles.text}`}><CheckCircle className="text-emerald-500" size={16}/> {c.msg}</div>))}</div>
-              </Card>
-            )}
-          </div>
-        )}
       </main>
+
+      {/* Floating Summary Button */}
+      <div className="fixed bottom-6 right-6">
+         <Button onClick={() => setShowSummary(true)} variant="primary" icon={ClipboardList} className="shadow-2xl py-3 px-6 text-sm" theme={theme}>Compile Summary</Button>
+      </div>
     </div>
   );
 }

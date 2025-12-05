@@ -3,10 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import ResumeBuilder from './ResumeBuilder';
 import SocialMap from './SocialMap';
 import EmotionalCockpit from './EmotionalCockpit';
+import TeacherDashboard from './TeacherDashboard';
 import { 
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Loader2, Info, CheckCircle2, 
-  Eye, EyeOff, MapPin, FileText, ChevronDown, Activity
+  Eye, EyeOff, MapPin, FileText, ChevronDown, Activity, GraduationCap
 } from 'lucide-react';
 
 // --- COMPONENTS ---
@@ -61,7 +62,7 @@ export default function App() {
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false); // Dropdown state
   const [isLowStim, setIsLowStim] = useState(false);
   
-  // VIEW STATE: 'home', 'resume', 'map', 'cockpit'
+  // VIEW STATE: 'home', 'resume', 'map', 'cockpit', 'teacher'
   const [view, setView] = useState('home'); 
    
   // Gemini API State
@@ -164,6 +165,11 @@ export default function App() {
         <div className="relative z-[150] h-screen">
            <EmotionalCockpit onBack={() => setView('home')} />
         </div>
+      ) : view === 'teacher' ? (
+        // NEW TEACHER DASHBOARD VIEW
+        <div className="relative z-[150] min-h-screen">
+           <TeacherDashboard onBack={() => setView('home')} />
+        </div>
       ) : (
         // === HOME VIEW ===
         <>
@@ -196,12 +202,20 @@ export default function App() {
                 </button>
 
                 <div className="h-6 w-px bg-slate-800"></div>
+                
+                {/* 2. Educator Portal Link */}
+                <button 
+                    onClick={() => setView('teacher')} 
+                    className="text-sm font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1"
+                >
+                   <GraduationCap size={16} /> For Educators
+                </button>
 
-                {/* 2. Core Links */}
+                {/* 3. Core Links */}
                 <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Features</a>
                 <a href="#accommodations" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Live Demo</a>
 
-                {/* 3. Tools Dropdown */}
+                {/* 4. Tools Dropdown */}
                 <div className="relative" ref={toolsRef}>
                   <button 
                     onClick={() => setToolsMenuOpen(!toolsMenuOpen)}
@@ -223,7 +237,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 4. Cool Down (Distinct) */}
+                {/* 5. Cool Down (Distinct) */}
                 <button 
                     onClick={() => setView('cockpit')} 
                     className="flex items-center gap-2 text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/30"
@@ -231,7 +245,7 @@ export default function App() {
                    <Activity size={16} /> Cool Down
                 </button>
 
-                {/* 5. Launch Gem */}
+                {/* 6. Launch Gem */}
                 <Button href={gemLink} primary className="!px-4 !py-2 !text-sm">
                   Launch Gem <ExternalLink size={14} className="ml-2" />
                 </Button>
@@ -258,6 +272,10 @@ export default function App() {
                 </button>
 
                 <div className="h-px bg-slate-800 w-full my-1"></div>
+                
+                <button onClick={() => { setView('teacher'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-fuchsia-400 font-bold">
+                    <GraduationCap size={18}/> Educator Portal
+                </button>
 
                 <button onClick={() => { setView('cockpit'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-indigo-400 font-bold">
                     <Activity size={18}/> Cool Down Corner
@@ -512,3 +530,4 @@ export default function App() {
     </div>
   );
 }
+

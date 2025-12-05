@@ -83,7 +83,7 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const gemLink = "https://gemini.google.com/gem/1kw78hmK5TxI0CHaIr0gK98coeWN67CUd?usp=sharing";
+  const gemLink = "https://gemini.google.com/gem/1Ms-0FFUPjnDK8l_sfCXgZHSU3VPzvwZ_?usp=sharing";
 
   const handleGenerate = async () => {
     if (!challenge.trim() || !subject.trim()) {
@@ -473,6 +473,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 

@@ -182,7 +182,7 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Desktop Menu - REORDERED */}
+              {/* Desktop Menu */}
               <div className="hidden md:flex items-center space-x-8">
                 
                 {/* 1. Overwhelmed Button */}
@@ -222,7 +222,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Mobile Menu Dropdown - REORDERED */}
+            {/* Mobile Menu Dropdown */}
             {mobileMenuOpen && (
               <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl">
                 
@@ -435,7 +435,8 @@ export default function App() {
                       <div className="text-xs text-slate-600 font-mono">model: gemini-2.0-flash</div>
                     </div>
                     
-                    <div className="flex-grow font-mono text-sm space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar">
+                    {/* UPDATED CONTAINER: NO FONT-MONO, BETTER SPACING */}
+                    <div className="flex-grow font-sans text-[15px] space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar text-slate-300 leading-relaxed">
                       
                       {!generatedPlan && !loading && (
                         <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-50 pt-20">
@@ -457,23 +458,33 @@ export default function App() {
 
                       {generatedPlan && !loading && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                          <div className="flex gap-4 mb-4">
-                            <span className="text-fuchsia-400 shrink-0">$</span>
-                            <span className="text-slate-300">Analysis for: <span className="text-cyan-400">{challenge}</span> + <span className="text-cyan-400">{subject}</span></span>
+                          <div className="flex gap-4 mb-6">
+                            <span className="text-fuchsia-400 shrink-0 font-mono">$</span>
+                            <span className="text-slate-300 font-mono">Analysis for: <span className="text-cyan-400">{challenge}</span> + <span className="text-cyan-400">{subject}</span></span>
                           </div>
-                          <div className="h-px bg-slate-800 my-4"></div>
+                          <div className="h-px bg-slate-800 my-6"></div>
                           
-                          <div className="text-slate-300 leading-relaxed overflow-hidden">
-                            <ReactMarkdown 
-                                components={{
-                                    strong: ({node, ...props}) => <span className="font-bold text-cyan-300" {...props} />
-                                }}
-                            >
-                                {generatedPlan}
-                            </ReactMarkdown>
-                          </div>
+                          {/* UPDATED MARKDOWN STYLING */}
+                          <ReactMarkdown 
+                              components={{
+                                  // Bold Text
+                                  strong: ({node, ...props}) => <span className="font-bold text-cyan-300" {...props} />,
+                                  // Paragraphs - added margin bottom
+                                  p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
+                                  // Lists - added spacing and indentation
+                                  ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-2 marker:text-fuchsia-500" {...props} />,
+                                  ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-2 marker:text-cyan-500" {...props} />,
+                                  li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                                  // Headers - bigger and distinct
+                                  h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mb-4 mt-6" {...props} />,
+                                  h2: ({node, ...props}) => <h2 className="text-xl font-bold text-fuchsia-300 mb-3 mt-5" {...props} />,
+                                  h3: ({node, ...props}) => <h3 className="text-lg font-bold text-cyan-300 mb-2 mt-4" {...props} />,
+                              }}
+                          >
+                              {generatedPlan}
+                          </ReactMarkdown>
                           
-                          <div className="mt-8 flex items-center space-x-2 text-emerald-400/80 text-xs border-t border-slate-800 pt-4">
+                          <div className="mt-8 flex items-center space-x-2 text-emerald-400/80 text-xs border-t border-slate-800 pt-4 font-mono">
                             <CheckCircle2 size={14} />
                             <span>Generated by PrismPath AI. Verify with a specialist.</span>
                           </div>

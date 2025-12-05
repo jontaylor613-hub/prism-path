@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown'; // IMPORTED MARKDOWN RENDERER
 import { 
   Sparkles, 
   Brain, 
   Heart, 
   Calendar, 
-  ArrowRight, 
   ExternalLink, 
   Menu, 
   X, 
@@ -15,14 +15,14 @@ import {
   Loader2,
   Info,
   CheckCircle2,
-  EyeOff // New icon for the "Overwhelmed" button
+  EyeOff
 } from 'lucide-react';
 
 // --- Components ---
 
 const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
-  // We added a transition-all class here so buttons fade smoothly too
-  const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-500 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+  // Added transition-all for smoother state changes
+  const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
   const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.5)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] focus:ring-cyan-400";
   const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white focus:ring-slate-500";
 
@@ -30,7 +30,7 @@ const Button = ({ children, primary, href, onClick, className = "", disabled }) 
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>
+      <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>
         {children}
       </a>
     );
@@ -68,8 +68,6 @@ const Disclaimer = () => (
 export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // NEW: State for "Low Stimulation" mode
   const [isLowStim, setIsLowStim] = useState(false);
    
   // Gemini API State
@@ -79,7 +77,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Handle scroll effects
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -88,7 +85,7 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Your specific GEM link
+  // Your updated link
   const gemLink = "https://gemini.google.com/gem/1l1CXxrHsHi41oCGW-In9-MSlSfanKbbB?usp=sharing";
 
   const handleGenerate = async () => {
@@ -102,12 +99,31 @@ export default function App() {
     setGeneratedPlan(null);
 
     try {
+        // We construct the prompt here, but send it to our backend to handle the API key
+        const prompt = `
+        Role: You are an expert Special Education Consultant and Occupational Therapist.
+        Task: Create a mini-support plan for a homeschooling parent.
+        
+        Input:
+        - Child's specific challenge: "${challenge}"
+        - Current Subject/Activity: "${subject}"
+        
+        Output Instructions:
+        1. Empathy First: Start with 1 sentence validating why this combination is difficult.
+        2. Accommodations: List 3 bullet points of specific, low-prep modifications to the task.
+        3. Quick Win: Provide 1 "Emergency Reset" strategy if the child is already frustrated.
+        
+        Formatting:
+        - Use bolding for key terms.
+        - Use clear emojis.
+        - Keep it encouraging and concise.
+        - Output as plain text/markdown.
+      `;
+      
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: `Challenge: ${challenge}, Subject: ${subject}` })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt })
       });
 
       if (!response.ok) {
@@ -135,21 +151,20 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200`}>
        
-      {/* THE LENS OVERLAY:
-         This invisible div sits on top of everything. 
-         When isLowStim is true, it applies a 'backdrop-grayscale' filter.
-         This turns everything behind it black & white without breaking layout.
-      */}
+      {/* Low Stim Lens Overlay */}
       <div 
         className={`fixed inset-0 pointer-events-none z-[100] transition-all duration-1000 ease-in-out ${
           isLowStim ? 'backdrop-grayscale bg-slate-950/20' : 'backdrop-grayscale-0 bg-transparent'
         }`}
       ></div>
 
-      {/* Background Grid Effect - Fades out in Low Stim mode */}
+      {/* UPDATED Background Grid Effect */}
+      {/* We removed the hard cut-off div and added a CSS mask to the grid container itself for a smooth fade */}
       <div className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-        <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-fuchsia-900/20 via-slate-950/50 to-slate-950"></div>
+        <div 
+            className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"
+            style={{ maskImage: 'radial-gradient(ellipse 80% 80% at 50% 0%, black 40%, transparent 100%)', WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 0%, black 40%, transparent 100%)' }}
+        ></div>
       </div>
 
       {/* Navigation */}
@@ -158,7 +173,6 @@ export default function App() {
           <div className="flex items-center space-x-2 group cursor-pointer">
             <div className="relative">
               <Sparkles className={`text-cyan-400 transition-colors duration-300 ${isLowStim ? 'text-slate-400' : 'group-hover:text-fuchsia-400'}`} size={28} />
-              {/* Hide the glow in Low Stim mode */}
               <div className={`absolute inset-0 bg-cyan-400 blur-lg opacity-40 transition-all duration-1000 ${isLowStim ? 'opacity-0' : 'group-hover:bg-fuchsia-400 motion-safe:animate-pulse'}`} />
             </div>
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
@@ -168,7 +182,6 @@ export default function App() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
-            {/* OVERWHELMED BUTTON */}
             <button 
               onClick={() => setIsLowStim(!isLowStim)}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border ${
@@ -177,7 +190,7 @@ export default function App() {
                   : 'bg-slate-900/50 text-slate-300 border-slate-700 hover:border-slate-500'
               }`}
             >
-              {isLowStim ? <EyeOff size={16} /> : <EyeOff size={16} />}
+              <EyeOff size={16} />
               {isLowStim ? "Restore Colors" : "Overwhelmed?"}
             </button>
 
@@ -200,7 +213,6 @@ export default function App() {
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl">
-             {/* Mobile Overwhelmed Button */}
              <button 
               onClick={() => setIsLowStim(!isLowStim)}
               className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700"
@@ -231,7 +243,6 @@ export default function App() {
           </span>
         </h1>
          
-        {/* UPDATED TEXT HERE */}
         <p className="mt-4 max-w-2xl mx-auto text-xl text-slate-300 leading-relaxed mb-10">
           Empowering <strong>educators</strong> and <strong>homeschool parents</strong> of special needs students. 
           Get instant, AI-powered accommodations tailored to your student's unique learning profile.
@@ -241,12 +252,13 @@ export default function App() {
           <Button primary href={gemLink}>
             Open Accommodation Gem <Zap size={18} className="ml-2" />
           </Button>
+          {/* UPDATED BUTTON: Added href to scroll down */}
           <Button href="#accommodations">
             Try Quick Demo
           </Button>
         </div>
 
-        {/* Abstract Decorative Elements - These vanish in Low Stim mode */}
+        {/* Abstract Decorative Elements */}
         <div className={`absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
         <div className={`absolute top-1/3 right-0 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none transition-opacity duration-1000 ${isLowStim ? 'opacity-0' : 'opacity-100'}`}></div>
       </section>
@@ -262,7 +274,6 @@ export default function App() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connecting Line - Fades in Low Stim */}
             <div className={`hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 -translate-y-1/2 transition-opacity duration-1000 ${isLowStim ? 'opacity-20' : 'opacity-100'}`}></div>
 
             {[
@@ -352,7 +363,6 @@ export default function App() {
               <span className={`transition-colors duration-1000 ${isLowStim ? 'text-white' : 'text-cyan-400'}`}>Try it right here</span>
             </h2>
              
-            {/* SAFETY DISCLAIMER */}
             <Disclaimer />
 
             <p className="text-slate-300 mb-8 text-lg">
@@ -413,7 +423,6 @@ export default function App() {
                  
                 <div className="flex-grow font-mono text-sm space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar">
                    
-                  {/* Default State */}
                   {!generatedPlan && !loading && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-50 pt-20">
                        <MessageSquare size={48} className="mb-4" />
@@ -421,7 +430,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Loading State */}
                   {loading && (
                     <div className="space-y-4 animate-pulse pt-4">
                       <div className="h-4 bg-slate-800 rounded w-3/4"></div>
@@ -433,7 +441,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Result State */}
+                  {/* UPDATED RESULT SECTION: Uses ReactMarkdown to format text */}
                   {generatedPlan && !loading && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                        <div className="flex gap-4 mb-4">
@@ -441,8 +449,17 @@ export default function App() {
                         <span className="text-slate-300">Analysis for: <span className="text-cyan-400">{challenge}</span> + <span className="text-cyan-400">{subject}</span></span>
                       </div>
                       <div className="h-px bg-slate-800 my-4"></div>
-                      <div className="text-slate-300 leading-relaxed whitespace-pre-wrap">
-                        {generatedPlan}
+                      
+                      {/* React Markdown Component handles the formatting now */}
+                      <div className="text-slate-300 leading-relaxed overflow-hidden">
+                        <ReactMarkdown 
+                            components={{
+                                // Custom styling for bold text to make it pop
+                                strong: ({node, ...props}) => <span className="font-bold text-cyan-300" {...props} />
+                            }}
+                        >
+                            {generatedPlan}
+                        </ReactMarkdown>
                       </div>
                        
                       <div className="mt-8 flex items-center space-x-2 text-emerald-400/80 text-xs border-t border-slate-800 pt-4">
@@ -469,8 +486,9 @@ export default function App() {
                   Prism<span className={`transition-colors duration-1000 ${isLowStim ? 'text-slate-400' : 'text-cyan-400'}`}>Path</span>
                 </span>
               </div>
+              {/* UPDATED FOOTER TEXT */}
               <p className="text-slate-500 text-sm mt-2">
-                Built for the homeschool community.
+                Built to Empower Learners.
               </p>
             </div>
              

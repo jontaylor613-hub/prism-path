@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import ResumeBuilder from './ResumeBuilder'; // STEP 2: Import the new component
+import ResumeBuilder from './ResumeBuilder';
 import { 
   Sparkles, 
   Brain, 
@@ -69,8 +69,6 @@ export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLowStim, setIsLowStim] = useState(false);
-  
-  // STEP 2 (Continued): Add state to switch views
   const [view, setView] = useState('home'); // 'home' or 'resume'
    
   // Gemini API State
@@ -149,11 +147,10 @@ export default function App() {
     }
   };
 
-  // STEP 4: Update the return statement to conditionally render the view
   return (
     <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200`}>
        
-      {/* GLOBAL OVERLAYS (Apply to both Home and Resume views) */}
+      {/* GLOBAL OVERLAYS */}
       <div 
         className={`fixed inset-0 pointer-events-none z-[100] transition-all duration-1000 ease-in-out ${
           isLowStim ? 'backdrop-grayscale bg-slate-950/20' : 'backdrop-grayscale-0 bg-transparent'
@@ -167,15 +164,11 @@ export default function App() {
         ></div>
       </div>
 
-      {/* VIEW SWITCHER */}
       {view === 'resume' ? (
-        // === VIEW: RESUME BUILDER ===
         <div className="relative z-10 pt-10">
-           {/* Pass the function to go back home, and the low-stim state */}
            <ResumeBuilder onBack={() => setView('home')} isLowStim={isLowStim} />
         </div>
       ) : (
-        // === VIEW: HOME PAGE ===
         <>
           <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? 'bg-slate-950/80 backdrop-blur-md border-slate-800 py-4' : 'bg-transparent border-transparent py-6'}`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
@@ -189,11 +182,10 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Desktop Menu */}
+              {/* Desktop Menu - REORDERED */}
               <div className="hidden md:flex items-center space-x-8">
-                {/* STEP 3: Add Resume Builder Button */}
-                <button onClick={() => setView('resume')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Resume Builder</button>
-
+                
+                {/* 1. Overwhelmed Button */}
                 <button 
                   onClick={() => setIsLowStim(!isLowStim)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border ${
@@ -206,8 +198,16 @@ export default function App() {
                   {isLowStim ? "Restore Colors" : "Overwhelmed?"}
                 </button>
 
+                {/* 2. Features */}
                 <a href="#features" className="text-sm font-medium hover:text-cyan-400 transition-colors">Features</a>
+                
+                {/* 3. Live Demo */}
                 <a href="#accommodations" className="text-sm font-medium hover:text-cyan-400 transition-colors">Live Demo</a>
+
+                {/* 4. Resume Builder */}
+                <button onClick={() => setView('resume')} className="text-sm font-medium hover:text-cyan-400 transition-colors">Resume Builder</button>
+
+                {/* 5. Launch Gem */}
                 <Button href={gemLink} primary className="!px-5 !py-2 !text-sm">
                   Launch Gem <ExternalLink size={14} className="ml-2" />
                 </Button>
@@ -222,11 +222,9 @@ export default function App() {
               </button>
             </div>
 
-            {/* Mobile Menu Dropdown */}
+            {/* Mobile Menu Dropdown - REORDERED */}
             {mobileMenuOpen && (
               <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl">
-                {/* Mobile Resume Button */}
-                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="block text-left text-slate-300 hover:text-cyan-400">Resume Builder</button>
                 
                 <button 
                   onClick={() => setIsLowStim(!isLowStim)}
@@ -235,9 +233,12 @@ export default function App() {
                   <EyeOff size={16} />
                   {isLowStim ? "Restore Colors" : "Reduce Stimulation"}
                 </button>
-                <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-cyan-400">Features</a>
-                <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-cyan-400">Live Demo</a>
-                <Button href={gemLink} primary className="justify-center">
+
+                <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Features</a>
+                <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-center text-slate-300 hover:text-cyan-400">Live Demo</a>
+                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="block text-center text-slate-300 hover:text-cyan-400">Resume Builder</button>
+                
+                <Button href={gemLink} primary className="justify-center w-full">
                   Launch Gem
                 </Button>
               </div>
@@ -454,7 +455,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* UPDATED RESULT SECTION: Uses ReactMarkdown to format text */}
                       {generatedPlan && !loading && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                           <div className="flex gap-4 mb-4">

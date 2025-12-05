@@ -194,21 +194,3 @@ export default function SocialMap({ onBack, isLowStim }) {
     </div>
   );
 }
-```
-
-### Step 2: **Mandatory** CSS Fix
-If you skip this, the map will look like a scrambled puzzle.
-
-Go to your **`index.html`** file (in the root folder).
-Check if you have this line inside the `<head>` section. If not, add it:
-
-```html
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-```
-
-### Why this works better
-1.  **CircleMarker:** Instead of trying to load an image file (which was 404ing and crashing your map), we are drawing simple colored circles using code. They render instantly.
-2.  **Dark Mode Tiles:** I switched the map background to "CartoDB Dark Matter". It looks **much** cooler and fits your aesthetic perfectly (unlike the bright white default map).
-3.  **Z-Index Fix:** I added `z-[50]` to the container to ensure the map sits *on top* of your background grid, so clicks actually register on the map instead of the background.
-
-**Save, Commit, and Deploy.** The map will work instantly now.

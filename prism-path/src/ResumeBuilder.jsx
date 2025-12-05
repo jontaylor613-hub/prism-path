@@ -16,30 +16,27 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
     title: '', 
     email: '', 
     phone: '', 
-    location: '', // Added City/State
+    location: '', 
     summary: '',
-    education: [], // Converted to array for multiple schools
-    coursework: [], // New Section
+    education: [], 
+    coursework: [], 
     skills: [], 
     jobs: [],
-    references: [] // New Section
+    references: [] 
   });
 
   // --- Temporary State for Inputs ---
   const [tempSkill, setTempSkill] = useState('');
   const [tempCourse, setTempCourse] = useState('');
   
-  // Expanded Job State
   const [tempJob, setTempJob] = useState({ 
     company: '', role: '', location: '', startDate: '', endDate: '', description: '' 
   });
 
-  // Expanded Education State
   const [tempEdu, setTempEdu] = useState({
     school: '', degree: '', year: '', location: ''
   });
 
-  // Reference State
   const [tempRef, setTempRef] = useState({
     name: '', title: '', contact: '', relation: ''
   });
@@ -47,20 +44,17 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
   // --- Actions ---
   const handleChange = (field, value) => setData(prev => ({ ...prev, [field]: value }));
   
-  // Helper to add items to arrays
   const addItem = (field, item, resetFn) => {
     setData(prev => ({ ...prev, [field]: [...prev[field], item] }));
     resetFn();
   };
 
-  // Helper to remove items
   const removeItem = (field, index) => {
     setData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
   };
 
   // --- AI INTEGRATION (CLEAN TEXT ONLY) ---
   const handleAIPolish = async (fieldToPolish) => {
-    // Determine what text we are polishing
     let textToImprove = "";
     if (fieldToPolish === 'job') textToImprove = tempJob.description;
     if (fieldToPolish === 'summary') textToImprove = data.summary;
@@ -86,7 +80,6 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
       const resData = await response.json();
       
       if (resData.result) {
-        // Double Clean: Strip any markdown just in case the AI ignored instructions
         const cleanText = resData.result.replace(/\*\*/g, '').replace(/\*/g, '').trim();
 
         if (fieldToPolish === 'job') {
@@ -186,12 +179,12 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
     },
     {
       id: 'coursework',
-      title: 'Relevant Coursework',
-      subtitle: "List specific classes that apply to the job.",
+      title: 'Relevant Coursework and Certificates', // UPDATED TITLE
+      subtitle: "List specific classes or certificates that apply to the job.", // UPDATED SUBTITLE
       component: () => (
         <div className="space-y-6">
            <div className="flex gap-2">
-                <input type="text" value={tempCourse} onChange={(e) => setTempCourse(e.target.value)} onKeyDown={(e) => e.key==='Enter' && addItem('coursework', tempCourse, () => setTempCourse(''))} placeholder="e.g. Intro to Psychology, Advanced Mathematics..." className="flex-1 bg-slate-800 border border-slate-600 rounded p-3 text-white" />
+                <input type="text" value={tempCourse} onChange={(e) => setTempCourse(e.target.value)} onKeyDown={(e) => e.key==='Enter' && addItem('coursework', tempCourse, () => setTempCourse(''))} placeholder="e.g. Intro to Psychology, CPR Certified..." className="flex-1 bg-slate-800 border border-slate-600 rounded p-3 text-white" />
                 <button onClick={() => addItem('coursework', tempCourse, () => setTempCourse(''))} className="bg-slate-600 px-4 rounded text-white font-bold">+</button>
            </div>
            <div className="flex flex-wrap gap-2">
@@ -374,7 +367,7 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
             {/* Coursework */}
             {data.coursework.length > 0 && (
                 <div className="mb-6">
-                    <h3 className="font-bold uppercase text-indigo-900 border-b border-gray-300 mb-2 text-sm tracking-widest">Relevant Coursework</h3>
+                    <h3 className="font-bold uppercase text-indigo-900 border-b border-gray-300 mb-2 text-sm tracking-widest">Relevant Coursework and Certificates</h3>
                     <p className="text-gray-800">{data.coursework.join(', ')}</p>
                 </div>
             )}

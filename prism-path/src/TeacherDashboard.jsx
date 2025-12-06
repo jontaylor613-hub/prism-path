@@ -10,12 +10,32 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// Safely access environment variables. 
-// In the preview environment, 'process' might not be defined, so we check for it.
-// When deployed to Vercel, this will correctly pick up your NEXT_PUBLIC_GOOGLE_API_KEY.
-const GOOGLE_API_KEY = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) 
-  ? process.env.NEXT_PUBLIC_GOOGLE_API_KEY 
-  : ""; 
+// UNIVERSAL API KEY LOADER
+// This setup works for both Next.js (process.env) and Vite (import.meta.env).
+// You do NOT need to edit this. Just set the Env Var in Vercel.
+const getApiKey = () => {
+  // 1. Try Vite standard (import.meta.env) - Most likely for your setup
+  try {
+    if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
+      return import.meta.env.VITE_GOOGLE_API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if import.meta is not available
+  }
+
+  // 2. Try Next.js / Standard Node (process.env)
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
+      return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if process is not available
+  }
+
+  return ""; // No key found
+};
+
+const GOOGLE_API_KEY = getApiKey();
 
 // --- AESTHETIC CONFIG ---
 const THEME = {
@@ -66,10 +86,9 @@ const ComplianceService = {
 
 const GeminiService = {
   generate: async (data, type) => {
-    // If no key is found, return a clear error message.
     if (!GOOGLE_API_KEY) {
       console.warn("Missing API Key");
-      return "Error: API Key not found. Please ensure NEXT_PUBLIC_GOOGLE_API_KEY is set in your Vercel environment variables.";
+      return "Error: API Key not found. Please check Vercel settings for VITE_GOOGLE_API_KEY or NEXT_PUBLIC_GOOGLE_API_KEY.";
     }
 
     let systemInstruction = "";

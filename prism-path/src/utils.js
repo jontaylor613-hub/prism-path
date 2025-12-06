@@ -58,7 +58,7 @@ export const GeminiService = {
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       console.error("GeminiService Error: No API Key found.");
-      return "Error: API Key Missing.";
+      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY.";
     }
 
     let systemInstruction = "";
@@ -92,9 +92,9 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch (SWITCHED TO GEMINI-PRO)
+    // 2. Perform Fetch (Using GEMINI-2.5-FLASH)
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GOOGLE_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -104,6 +104,11 @@ export const GeminiService = {
 
       if (!response.ok) {
           console.error("Gemini API Error:", response.status, response.statusText);
+          // If 2.5 fails, try 2.0 as fallback
+          if(response.status === 404) {
+             console.warn("Retrying with Gemini 2.0...");
+             return await GeminiService.generateFallback(data, type, systemInstruction, userPrompt);
+          }
           return "Error: AI Service Unavailable (Status " + response.status + ")";
       }
 
@@ -114,6 +119,22 @@ export const GeminiService = {
         console.error("Network/Fetch Error:", error);
         return "Error: Connection Failed."; 
     }
+  },
+
+  // Fallback method for older/different models
+  generateFallback: async (data, type, systemInstruction, userPrompt) => {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
+            })
+        });
+        if (!response.ok) return "Error: All AI models unavailable.";
+        const result = await response.json();
+        return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
+      } catch (e) { return "Error: Fallback Failed"; }
   }
 };
 

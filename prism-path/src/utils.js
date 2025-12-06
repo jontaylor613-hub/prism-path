@@ -34,7 +34,8 @@ export const formatAIResponse = (text) => {
   if (!text) return "";
   let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
   clean = clean.replace(/\.([A-Z])/g, ". $1");
-  clean = clean.replace(/^(Here are|Sure|Here's).*?:/gim, "");
+  // Remove conversational filler at start
+  clean = clean.replace(/^(Here are|Sure|Here's|As an expert).*?:/gim, "");
   return clean.trim();
 };
 
@@ -64,10 +65,24 @@ export const GeminiService = {
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts
-    if (type === 'behavior') {
-        systemInstruction = "You are an expert BCBA. Analyze the log. Suggest 3 specific, low-prep interventions. Output clean text.";
-        userPrompt = `Analyze logs: ${JSON.stringify(data)}. Target: ${data.targetBehavior}.`;
+    // --- 1. Define Prompts ---
+
+    if (type === 'accommodation') {
+        // NEW: Specific persona for Instant AI Accommodations
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. 
+        Framework: Universal Design for Learning (UDL).
+        Constraint: Do NOT introduce yourself. Start directly with the strategies.
+        Task: Provide specific accommodations for the student based on the challenge and subject provided.
+        Format: Use bullet points. Be specific and actionable.`;
+        userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
+    }
+    else if (type === 'behavior') {
+        // UPDATED: Strict formatting for BIP
+        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). 
+        Constraint: Do NOT use introductory phrases like "As an expert BCBA". 
+        Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]" (if name is unknown use 'Student').
+        Task: Analyze the antecedents and consequences in the log. Suggest 3 specific interventions.`;
+        userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
         systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Do NOT use introductory phrases. Just list the steps. Example: 1. Get a pencil. 2. Open notebook.";
@@ -92,7 +107,7 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch (Using GEMINI-2.5-FLASH)
+    // --- 2. Perform Fetch ---
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
         method: 'POST',
@@ -103,13 +118,10 @@ export const GeminiService = {
       });
 
       if (!response.ok) {
-          console.error("Gemini API Error:", response.status, response.statusText);
-          // If 2.5 fails, try 2.0 as fallback
-          if(response.status === 404) {
-             console.warn("Retrying with Gemini 2.0...");
-             return await GeminiService.generateFallback(data, type, systemInstruction, userPrompt);
-          }
-          return "Error: AI Service Unavailable (Status " + response.status + ")";
+          console.error("Gemini API Error:", response.status);
+          // Fallback to 2.0 if 2.5 fails
+          if(response.status === 404) return await GeminiService.generateFallback(data, type, systemInstruction, userPrompt);
+          return "Error: AI Service Unavailable.";
       }
 
       const result = await response.json();
@@ -121,17 +133,13 @@ export const GeminiService = {
     }
   },
 
-  // Fallback method for older/different models
-  generateFallback: async (data, type, systemInstruction, userPrompt) => {
+  generateFallback: async (data, type, sys, user) => {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
-            })
+            body: JSON.stringify({ contents: [{ parts: [{ text: sys + "\n\n" + user }] }] })
         });
-        if (!response.ok) return "Error: All AI models unavailable.";
         const result = await response.json();
         return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
       } catch (e) { return "Error: Fallback Failed"; }

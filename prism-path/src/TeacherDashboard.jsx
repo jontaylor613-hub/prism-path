@@ -8,37 +8,17 @@ import {
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged,
-  signInWithCustomToken
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  onSnapshot, 
-  deleteDoc, 
-  doc,
-  updateDoc,
-  serverTimestamp
-} from 'firebase/firestore';
 
 // --- CONFIGURATION ---
-const GOOGLE_API_KEY = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) 
-  ? process.env.NEXT_PUBLIC_GOOGLE_API_KEY 
-  : ""; 
+const getGoogleApiKey = () => {
+  try {
+    if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
+    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+  } catch (e) {}
+  return ""; 
+};
 
-// --- FIREBASE SETUP ---
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'prism-path-default';
+const GOOGLE_API_KEY = getGoogleApiKey();
 
 // --- AESTHETIC CONFIG ---
 const THEME = {
@@ -90,7 +70,7 @@ const GeminiService = {
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       console.warn("Missing API Key");
-      return "Error: API Key not found.";
+      return "Error: API Key not found. Please add VITE_GOOGLE_API_KEY to your .env or Vercel settings.";
     }
 
     let systemInstruction = "";
@@ -261,7 +241,7 @@ const SAMPLE_STUDENTS = [
 
 // --- MAIN DASHBOARD ---
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user, onLogout, onBack }) => {
   const [activeTab, setActiveTab] = useState('profile');
   
   // Student State
@@ -271,7 +251,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
 
-  // Goals State (Firestore Synced)
+  // Goals State (Local Only)
   const [goals, setGoals] = useState([]);
   const [activeGoalId, setActiveGoalId] = useState(null);
 
@@ -279,35 +259,6 @@ const Dashboard = ({ user, onLogout }) => {
   const displayedStudents = showSamples ? students : students.filter(s => s.id > 3);
   const activeStudent = displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0];
   const activeGoal = goals.find(g => g.id === activeGoalId);
-
-  // -- FIREBASE HOOKS --
-  useEffect(() => {
-    // 1. Fetch Students
-    if (user) {
-        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'students'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            // Merge with samples if needed, or just set
-            setStudents(prev => showSamples ? [...SAMPLE_STUDENTS, ...fetched] : fetched);
-        });
-        return () => unsubscribe();
-    }
-  }, [user, showSamples]);
-
-  useEffect(() => {
-    // 2. Fetch Goals for Active Student
-    if (user && activeStudent && activeStudent.id > 3) { // Only fetch for real students
-        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), where('studentId', '==', activeStudent.id));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            setGoals(fetched);
-            if (fetched.length > 0 && !activeGoalId) setActiveGoalId(fetched[0].id);
-        });
-        return () => unsubscribe();
-    } else {
-        setGoals([]); // Reset for samples
-    }
-  }, [user, activeStudent]);
 
   // -- STATES --
   const [isGenerating, setIsGenerating] = useState(false);
@@ -346,54 +297,56 @@ const Dashboard = ({ user, onLogout }) => {
 
   // -- HANDLERS --
 
-  const handleAddStudent = async () => {
-      if(!newStudent.name || !user) return;
+  const handleAddStudent = () => {
+      if(!newStudent.name) return;
       
-      // Save to Firestore
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'students'), {
+      const student = {
           ...newStudent,
-          createdAt: serverTimestamp(),
-          summary: "New student profile created."
-      });
-
+          id: Date.now(),
+          summary: "New student profile created locally."
+      };
+      
+      setStudents([...students, student]);
       setIsAddingStudent(false);
       setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
+      setCurrentStudentId(student.id);
   };
 
-  const handleLockGoal = async () => {
-      if (!user || !goalText || typeof activeStudent.id === 'number') {
-          alert("Cannot save goals for sample students. Please add a real student first.");
-          return;
-      }
+  const handleLockGoal = () => {
+      if (!goalText) return;
       
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), {
+      const newGoal = {
+          id: Date.now().toString(),
           studentId: activeStudent.id,
           text: goalText,
           target: goalConfig.target,
           frequency: goalConfig.frequency,
           data: [], // Init empty data array
-          createdAt: serverTimestamp()
-      });
+          createdAt: new Date().toISOString()
+      };
+      
+      setGoals([...goals, newGoal]);
+      setActiveGoalId(newGoal.id);
       
       alert("Goal Locked! Go to 'Monitor' tab to track progress.");
       setActiveTab('monitor');
   };
 
-  const handleAddDataPoint = async () => {
+  const handleAddDataPoint = () => {
       if (!activeGoal || !newMeasure.date || !newMeasure.score) return;
       
-      const updatedData = [...(activeGoal.data || []), { date: newMeasure.date, score: parseFloat(newMeasure.score) }];
+      const updatedGoal = {
+          ...activeGoal,
+          data: [...(activeGoal.data || []), { date: newMeasure.date, score: parseFloat(newMeasure.score) }]
+      };
       
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', activeGoal.id), {
-          data: updatedData
-      });
-      
+      setGoals(goals.map(g => g.id === activeGoal.id ? updatedGoal : g));
       setNewMeasure({ date: '', score: '' });
   };
 
   const copyGraphSummary = () => {
       if (!activeGoal) return;
-      const avg = activeGoal.data.reduce((acc, curr) => acc + curr.score, 0) / activeGoal.data.length;
+      const avg = activeGoal.data.length > 0 ? activeGoal.data.reduce((acc, curr) => acc + curr.score, 0) / activeGoal.data.length : 0;
       const text = `Progress Monitoring Summary for ${activeStudent.name}:\nGoal: ${activeGoal.text}\n\nCurrent Average: ${avg.toFixed(1)}%\nLatest Score: ${activeGoal.data[activeGoal.data.length-1]?.score || 'N/A'}%\n\nData collected via ${activeGoal.frequency} monitoring.`;
       navigator.clipboard.writeText(text);
       alert("Summary copied to clipboard!");
@@ -526,6 +479,7 @@ const Dashboard = ({ user, onLogout }) => {
 
           <div className="flex items-center gap-4">
             <span className="text-xs font-bold hidden sm:block">{user.name}</span>
+            <button onClick={onBack} className="text-xs font-bold text-slate-400 hover:text-white mr-2">EXIT</button>
             <button onClick={onLogout} className="bg-slate-800 p-2 rounded-full border border-slate-700 hover:text-red-400"><LogOut size={16}/></button>
           </div>
         </div>
@@ -674,21 +628,21 @@ const Dashboard = ({ user, onLogout }) => {
                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><FileText className="text-cyan-400"/> PLAAFP Wizard</h2>
                  <p className="text-sm text-slate-400 mb-6">Input basic observations to generate a comprehensive Present Levels narrative.</p>
                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Student Strengths</label>
-                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Key Needs/Deficits</label>
-                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Impact of Disability</label>
-                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} />
-                    </div>
-                    <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2}>
-                       {isGenerating ? "Compiling..." : "Generate Narrative"}
-                    </Button>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Student Strengths</label>
+                     <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Key Needs/Deficits</label>
+                     <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Impact of Disability</label>
+                     <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} />
+                   </div>
+                   <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2}>
+                      {isGenerating ? "Compiling..." : "Generate Narrative"}
+                   </Button>
                  </div>
               </Card>
               <Card className="p-8 bg-slate-950 flex flex-col">
@@ -719,17 +673,17 @@ const Dashboard = ({ user, onLogout }) => {
                     <Badge color="cyan">AI Active</Badge>
                  </div>
                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Condition</label>
-                      <input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Given a grade level text..." />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Behavior</label>
-                      <input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Student will decode..." />
-                    </div>
-                    <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full">
-                      {isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}
-                    </Button>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Condition</label>
+                     <input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Given a grade level text..." />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Behavior</label>
+                     <input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Student will decode..." />
+                   </div>
+                   <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full">
+                     {isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}
+                   </Button>
                  </div>
               </Card>
 
@@ -1018,17 +972,15 @@ const Dashboard = ({ user, onLogout }) => {
 };
 
 // --- LOGIN SCREEN ---
-const LoginScreen = ({ onLogin }) => {
+const LoginScreen = ({ onLogin, onBack }) => {
   const [loading, setLoading] = useState(false);
-  const handleAnonLogin = async () => {
+  const handleAnonLogin = () => {
       setLoading(true);
-      try {
-          const result = await signInAnonymously(auth);
-          onLogin({ name: "Educator (Guest)", uid: result.user.uid, role: "Teacher", school: "Demo School" });
-      } catch (e) {
-          alert("Login failed");
-      }
-      setLoading(false);
+      // Simulate login delay
+      setTimeout(() => {
+        onLogin({ name: "Educator (Guest)", uid: "guest-123", role: "Teacher", school: "Demo School" });
+        setLoading(false);
+      }, 800);
   }
 
   return (
@@ -1041,22 +993,16 @@ const LoginScreen = ({ onLogin }) => {
          <h1 className="text-3xl font-extrabold text-white mb-2">Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
          <p className="text-slate-400 font-medium mb-8">Educator Portal Access</p>
          <Button className="w-full" onClick={handleAnonLogin} disabled={loading}>
-           {loading ? "Accessing..." : "Enter Portal (Secure)"}
+           {loading ? "Accessing..." : "Enter Portal (Offline Mode)"}
          </Button>
+         <button onClick={onBack} className="mt-4 text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest">Back to Home</button>
       </div>
     </div>
   );
 };
 
-export default function App() {
+export default function TeacherDashboard({ onBack }) {
   const [user, setUser] = useState(null);
-  useEffect(() => {
-      const unsubscribe = onAuthStateChanged(auth, (u) => {
-          if (u) setUser({ name: "Educator", uid: u.uid, role: "Teacher", school: "My School" });
-          else setUser(null);
-      });
-      return () => unsubscribe();
-  }, []);
-
-  return user ? <Dashboard user={user} onLogout={() => auth.signOut()} /> : <LoginScreen onLogin={setUser} />;
+  // Simple local state auth simulation
+  return user ? <Dashboard user={user} onLogout={() => setUser(null)} onBack={onBack} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
 }

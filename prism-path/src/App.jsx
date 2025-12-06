@@ -11,8 +11,6 @@ import {
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
   SmilePlus, Sun, Moon
 } from 'lucide-react';
-
-// --- THE FIX: Import the brain from utils.js ---
 import { getTheme, GeminiService } from './utils';
 
 // --- SHARED UI COMPONENTS ---
@@ -80,7 +78,8 @@ export default function App() {
     if (!challenge.trim() || !subject.trim()) { setError("Please describe the challenge and the subject."); return; }
     setLoading(true); setError(''); setGeneratedPlan(null);
     try {
-        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject }, 'behavior'); 
+        // UPDATED: Now uses 'accommodation' type for correct persona
+        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
     } catch (err) { setError("Failed to generate."); } 
     finally { setLoading(false); }
@@ -97,7 +96,7 @@ export default function App() {
       : view === 'map' ? <div className="relative z-10 pt-20 h-screen"><SocialMap onBack={() => setView('home')} isLowStim={!isDark} /></div>
       : view === 'cockpit' ? <div className="relative z-[150] h-screen"><EmotionalCockpit onBack={() => setView('home')} isLowStim={!isDark} /></div>
       : view === 'neuro' ? <div className="relative z-[150] min-h-screen"><NeuroDriver onBack={() => setView('home')} isDark={isDark} /></div>
-      : view === 'educator' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} isDark={isDark} /></div>
+      : view === 'educator' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} /></div>
       : (
         <>
           <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? `${theme.navBg} backdrop-blur-md ${theme.glassBorder} py-3` : 'bg-transparent border-transparent py-6'}`}>

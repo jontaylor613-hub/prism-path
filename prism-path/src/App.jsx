@@ -32,41 +32,6 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// --- PLACEHOLDER COMPONENTS ---
-
-const ResumeBuilder = ({ onBack }) => (
-  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
-      <FileText size={48} className="text-fuchsia-400 mx-auto mb-4" />
-      <h2 className="text-2xl font-bold text-white mb-2">Resume Builder</h2>
-      <p className="text-slate-400 mb-6">This tool is currently being integrated into the main dashboard.</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
-
-const SocialMap = ({ onBack }) => (
-  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
-      <MapPin size={48} className="text-cyan-400 mx-auto mb-4" />
-      <h2 className="text-2xl font-bold text-white mb-2">Social Map</h2>
-      <p className="text-slate-400 mb-6">The Safe Village Map is loading...</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
-
-const EmotionalCockpit = ({ onBack }) => (
-  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
-      <Activity size={48} className="text-indigo-400 mx-auto mb-4" />
-      <h2 className="text-2xl font-bold text-white mb-2">Emotional Cockpit</h2>
-      <p className="text-slate-400 mb-6">Cool Down tools are being calibrated.</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
-
 // --- CONFIGURATION & SERVICES ---
 
 // 1. API Keys
@@ -941,3 +906,4 @@ export default function App() {
     </div>
   );
 }
+

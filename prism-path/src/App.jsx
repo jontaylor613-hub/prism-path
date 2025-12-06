@@ -1,3 +1,7 @@
+import ResumeBuilder from './ResumeBuilder';
+import SocialMap from './SocialMap';
+import EmotionalCockpit from './EmotionalCockpit';
+import TeacherDashboard from './TeacherDashboard';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -49,41 +53,6 @@ const Button = ({ children, primary, href, onClick, className = "", disabled }) 
     if (href) return <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>{children}</a>;
     return <button onClick={onClick} disabled={disabled} className={classes}>{children}</button>;
 };
-
-// --- PLACEHOLDER COMPONENTS ---
-
-const ResumeBuilder = ({ onBack, isLowStim }) => (
-  <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
-    <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
-      <FileText size={48} className={isLowStim ? "text-fuchsia-600 mx-auto mb-4" : "text-fuchsia-400 mx-auto mb-4"} />
-      <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
-      <p className="opacity-70 mb-6">Build a resume that highlights your unique strengths.</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
-
-const SocialMap = ({ onBack, isLowStim }) => (
-  <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
-    <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
-      <MapPin size={48} className={isLowStim ? "text-cyan-600 mx-auto mb-4" : "text-cyan-400 mx-auto mb-4"} />
-      <h2 className="text-2xl font-bold mb-2">Social Map</h2>
-      <p className="opacity-70 mb-6">Visualizing your safe village and support network.</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
-
-const EmotionalCockpit = ({ onBack, isLowStim }) => (
-  <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
-    <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
-      <Activity size={48} className="text-indigo-400 mx-auto mb-4" />
-      <h2 className="text-2xl font-bold mb-2">Emotional Cockpit</h2>
-      <p className="opacity-70 mb-6">Tools to regulate, reset, and recharge.</p>
-      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
-    </div>
-  </div>
-);
 
 // --- CONFIGURATION & SERVICES ---
 
@@ -841,3 +810,4 @@ export default function App() {
     </div>
   );
 }
+

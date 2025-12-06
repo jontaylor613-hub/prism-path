@@ -2,7 +2,7 @@ import ResumeBuilder from './ResumeBuilder';
 import SocialMap from './SocialMap';
 import EmotionalCockpit from './EmotionalCockpit';
 import TeacherDashboard from './TeacherDashboard';
-import NeuroDriver from './NeuroDriver'; // <--- IMPORT THE NEW FILE!
+import NeuroDriver from './NeuroDriver';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -11,7 +11,9 @@ import {
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
   SmilePlus, Sun, Moon
 } from 'lucide-react';
-import { getTheme, GeminiService } from './utils'; // <--- IMPORT FROM UTILS!
+
+// --- THE FIX: Import the brain from utils.js ---
+import { getTheme, GeminiService } from './utils';
 
 // --- SHARED UI COMPONENTS ---
 

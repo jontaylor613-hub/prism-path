@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LineChart, Target, BookOpen, Plus, Save, Trash2, CheckCircle,
   Brain, Layout, FileText, Sparkles, ClipboardList, ArrowRight,
@@ -6,36 +6,39 @@ import {
   Search, ChevronDown, User, Wand2, Copy, Heart,
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
-  Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus
+  Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer
 } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged,
+  signInWithCustomToken
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  onSnapshot, 
+  deleteDoc, 
+  doc,
+  updateDoc,
+  serverTimestamp
+} from 'firebase/firestore';
 
 // --- CONFIGURATION ---
-// UNIVERSAL API KEY LOADER
-// This setup works for both Next.js (process.env) and Vite (import.meta.env).
-// You do NOT need to edit this. Just set the Env Var in Vercel.
-const getApiKey = () => {
-  // 1. Try Vite standard (import.meta.env) - Most likely for your setup
-  try {
-    if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
-      return import.meta.env.VITE_GOOGLE_API_KEY;
-    }
-  } catch (e) {
-    // Ignore error if import.meta is not available
-  }
+const GOOGLE_API_KEY = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) 
+  ? process.env.NEXT_PUBLIC_GOOGLE_API_KEY 
+  : ""; 
 
-  // 2. Try Next.js / Standard Node (process.env)
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
-      return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-    }
-  } catch (e) {
-    // Ignore error if process is not available
-  }
-
-  return ""; // No key found
-};
-
-const GOOGLE_API_KEY = getApiKey();
+// --- FIREBASE SETUP ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'prism-path-default';
 
 // --- AESTHETIC CONFIG ---
 const THEME = {
@@ -62,15 +65,14 @@ const THEME = {
 
 const formatAIResponse = (text) => {
   if (!text) return "";
-  // Remove markdown bolding/italics/headers/stars
   let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
-  // Ensure proper spacing after periods if missing
   clean = clean.replace(/\.([A-Z])/g, ". $1");
   return clean.trim();
 };
 
 const ComplianceService = {
   getStatus: (dateString) => {
+    if (!dateString) return { color: 'bg-slate-600', text: 'No Date', icon: Clock };
     const today = new Date();
     const target = new Date(dateString); 
     const diffTime = target - today;
@@ -88,13 +90,12 @@ const GeminiService = {
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       console.warn("Missing API Key");
-      return "Error: API Key not found. Please check Vercel settings for VITE_GOOGLE_API_KEY or NEXT_PUBLIC_GOOGLE_API_KEY.";
+      return "Error: API Key not found.";
     }
 
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Construct the Prompt based on the specific feature
     if (type === 'behavior') {
         systemInstruction = "You are an expert Board Certified Behavior Analyst (BCBA). Analyze the incident log provided. Identify patterns in antecedents and consequences. Suggest 3 specific, low-prep interventions. Keep output clean, professional, and free of markdown symbols.";
         userPrompt = `Analyze these behavior logs: ${JSON.stringify(data)}. Focus on the behavior: ${data.targetBehavior || 'General Disruption'}.`;
@@ -116,7 +117,6 @@ const GeminiService = {
         userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact of Disability: ${data.impact}.`;
     }
 
-    // 2. Call the Real API
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
         method: 'POST',
@@ -127,20 +127,69 @@ const GeminiService = {
       });
 
       const result = await response.json();
-      
-      if (result.error) {
-          console.error("Gemini API Error:", result.error);
-          return `API Error: ${result.error.message}`;
-      }
-
       const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
       return formatAIResponse(rawText);
 
     } catch (error) {
       console.error("Network Error:", error);
-      return "Failed to connect to AI service. Please check your internet connection.";
+      return "Failed to connect to AI service.";
     }
   }
+};
+
+// --- CHART COMPONENT (SVG) ---
+const SimpleLineChart = ({ data, target }) => {
+  if (!data || data.length === 0) return <div className="h-64 flex items-center justify-center text-slate-500 border border-slate-700 rounded-xl bg-slate-900/50">No Data Points Recorded</div>;
+
+  const width = 600;
+  const height = 300;
+  const padding = 40;
+  const maxScore = 100;
+
+  const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  const getX = (index) => {
+    if (sortedData.length <= 1) return width / 2;
+    return padding + (index * ((width - (padding * 2)) / (sortedData.length - 1)));
+  };
+  
+  const getY = (value) => height - (padding + (value / maxScore) * (height - (padding * 2)));
+  
+  const points = sortedData.map((d, i) => `${getX(i)},${getY(d.score)}`).join(' ');
+  const targetY = getY(target);
+
+  return (
+    <div className="w-full overflow-x-auto bg-slate-900 rounded-xl border border-slate-800 p-4">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        {/* Grid Lines */}
+        {[0, 25, 50, 75, 100].map(val => (
+          <g key={val}>
+            <line x1={padding} y1={getY(val)} x2={width - padding} y2={getY(val)} stroke="#334155" strokeWidth="1" />
+            <text x={padding - 10} y={getY(val) + 4} fontSize="10" textAnchor="end" fill="#64748b" fontFamily="monospace">{val}%</text>
+          </g>
+        ))}
+        
+        {/* Target Line */}
+        {target && (
+          <g>
+            <line x1={padding} y1={targetY} x2={width - padding} y2={targetY} stroke="#10b981" strokeWidth="2" strokeDasharray="5,5" />
+            <text x={width - padding + 5} y={targetY + 4} fontSize="10" fill="#10b981" fontWeight="bold" fontFamily="monospace">GOAL: {target}%</text>
+          </g>
+        )}
+
+        {/* Data Line */}
+        <polyline points={points} fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        
+        {/* Data Points */}
+        {sortedData.map((d, i) => (
+          <g key={i} className="group cursor-pointer">
+            <circle cx={getX(i)} cy={getY(d.score)} r="5" fill="#0f172a" stroke="#22d3ee" strokeWidth="2" className="transition-all duration-200 hover:r-8"/>
+            <title>{d.date}: {d.score}%</title>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
 };
 
 // --- HELPER COMPONENTS ---
@@ -205,9 +254,9 @@ const CopyBlock = ({ content, label = "Copy for Documentation" }) => {
 
 // --- INITIAL DATA ---
 const SAMPLE_STUDENTS = [
-  { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", nextIep: "2024-01-15", nextEval: "2025-05-20", behaviorPlan: true, summary: "Alex demonstrates strengths in visual processing but requires accommodations for reading decoding. Recent data indicates consistent progress when provided with direct instruction and visual organizers." },
-  { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", nextIep: "2025-11-20", nextEval: "2026-09-01", behaviorPlan: false, summary: "Jordan is performing well in literacy but struggles with multi-step math problems. Calculator accommodation is essential." },
-  { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", nextIep: "2024-12-01", nextEval: "2024-12-15", behaviorPlan: true, summary: "Taylor benefits from a structured BIP. Transitions are the primary trigger for dysregulation." }
+  { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", nextIep: "2024-01-15", nextEval: "2025-05-20", behaviorPlan: true, summary: "Sample data." },
+  { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", nextIep: "2025-11-20", nextEval: "2026-09-01", behaviorPlan: false, summary: "Sample data." },
+  { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", nextIep: "2024-12-01", nextEval: "2024-12-15", behaviorPlan: true, summary: "Sample data." }
 ];
 
 // --- MAIN DASHBOARD ---
@@ -222,14 +271,46 @@ const Dashboard = ({ user, onLogout }) => {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
 
-  // Filter students based on toggle
+  // Goals State (Firestore Synced)
+  const [goals, setGoals] = useState([]);
+  const [activeGoalId, setActiveGoalId] = useState(null);
+
+  // Derived State
   const displayedStudents = showSamples ? students : students.filter(s => s.id > 3);
   const activeStudent = displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0];
+  const activeGoal = goals.find(g => g.id === activeGoalId);
+
+  // -- FIREBASE HOOKS --
+  useEffect(() => {
+    // 1. Fetch Students
+    if (user) {
+        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'students'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Merge with samples if needed, or just set
+            setStudents(prev => showSamples ? [...SAMPLE_STUDENTS, ...fetched] : fetched);
+        });
+        return () => unsubscribe();
+    }
+  }, [user, showSamples]);
+
+  useEffect(() => {
+    // 2. Fetch Goals for Active Student
+    if (user && activeStudent && activeStudent.id > 3) { // Only fetch for real students
+        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), where('studentId', '==', activeStudent.id));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            setGoals(fetched);
+            if (fetched.length > 0 && !activeGoalId) setActiveGoalId(fetched[0].id);
+        });
+        return () => unsubscribe();
+    } else {
+        setGoals([]); // Reset for samples
+    }
+  }, [user, activeStudent]);
 
   // -- STATES --
   const [isGenerating, setIsGenerating] = useState(false);
-  
-  // File Upload State
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -248,6 +329,9 @@ const Dashboard = ({ user, onLogout }) => {
   const [bipAnalysis, setBipAnalysis] = useState('');
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
 
+  // Monitor State
+  const [newMeasure, setNewMeasure] = useState({ date: '', score: '' });
+
   // PBIS Tracker State
   const [schedule, setSchedule] = useState(['Morning Meeting', 'ELA Block', 'Lunch/Recess', 'Math Block', 'Specials', 'Dismissal']);
   const [trackingGoals, setTrackingGoals] = useState(['Safe Body', 'Kind Words', 'On Task']);
@@ -258,38 +342,68 @@ const Dashboard = ({ user, onLogout }) => {
   // Goal State
   const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '' });
   const [goalText, setGoalText] = useState("");
+  const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
 
   // -- HANDLERS --
 
-  const handleAddStudent = () => {
-      if(!newStudent.name) return;
-      const id = Date.now();
-      setStudents([...students, { ...newStudent, id, behaviorPlan: false, summary: "New student profile created. Upload data to generate summary." }]);
-      setCurrentStudentId(id);
+  const handleAddStudent = async () => {
+      if(!newStudent.name || !user) return;
+      
+      // Save to Firestore
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'students'), {
+          ...newStudent,
+          createdAt: serverTimestamp(),
+          summary: "New student profile created."
+      });
+
       setIsAddingStudent(false);
       setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
+  };
+
+  const handleLockGoal = async () => {
+      if (!user || !goalText || typeof activeStudent.id === 'number') {
+          alert("Cannot save goals for sample students. Please add a real student first.");
+          return;
+      }
+      
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), {
+          studentId: activeStudent.id,
+          text: goalText,
+          target: goalConfig.target,
+          frequency: goalConfig.frequency,
+          data: [], // Init empty data array
+          createdAt: serverTimestamp()
+      });
+      
+      alert("Goal Locked! Go to 'Monitor' tab to track progress.");
+      setActiveTab('monitor');
+  };
+
+  const handleAddDataPoint = async () => {
+      if (!activeGoal || !newMeasure.date || !newMeasure.score) return;
+      
+      const updatedData = [...(activeGoal.data || []), { date: newMeasure.date, score: parseFloat(newMeasure.score) }];
+      
+      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', activeGoal.id), {
+          data: updatedData
+      });
+      
+      setNewMeasure({ date: '', score: '' });
+  };
+
+  const copyGraphSummary = () => {
+      if (!activeGoal) return;
+      const avg = activeGoal.data.reduce((acc, curr) => acc + curr.score, 0) / activeGoal.data.length;
+      const text = `Progress Monitoring Summary for ${activeStudent.name}:\nGoal: ${activeGoal.text}\n\nCurrent Average: ${avg.toFixed(1)}%\nLatest Score: ${activeGoal.data[activeGoal.data.length-1]?.score || 'N/A'}%\n\nData collected via ${activeGoal.frequency} monitoring.`;
+      navigator.clipboard.writeText(text);
+      alert("Summary copied to clipboard!");
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setIsUploading(true);
-    // Simulate processing time
-    setTimeout(() => {
-        setIsUploading(false);
-        const updatedStudents = students.map(s => {
-            if (s.id === activeStudent.id) {
-                return { 
-                    ...s, 
-                    summary: `[UPDATED via ${file.name}]\n\n${s.summary}\n\nKey Insights from Upload:\n- Recent cognitive testing shows strength in fluid reasoning.\n- Reading fluency is in the 15th percentile.` 
-                };
-            }
-            return s;
-        });
-        setStudents(updatedStudents);
-        alert(`Successfully processed ${file.name}. Student summary updated.`);
-    }, 2000);
+    setTimeout(() => { setIsUploading(false); alert(`Successfully processed ${file.name}.`); }, 2000);
   };
   
   const handleGeneratePlaafp = async () => {
@@ -302,12 +416,10 @@ const Dashboard = ({ user, onLogout }) => {
   const handleGenerateEmail = async () => {
     setIsGenerating(true);
     let prompt = { student: activeStudent?.name, topic: emailTopic };
-    
     if (emailTopic === 'Solicit Feedback') {
         const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
         prompt = { ...prompt, feedbackAreas: areas };
     }
-
     const result = await GeminiService.generate(prompt, 'email');
     setGeneratedEmail(result);
     setIsGenerating(false);
@@ -322,23 +434,14 @@ const Dashboard = ({ user, onLogout }) => {
 
   const handleLogBehavior = () => {
     if (!newIncident.behavior) return;
-    const log = { 
-        ...newIncident, 
-        id: Date.now(), 
-        timestamp: new Date().toLocaleDateString() 
-    };
-    const newLog = [log, ...behaviorLog];
-    setBehaviorLog(newLog);
+    const log = { ...newIncident, id: Date.now(), timestamp: new Date().toLocaleDateString() };
+    setBehaviorLog([log, ...behaviorLog]);
     setNewIncident({ date: '', antecedent: '', behavior: '', consequence: '' });
   };
 
   const handleAnalyzeBehavior = async () => {
     setIsGenerating(true);
-    // Pass the actual log data to the API
-    const result = await GeminiService.generate({ 
-        logs: behaviorLog, 
-        targetBehavior: behaviorLog.length > 0 ? behaviorLog[0].behavior : 'General' 
-    }, 'behavior');
+    const result = await GeminiService.generate({ logs: behaviorLog, targetBehavior: behaviorLog[0]?.behavior || 'General' }, 'behavior');
     setBipAnalysis(result);
     setIsGenerating(false);
   };
@@ -351,7 +454,6 @@ const Dashboard = ({ user, onLogout }) => {
       if (current === 'star') next = 'smile';
       else if (current === 'smile') next = 'check';
       else if (current === 'check') next = null;
-      
       setTrackerData({ ...trackerData, [key]: next });
   };
 
@@ -362,34 +464,18 @@ const Dashboard = ({ user, onLogout }) => {
       return Math.round((earned / totalCells) * 100) || 0;
   };
 
-  // Tracker Customization
-  const addTimeBlock = () => {
-      if (schedule.length < 10) setSchedule([...schedule, "New Block"]);
-  };
-  const removeTimeBlock = (index) => {
-      setSchedule(schedule.filter((_, i) => i !== index));
-  };
-  const addGoal = () => {
-      if (trackingGoals.length < 5) setTrackingGoals([...trackingGoals, "New Goal"]);
-  };
-  const removeGoal = (index) => {
-      setTrackingGoals(trackingGoals.filter((_, i) => i !== index));
-  };
-  const copyTemplate = () => {
-      // Simulate copying logic
-      alert("Configuration Saved! You can now apply this template to other students.");
-  };
-
-  // --- RENDER HELPERS ---
-  const iepStatus = activeStudent ? ComplianceService.getStatus(activeStudent.nextIep) : { color: '', text: '' };
-  const evalStatus = activeStudent ? ComplianceService.getStatus(activeStudent.nextEval) : { color: '', text: '' };
+  const addTimeBlock = () => { if (schedule.length < 10) setSchedule([...schedule, "New Block"]); };
+  const removeTimeBlock = (index) => setSchedule(schedule.filter((_, i) => i !== index));
+  const addGoal = () => { if (trackingGoals.length < 5) setTrackingGoals([...trackingGoals, "New Goal"]); };
+  const removeGoal = (index) => setTrackingGoals(trackingGoals.filter((_, i) => i !== index));
+  const copyTemplate = () => alert("Configuration Saved!");
 
   if (!activeStudent && displayedStudents.length === 0) {
       return (
           <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 p-8">
               <Users size={48} className="mb-4 text-cyan-500" />
               <h2 className="text-xl font-bold text-white mb-2">No Students Found</h2>
-              <p className="mb-6 text-center">You have hidden sample students and haven't added any of your own.</p>
+              <p className="mb-6 text-center">You have hidden sample students. Add a new student to begin.</p>
               <div className="flex gap-4">
                   <Button onClick={() => setShowSamples(true)} icon={ToggleLeft}>Show Samples</Button>
                   <Button onClick={() => setIsAddingStudent(true)} icon={Plus}>Add Student</Button>
@@ -400,12 +486,6 @@ const Dashboard = ({ user, onLogout }) => {
                              <h3 className="text-xl font-bold text-white mb-4">Add Student</h3>
                              <div className="space-y-3">
                                 <input placeholder="Name" className="w-full bg-slate-950 p-3 rounded border border-slate-700 text-white" value={newStudent.name} onChange={e=>setNewStudent({...newStudent, name: e.target.value})} />
-                                <input placeholder="Grade" className="w-full bg-slate-950 p-3 rounded border border-slate-700 text-white" value={newStudent.grade} onChange={e=>setNewStudent({...newStudent, grade: e.target.value})} />
-                                <input placeholder="Primary Need" className="w-full bg-slate-950 p-3 rounded border border-slate-700 text-white" value={newStudent.need} onChange={e=>setNewStudent({...newStudent, need: e.target.value})} />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input type="date" className="w-full bg-slate-950 p-3 rounded border border-slate-700 text-white" value={newStudent.nextIep} onChange={e=>setNewStudent({...newStudent, nextIep: e.target.value})} />
-                                    <input type="date" className="w-full bg-slate-950 p-3 rounded border border-slate-700 text-white" value={newStudent.nextEval} onChange={e=>setNewStudent({...newStudent, nextEval: e.target.value})} />
-                                </div>
                                 <div className="flex justify-end gap-2 mt-4">
                                     <Button onClick={() => setIsAddingStudent(false)} variant="ghost">Cancel</Button>
                                     <Button onClick={handleAddStudent}>Save</Button>
@@ -433,7 +513,7 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
 
           <div className="hidden md:flex items-center gap-1 bg-slate-900/50 p-1 rounded-full border border-slate-800">
-            {['Profile', 'Identify', 'Develop', 'Behavior'].map((tab) => (
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase())}
@@ -522,16 +602,16 @@ const Dashboard = ({ user, onLogout }) => {
                  
                  <div className="grid grid-cols-2 gap-4">
                     <div className={`p-4 rounded-xl border border-slate-700/50 bg-slate-900/50 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${iepStatus.color}`}></div>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep).color}`}></div>
                       <p className="text-[10px] uppercase font-bold text-slate-500">IEP Due Date</p>
                       <h3 className="text-xl font-bold text-white">{activeStudent.nextIep}</h3>
-                      <Badge color={iepStatus.text === 'Compliant' ? 'emerald' : 'amber'}>{iepStatus.text}</Badge>
+                      <Badge color={ComplianceService.getStatus(activeStudent.nextIep).text === 'Compliant' ? 'emerald' : 'amber'}>{ComplianceService.getStatus(activeStudent.nextIep).text}</Badge>
                     </div>
                     <div className={`p-4 rounded-xl border border-slate-700/50 bg-slate-900/50 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${evalStatus.color}`}></div>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval).color}`}></div>
                       <p className="text-[10px] uppercase font-bold text-slate-500">Evaluation Due</p>
                       <h3 className="text-xl font-bold text-white">{activeStudent.nextEval}</h3>
-                      <Badge color={evalStatus.text === 'Compliant' ? 'emerald' : 'amber'}>{evalStatus.text}</Badge>
+                      <Badge color={ComplianceService.getStatus(activeStudent.nextEval).text === 'Compliant' ? 'emerald' : 'amber'}>{ComplianceService.getStatus(activeStudent.nextEval).text}</Badge>
                     </div>
                  </div>
                </Card>
@@ -550,11 +630,7 @@ const Dashboard = ({ user, onLogout }) => {
                 <div className="space-y-4 flex-1">
                    <div>
                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Topic</label>
-                     <select 
-                        value={emailTopic} 
-                        onChange={(e) => setEmailTopic(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
-                     >
+                     <select value={emailTopic} onChange={(e) => setEmailTopic(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none">
                        <option>Progress Update</option>
                        <option>Solicit Feedback</option>
                        <option>Meeting Request</option>
@@ -591,47 +667,30 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* --- IDENTIFY TAB (Fixed) --- */}
+        {/* --- IDENTIFY TAB --- */}
         {activeTab === 'identify' && (
            <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4">
               <Card className="p-8">
                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><FileText className="text-cyan-400"/> PLAAFP Wizard</h2>
                  <p className="text-sm text-slate-400 mb-6">Input basic observations to generate a comprehensive Present Levels narrative.</p>
-                 
                  <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Student Strengths</label>
-                      <textarea 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" 
-                        placeholder="e.g. Visual learner, kind to peers, loves art..." 
-                        value={plaafpInputs.strengths}
-                        onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})}
-                      />
+                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Key Needs/Deficits</label>
-                      <textarea 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" 
-                        placeholder="e.g. Reading decoding, emotional regulation during transitions..."
-                        value={plaafpInputs.needs}
-                        onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})}
-                      />
+                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Impact of Disability</label>
-                      <textarea 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" 
-                        placeholder="e.g. Difficulty accessing grade level text..."
-                        value={plaafpInputs.impact}
-                        onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})}
-                      />
+                      <textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none h-20" placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} />
                     </div>
                     <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2}>
                        {isGenerating ? "Compiling..." : "Generate Narrative"}
                     </Button>
                  </div>
               </Card>
-
               <Card className="p-8 bg-slate-950 flex flex-col">
                  <h2 className="text-xs font-bold text-slate-500 uppercase mb-4">Narrative Preview</h2>
                  {plaafpResult ? (
@@ -651,6 +710,132 @@ const Dashboard = ({ user, onLogout }) => {
            </div>
         )}
 
+        {/* --- DEVELOP TAB --- */}
+        {activeTab === 'develop' && (
+           <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4">
+              <Card className="p-8" glow>
+                 <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2"><Target className="text-fuchsia-400"/> Goal Drafter</h2>
+                    <Badge color="cyan">AI Active</Badge>
+                 </div>
+                 <div className="space-y-6">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Condition</label>
+                      <input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Given a grade level text..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Behavior</label>
+                      <input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="e.g. Student will decode..." />
+                    </div>
+                    <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full">
+                      {isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}
+                    </Button>
+                 </div>
+              </Card>
+
+              <Card className="p-8 bg-slate-950 flex flex-col">
+                <h2 className="text-xs font-bold text-slate-500 uppercase mb-4">Goal Preview</h2>
+                {goalText ? (
+                    <div className="flex-1 flex flex-col">
+                        <div className="bg-slate-900/50 rounded-xl p-6 mb-4 border border-slate-700">
+                            <p className="text-lg text-slate-200 leading-relaxed font-medium whitespace-pre-wrap">{goalText}</p>
+                        </div>
+                        
+                        {/* Lock & Track Configuration */}
+                        <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-4">
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target %</label>
+                                    <input type="number" value={goalConfig.target} onChange={e => setGoalConfig({...goalConfig, target: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Frequency</label>
+                                    <select value={goalConfig.frequency} onChange={e => setGoalConfig({...goalConfig, frequency: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white">
+                                        <option>Daily</option>
+                                        <option>Weekly</option>
+                                        <option>Bi-Weekly</option>
+                                        <option>Monthly</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <Button onClick={handleLockGoal} icon={Lock} className="w-full" variant="secondary">Lock & Track This Goal</Button>
+                        </div>
+                        
+                        <div className="mt-4">
+                            <CopyBlock content={goalText} label="Copy Goal Only" />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
+                        <Target size={32} className="mx-auto mb-2 opacity-50"/>
+                        <p>Define conditions to generate a goal.</p>
+                    </div>
+                )}
+              </Card>
+           </div>
+        )}
+
+        {/* --- MONITOR TAB (New) --- */}
+        {activeTab === 'monitor' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                <Card className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2"><Activity className="text-emerald-400"/> Progress Monitoring</h2>
+                        {activeGoal && <div className="text-xs text-slate-400 bg-slate-900 px-3 py-1 rounded border border-slate-800">Data Collection: <span className="text-white font-bold">{activeGoal.frequency}</span></div>}
+                    </div>
+
+                    {goals.length === 0 ? (
+                        <div className="text-center py-12 text-slate-500">
+                            <p className="mb-4">No locked goals found for this student.</p>
+                            <Button onClick={() => setActiveTab('develop')} variant="secondary">Go to Develop Tab to Create Goals</Button>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex gap-4 mb-6">
+                                <select 
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
+                                    value={activeGoalId || ''}
+                                    onChange={(e) => setActiveGoalId(e.target.value)}
+                                >
+                                    {goals.map(g => (
+                                        <option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>
+                                    ))}
+                                </select>
+                                <Button onClick={() => window.print()} variant="secondary" icon={Printer}>Print Graph</Button>
+                                <Button onClick={copyGraphSummary} variant="secondary" icon={Copy}>Copy Summary</Button>
+                            </div>
+
+                            {activeGoal && (
+                                <div className="grid lg:grid-cols-3 gap-6">
+                                    <div className="lg:col-span-2 space-y-6">
+                                        <SimpleLineChart data={activeGoal.data} target={activeGoal.target} />
+                                        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                                            <p className="text-sm text-slate-300 font-medium">Goal Statement:</p>
+                                            <p className="text-sm text-slate-400 italic mt-1">{activeGoal.text}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 h-fit">
+                                        <h3 className="text-sm font-bold text-white uppercase mb-4">Log Data Point</h3>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                                                <input type="date" value={newMeasure.date} onChange={e => setNewMeasure({...newMeasure, date: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Score (%)</label>
+                                                <input type="number" placeholder="0-100" value={newMeasure.score} onChange={e => setNewMeasure({...newMeasure, score: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white" />
+                                            </div>
+                                            <Button onClick={handleAddDataPoint} className="w-full" icon={Plus}>Add Data Point</Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </Card>
+            </div>
+        )}
+
         {/* --- BEHAVIOR TAB --- */}
         {activeTab === 'behavior' && (
           <div className="animate-in fade-in slide-in-from-bottom-4">
@@ -666,9 +851,7 @@ const Dashboard = ({ user, onLogout }) => {
                               <h2 className="text-xl font-bold text-white mb-1">Daily Success Tracker</h2>
                               <p className="text-slate-400 text-xs">Click cells to cycle: Star → Smile → Check</p>
                           </div>
-                          
                           <div className="flex items-center gap-4">
-                             {/* Config Controls */}
                              {isEditingTracker && (
                                  <div className="flex gap-2">
                                      <button onClick={addTimeBlock} disabled={schedule.length>=10} className="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 disabled:opacity-50 text-xs flex items-center gap-1"><Plus size={12}/> Time</button>
@@ -676,41 +859,29 @@ const Dashboard = ({ user, onLogout }) => {
                                      <button onClick={copyTemplate} className="px-3 py-1 bg-fuchsia-900/30 text-fuchsia-400 rounded hover:bg-fuchsia-900/50 text-xs flex items-center gap-1"><Save size={12}/> Save Template</button>
                                  </div>
                              )}
-
-                             {/* Reward Threshold */}
                              <div className="flex items-center gap-2">
                                  <span className="text-xs uppercase font-bold text-slate-500">Reward Goal:</span>
                                  {isEditingTracker ? (
-                                     <input 
-                                        type="number" 
-                                        className="w-12 bg-slate-950 border border-slate-700 rounded p-1 text-center text-sm font-bold text-white" 
-                                        value={rewardThreshold} 
-                                        onChange={(e) => setRewardThreshold(Number(e.target.value))}
-                                     />
+                                     <input type="number" className="w-12 bg-slate-950 border border-slate-700 rounded p-1 text-center text-sm font-bold text-white" value={rewardThreshold} onChange={(e) => setRewardThreshold(Number(e.target.value))} />
                                  ) : (
                                      <span className="text-sm font-bold text-white">{rewardThreshold}%</span>
                                  )}
                              </div>
-
-                             {/* Score Display */}
                              <div className="flex items-center gap-2 bg-slate-950 px-3 py-1 rounded-full border border-slate-800">
                                 <span className="text-xs font-bold text-slate-500 uppercase">Current:</span>
                                 <span className={`font-mono font-bold ${calculateReward() >= rewardThreshold ? 'text-emerald-400' : 'text-amber-400'}`}>{calculateReward()}%</span>
                              </div>
-                             
                              {calculateReward() >= rewardThreshold && (
                                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold px-3 py-1 rounded-full flex items-center gap-1 text-xs shadow-lg animate-pulse">
                                      <Star fill="black" size={12}/> Unlocked!
                                  </div>
                              )}
-                             
                              <Button onClick={() => setIsEditingTracker(!isEditingTracker)} variant="secondary" icon={Settings} className="h-8 text-xs">{isEditingTracker ? "Done" : "Edit"}</Button>
                           </div>
                       </div>
 
                       <div className="overflow-x-auto pb-4">
                         <div className="min-w-[800px] bg-slate-900/50 rounded-2xl border border-slate-700/50 overflow-hidden">
-                            {/* Header Row */}
                             <div className="flex border-b border-slate-700/50 bg-slate-900">
                                 <div className="w-48 p-4 font-bold text-slate-400 uppercase text-xs tracking-wider flex-shrink-0 border-r border-slate-700/50">Time Block</div>
                                 {trackingGoals.map((goal, idx) => (
@@ -728,8 +899,6 @@ const Dashboard = ({ user, onLogout }) => {
                                     </div>
                                 ))}
                             </div>
-                            
-                            {/* Rows */}
                             {schedule.map((block, bIdx) => (
                                 <div key={bIdx} className="flex border-b border-slate-700/50 last:border-b-0 hover:bg-slate-800/30 transition-colors">
                                     <div className="w-48 p-4 font-bold text-slate-300 flex-shrink-0 border-r border-slate-700/50 flex items-center justify-between">
@@ -768,33 +937,22 @@ const Dashboard = ({ user, onLogout }) => {
                         <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <input type="date" className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none" 
-                                    onChange={e => setNewIncident({...newIncident, date: e.target.value})}
-                                />
-                                <input type="text" placeholder="Antecedent" className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
-                                    onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})}
-                                />
+                                <input type="date" className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none" onChange={e => setNewIncident({...newIncident, date: e.target.value})} />
+                                <input type="text" placeholder="Antecedent" className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none" onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} />
                             </div>
-                            <input type="text" placeholder="Behavior Observed" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
-                                onChange={e => setNewIncident({...newIncident, behavior: e.target.value})}
-                            />
-                            <input type="text" placeholder="Consequence/Intervention" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none"
-                                onChange={e => setNewIncident({...newIncident, consequence: e.target.value})}
-                            />
+                            <input type="text" placeholder="Behavior Observed" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none" onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} />
+                            <input type="text" placeholder="Consequence/Intervention" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none" onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} />
                             <div className="flex gap-2">
                                 <Button onClick={handleLogBehavior} className="flex-1" icon={Plus}>Log Incident</Button>
                                 <Button onClick={handleAnalyzeBehavior} variant="secondary" className="flex-1" icon={Brain}>Analyze Patterns</Button>
                             </div>
                         </div>
                     </Card>
-
                     <Card className="p-8 bg-slate-950 flex flex-col">
                         <h2 className="text-xs font-bold text-slate-500 uppercase mb-4">Intervention Analysis</h2>
                         {bipAnalysis ? (
                             <div className="flex-1 flex flex-col">
-                                <div className="flex-1 bg-slate-900/50 rounded-xl p-6 text-slate-200 text-sm whitespace-pre-wrap leading-relaxed border border-slate-800 font-serif">
-                                    {bipAnalysis}
-                                </div>
+                                <div className="flex-1 bg-slate-900/50 rounded-xl p-6 text-slate-200 text-sm whitespace-pre-wrap leading-relaxed border border-slate-800 font-serif">{bipAnalysis}</div>
                                 <CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" />
                             </div>
                         ) : (
@@ -804,8 +962,6 @@ const Dashboard = ({ user, onLogout }) => {
                             </div>
                         )}
                     </Card>
-                    
-                    {/* Log Table */}
                     <div className="lg:col-span-2 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
                          <table className="w-full text-sm text-left text-slate-400">
                              <thead className="bg-slate-950 text-slate-200 font-bold uppercase text-xs">
@@ -823,63 +979,6 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* --- DEVELOP TAB (Goals) --- */}
-        {activeTab === 'develop' && (
-           <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4">
-              <Card className="p-8" glow>
-                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2"><Target className="text-fuchsia-400"/> Goal Drafter</h2>
-                    <Badge color="cyan">AI Active</Badge>
-                 </div>
-                 
-                 <div className="space-y-6">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Condition</label>
-                      <input 
-                        type="text" 
-                        value={goalInputs.condition}
-                        onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" 
-                        placeholder="e.g. Given a grade level text..." 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Behavior</label>
-                      <input 
-                        type="text" 
-                        value={goalInputs.behavior}
-                        onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 outline-none" 
-                        placeholder="e.g. Student will decode..." 
-                      />
-                    </div>
-                    <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full">
-                      {isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}
-                    </Button>
-                 </div>
-              </Card>
-
-              <Card className="p-8 bg-slate-950 flex flex-col">
-                <h2 className="text-xs font-bold text-slate-500 uppercase mb-4">Goal Preview</h2>
-                <div className="flex-1 rounded-xl border border-dashed border-slate-700 flex items-center justify-center p-6 text-center min-h-[200px]">
-                   {goalText ? (
-                     <div className="text-left animate-in zoom-in-95 w-full flex flex-col h-full">
-                       <p className="text-lg text-slate-200 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{goalText}</p>
-                       <div className="mt-auto">
-                         <CopyBlock content={goalText} label="Copy Goal to Documentation" />
-                       </div>
-                     </div>
-                   ) : (
-                     <div className="text-slate-600">
-                        <Target size={32} className="mx-auto mb-2 opacity-50"/>
-                        <p>Define conditions to generate a goal.</p>
-                     </div>
-                   )}
-                </div>
-              </Card>
-           </div>
-        )}
-
       </main>
       
       {/* ADD STUDENT MODAL */}
@@ -892,27 +991,20 @@ const Dashboard = ({ user, onLogout }) => {
                   </div>
                   <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                          <input placeholder="Student Name" className="bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500"
-                              value={newStudent.name} onChange={e => setNewStudent({...newStudent, name: e.target.value})} />
-                          <input placeholder="Grade" className="bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500"
-                              value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})} />
+                          <input placeholder="Student Name" className="bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500" value={newStudent.name} onChange={e => setNewStudent({...newStudent, name: e.target.value})} />
+                          <input placeholder="Grade" className="bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})} />
                       </div>
-                      <input placeholder="Primary Need" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500"
-                              value={newStudent.need} onChange={e => setNewStudent({...newStudent, need: e.target.value})} />
-                      
+                      <input placeholder="Primary Need" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500" value={newStudent.need} onChange={e => setNewStudent({...newStudent, need: e.target.value})} />
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">IEP Date</label>
-                              <input type="date" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500"
-                                  value={newStudent.nextIep} onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} />
+                              <input type="date" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500" value={newStudent.nextIep} onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} />
                           </div>
                           <div>
                               <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Eval Date</label>
-                              <input type="date" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500"
-                                  value={newStudent.nextEval} onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} />
+                              <input type="date" className="w-full bg-slate-950 p-3 rounded-lg border border-slate-700 text-white outline-none focus:border-cyan-500" value={newStudent.nextEval} onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} />
                           </div>
                       </div>
-                      
                       <div className="pt-4 flex justify-end gap-2">
                           <Button variant="ghost" onClick={() => setIsAddingStudent(false)}>Cancel</Button>
                           <Button onClick={handleAddStudent}>Save</Button>
@@ -927,6 +1019,18 @@ const Dashboard = ({ user, onLogout }) => {
 
 // --- LOGIN SCREEN ---
 const LoginScreen = ({ onLogin }) => {
+  const [loading, setLoading] = useState(false);
+  const handleAnonLogin = async () => {
+      setLoading(true);
+      try {
+          const result = await signInAnonymously(auth);
+          onLogin({ name: "Educator (Guest)", uid: result.user.uid, role: "Teacher", school: "Demo School" });
+      } catch (e) {
+          alert("Login failed");
+      }
+      setLoading(false);
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_40%,transparent_100%)]"></div>
@@ -936,11 +1040,8 @@ const LoginScreen = ({ onLogin }) => {
          </div>
          <h1 className="text-3xl font-extrabold text-white mb-2">Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
          <p className="text-slate-400 font-medium mb-8">Educator Portal Access</p>
-         <Button 
-           className="w-full"
-           onClick={() => onLogin({ name: "Demo Teacher", email: "demo@prismpath.edu" })}
-         >
-           Enter Demo Mode
+         <Button className="w-full" onClick={handleAnonLogin} disabled={loading}>
+           {loading ? "Accessing..." : "Enter Portal (Secure)"}
          </Button>
       </div>
     </div>
@@ -949,5 +1050,13 @@ const LoginScreen = ({ onLogin }) => {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <LoginScreen onLogin={setUser} />;
+  useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, (u) => {
+          if (u) setUser({ name: "Educator", uid: u.uid, role: "Teacher", school: "My School" });
+          else setUser(null);
+      });
+      return () => unsubscribe();
+  }, []);
+
+  return user ? <Dashboard user={user} onLogout={() => auth.signOut()} /> : <LoginScreen onLogin={setUser} />;
 }

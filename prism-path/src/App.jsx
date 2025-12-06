@@ -598,20 +598,6 @@ const NeuroDriver = ({ onBack, isDark }) => {
     );
 };
 
-// --- TEACHER DASHBOARD (Modified for Props) ---
-const TeacherDashboard = ({ onBack, isDark }) => {
-  const theme = getTheme(isDark);
-  return (
-      <div className={`min-h-screen ${theme.bg} ${theme.text} p-8 flex items-center justify-center`}>
-          <div className="text-center">
-              <h1 className="text-3xl font-bold mb-4">Educator Dashboard</h1>
-              <p className="mb-6">Please open in a dedicated tab for full functionality.</p>
-              <button onClick={onBack} className="bg-slate-800 text-white px-6 py-2 rounded-full">Back Home</button>
-          </div>
-      </div>
-  )
-};
-
 // --- LANDING PAGE COMPONENTS ---
 
 const FeatureCard = ({ icon: Icon, title, description, delay, isDark, onClick }) => {
@@ -810,4 +796,5 @@ export default function App() {
     </div>
   );
 }
+
 

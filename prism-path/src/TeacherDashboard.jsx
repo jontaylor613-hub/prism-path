@@ -7,7 +7,7 @@ import {
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer,
-  Sun, Moon
+  Sun, Moon, Loader2
 } from 'lucide-react';
 
 // --- IMPORTS ---
@@ -75,7 +75,7 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   
   return (
     <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}>
-      {Icon && <Icon size={18} className="mr-2" />}
+      {Icon && <Icon size={18} className={`mr-2 ${Icon === Loader2 ? 'animate-spin' : ''}`} />}
       {children}
     </button>
   );
@@ -88,13 +88,24 @@ const Card = ({ children, className = "", glow = false, theme }) => (
   </div>
 );
 
-const Badge = ({ children, color = "cyan" }) => {
-  const styles = {
+// --- FIXED BADGE COMPONENT ---
+const Badge = ({ children, color = "cyan", isDark }) => {
+  // Define styles for both modes
+  const styles = isDark ? {
     cyan: "bg-cyan-900/20 text-cyan-400 border-cyan-500/30",
     fuchsia: "bg-fuchsia-900/20 text-fuchsia-400 border-fuchsia-500/30",
     emerald: "bg-emerald-900/20 text-emerald-400 border-emerald-500/30",
-    amber: "bg-amber-900/20 text-amber-400 border-amber-500/30"
+    amber: "bg-amber-900/20 text-amber-400 border-amber-500/30",
+    red: "bg-red-900/20 text-red-400 border-red-500/30"
+  } : {
+    // LIGHT MODE: Use solid colors or darker text for contrast
+    cyan: "bg-cyan-100 text-cyan-700 border-cyan-200",
+    fuchsia: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+    emerald: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    amber: "bg-amber-100 text-amber-800 border-amber-200", // Darker amber for readability
+    red: "bg-red-100 text-red-700 border-red-200"
   };
+
   return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest ${styles[color] || styles.cyan}`}>{children}</span>;
 };
 
@@ -138,6 +149,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
   // States
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false); 
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [plaafpInputs, setPlaafpInputs] = useState({ strengths: '', needs: '', impact: '' });
@@ -158,6 +170,14 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '' });
   const [goalText, setGoalText] = useState("");
   const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
+
+  // Helpers
+  const getBadgeColor = (text) => {
+      if (text === 'Compliant') return 'emerald';
+      if (text === 'OVERDUE' || text.includes('< 1')) return 'red';
+      if (text.includes('< 3')) return 'amber';
+      return 'cyan';
+  };
 
   // Handlers
   const handleAddStudent = () => {
@@ -234,11 +254,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   };
 
   const handleAnalyzeBehavior = async () => {
-    setIsGenerating(true);
-    // Passing student name context
+    if (behaviorLog.length === 0) { alert("Please add at least one incident to the log first."); return; }
+    setIsAnalyzing(true); 
     const result = await GeminiService.generate({ logs: behaviorLog, targetBehavior: behaviorLog[0]?.behavior || 'General' }, 'behavior');
     setBipAnalysis(result);
-    setIsGenerating(false);
+    setIsAnalyzing(false); 
   };
 
   const handleTrackerClick = (block, goal) => {
@@ -356,11 +376,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                  <div className="grid grid-cols-2 gap-4">
                     <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
                       <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep}</h3><Badge color={ComplianceService.getStatus(activeStudent.nextIep).text === 'Compliant' ? 'emerald' : 'amber'}>{ComplianceService.getStatus(activeStudent.nextIep).text}</Badge>
+                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep).text}</Badge>
                     </div>
                     <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
                       <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval}</h3><Badge color={ComplianceService.getStatus(activeStudent.nextEval).text === 'Compliant' ? 'emerald' : 'amber'}>{ComplianceService.getStatus(activeStudent.nextEval).text}</Badge>
+                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextEval).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextEval).text}</Badge>
                     </div>
                  </div>
                </Card>
@@ -408,7 +428,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         {activeTab === 'develop' && (
            <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4">
               <Card className="p-8" glow theme={theme}>
-                 <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan">AI Active</Badge></div>
+                 <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan" isDark={isDark}>AI Active</Badge></div>
                  <div className="space-y-6">
                    <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Given a grade level text..." /></div>
                    <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will decode..." /></div>
@@ -500,7 +520,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               )}
               {behaviorTab === 'log' && (
                   <div className="grid lg:grid-cols-2 gap-8">
-                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} variant="secondary" className="flex-1" icon={Brain} theme={theme}>Analyze Patterns</Button></div></div></Card>
+                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
                     <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
                     <div className={`lg:col-span-2 ${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}><table className={`w-full text-sm text-left ${theme.textMuted}`}><thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs`}><tr><th className="p-4">Date</th><th className="p-4">Antecedent</th><th className="p-4">Behavior</th><th className="p-4">Consequence</th></tr></thead><tbody className={`divide-y ${theme.cardBorder}`}>{behaviorLog.length === 0 ? <tr><td colSpan="4" className="p-8 text-center italic opacity-50">No incidents logged yet.</td></tr> : behaviorLog.map(log => (<tr key={log.id}><td className="p-4 font-mono text-cyan-400">{log.date}</td><td className="p-4">{log.antecedent}</td><td className={`p-4 ${theme.text}`}>{log.behavior}</td><td className="p-4">{log.consequence}</td></tr>))}</tbody></table></div>
                   </div>

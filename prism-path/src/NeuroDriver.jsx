@@ -1,9 +1,10 @@
-// src/NeuroDriver.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, ArrowRight, Volume2, VolumeX, Star, Loader2, Zap, Shuffle, 
   CheckCircle2, Pause, Play, RotateCcw
 } from 'lucide-react';
+
+// --- THE FIX: Import the brain from utils.js ---
 import { getTheme, GeminiService, AudioEngine } from './utils';
 
 const NeuroDriver = ({ onBack, isDark }) => {
@@ -23,7 +24,10 @@ const NeuroDriver = ({ onBack, isDark }) => {
         if (!input.trim()) return;
         setIsProcessing(true);
         setSteps([]); setCompletedSteps([]); setPickedTaskIndex(null);
+        
+        // Call the shared AI service
         const result = await GeminiService.generate({ task: input }, 'slicer');
+        
         // Clean result
         const newSteps = result.split('\n').map(s => s.replace(/^\d+\.\s*|-\s*|^\*\s*/, '').trim()).filter(s => s.length > 0);
         setSteps(newSteps);

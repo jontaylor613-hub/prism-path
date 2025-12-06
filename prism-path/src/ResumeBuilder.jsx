@@ -5,12 +5,15 @@ import {
   Trash2, Wand, Loader2, X, BookOpen, Users, Calendar, MapPin 
 } from 'lucide-react';
 
+// --- THE FIX: Import the brain ---
+import { GeminiService } from './utils';
+
 export default function ResumeBuilder({ onBack, isLowStim }) {
   const [step, setStep] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
 
-  // --- State Management (NO LOCAL STORAGE - SECURITY FIRST) ---
+  // --- State Management ---
   const [data, setData] = useState({
     fullName: '', 
     title: '', 
@@ -53,44 +56,33 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
     setData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
   };
 
-  // --- AI INTEGRATION (CLEAN TEXT ONLY) ---
+  // --- AI INTEGRATION (FIXED) ---
   const handleAIPolish = async (fieldToPolish) => {
     let textToImprove = "";
     if (fieldToPolish === 'job') textToImprove = tempJob.description;
     if (fieldToPolish === 'summary') textToImprove = data.summary;
 
-    if (!textToImprove) return;
+    if (!textToImprove.trim()) return;
 
     setIsPolishing(true);
 
     try {
-      const prompt = `
-        Role: Expert Resume Writer.
-        Task: Rewrite the following text to be professional, concise, and action-oriented.
-        Constraint: RETURN PLAIN TEXT ONLY. Do NOT use markdown, bolding (**), or bullet points. Just clean paragraphs.
-        Input: "${textToImprove}"
-      `;
-
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt })
-      });
-
-      const resData = await response.json();
+      // Call the shared GeminiService
+      const result = await GeminiService.generate({ 
+          text: textToImprove,
+          section: fieldToPolish === 'job' ? 'Job Description' : 'Professional Summary'
+      }, 'resume');
       
-      if (resData.result) {
-        const cleanText = resData.result.replace(/\*\*/g, '').replace(/\*/g, '').trim();
-
+      if (result) {
         if (fieldToPolish === 'job') {
-          setTempJob(prev => ({ ...prev, description: cleanText }));
+          setTempJob(prev => ({ ...prev, description: result }));
         } else {
-          handleChange('summary', cleanText);
+          handleChange('summary', result);
         }
       }
     } catch (error) {
       console.error("AI Polish failed", error);
-      alert("AI is busy right now. Try again!");
+      alert("AI is having trouble connecting. Check your API Key.");
     } finally {
       setIsPolishing(false);
     }
@@ -179,8 +171,8 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
     },
     {
       id: 'coursework',
-      title: 'Relevant Coursework and Certificates', // UPDATED TITLE
-      subtitle: "List specific classes or certificates that apply to the job.", // UPDATED SUBTITLE
+      title: 'Relevant Coursework', 
+      subtitle: "List specific classes or certificates that apply to the job.",
       component: () => (
         <div className="space-y-6">
            <div className="flex gap-2">
@@ -367,7 +359,7 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
             {/* Coursework */}
             {data.coursework.length > 0 && (
                 <div className="mb-6">
-                    <h3 className="font-bold uppercase text-indigo-900 border-b border-gray-300 mb-2 text-sm tracking-widest">Relevant Coursework and Certificates</h3>
+                    <h3 className="font-bold uppercase text-indigo-900 border-b border-gray-300 mb-2 text-sm tracking-widest">Relevant Coursework</h3>
                     <p className="text-gray-800">{data.coursework.join(', ')}</p>
                 </div>
             )}

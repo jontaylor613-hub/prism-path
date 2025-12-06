@@ -11,7 +11,8 @@ import {
   ClipboardList, ArrowRight, LogOut, Calculator, Search, User, 
   Wand2, Copy, Edit2, FileDown, AlertTriangle, Mail, UploadCloud, 
   BarChart3, ShieldAlert, Star, Smile, Settings, Users, ToggleLeft, 
-  ToggleRight, FileCheck, Minus, Lock, Printer, SmilePlus, Play, Pause, RotateCcw, Timer
+  ToggleRight, FileCheck, Minus, Lock, Printer, SmilePlus, Play, Pause, 
+  RotateCcw, Timer, Volume2, VolumeX, Shuffle, stickyNote
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -32,43 +33,160 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// --- NEURO DRIVER COMPONENT (Ported & Styled) ---
+// --- PLACEHOLDER COMPONENTS ---
+
+const ResumeBuilder = ({ onBack }) => (
+  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
+      <FileText size={48} className="text-fuchsia-400 mx-auto mb-4" />
+      <h2 className="text-2xl font-bold text-white mb-2">Resume Builder</h2>
+      <p className="text-slate-400 mb-6">This tool is currently being integrated into the main dashboard.</p>
+      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
+    </div>
+  </div>
+);
+
+const SocialMap = ({ onBack }) => (
+  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
+      <MapPin size={48} className="text-cyan-400 mx-auto mb-4" />
+      <h2 className="text-2xl font-bold text-white mb-2">Social Map</h2>
+      <p className="text-slate-400 mb-6">The Safe Village Map is loading...</p>
+      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
+    </div>
+  </div>
+);
+
+const EmotionalCockpit = ({ onBack }) => (
+  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
+      <Activity size={48} className="text-indigo-400 mx-auto mb-4" />
+      <h2 className="text-2xl font-bold text-white mb-2">Emotional Cockpit</h2>
+      <p className="text-slate-400 mb-6">Cool Down tools are being calibrated.</p>
+      <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
+    </div>
+  </div>
+);
+
+// --- AUDIO UTILS (Brown Noise & Chime) ---
+const AudioEngine = {
+    ctx: null,
+    noiseNode: null,
+    gainNode: null,
+    
+    init: () => {
+        if (!AudioEngine.ctx) {
+            AudioEngine.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (AudioEngine.ctx.state === 'suspended') {
+            AudioEngine.ctx.resume();
+        }
+    },
+
+    toggleBrownNoise: (play) => {
+        AudioEngine.init();
+        if (play) {
+            if (AudioEngine.noiseNode) return; 
+            const bufferSize = AudioEngine.ctx.sampleRate * 2; // 2 seconds buffer
+            const buffer = AudioEngine.ctx.createBuffer(1, bufferSize, AudioEngine.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                data[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = data[i];
+                data[i] *= 3.5; // Gain compensation
+            }
+            
+            AudioEngine.noiseNode = AudioEngine.ctx.createBufferSource();
+            AudioEngine.noiseNode.buffer = buffer;
+            AudioEngine.noiseNode.loop = true;
+            AudioEngine.gainNode = AudioEngine.ctx.createGain();
+            AudioEngine.gainNode.gain.value = 0.15; // Low volume
+            
+            AudioEngine.noiseNode.connect(AudioEngine.gainNode);
+            AudioEngine.gainNode.connect(AudioEngine.ctx.destination);
+            AudioEngine.noiseNode.start(0);
+        } else {
+            if (AudioEngine.noiseNode) {
+                AudioEngine.noiseNode.stop();
+                AudioEngine.noiseNode.disconnect();
+                AudioEngine.noiseNode = null;
+            }
+        }
+    },
+
+    playChime: () => {
+        AudioEngine.init();
+        const osc = AudioEngine.ctx.createOscillator();
+        const gain = AudioEngine.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(AudioEngine.ctx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, AudioEngine.ctx.currentTime); // A4
+        osc.frequency.exponentialRampToValueAtTime(880, AudioEngine.ctx.currentTime + 0.1); // Octave jump
+        
+        gain.gain.setValueAtTime(0.1, AudioEngine.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.5);
+        
+        osc.start();
+        osc.stop(AudioEngine.ctx.currentTime + 1.5);
+    }
+};
+
+// --- NEURO DRIVER COMPONENT ---
 
 const NeuroDriver = ({ onBack }) => {
     const [mode, setMode] = useState('slicer'); // 'slicer' or 'timer'
+    const [parkingLot, setParkingLot] = useState('');
+    const [isNoiseOn, setIsNoiseOn] = useState(false);
 
     // --- TASK SLICER LOGIC ---
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [steps, setSteps] = useState([]);
     const [completedSteps, setCompletedSteps] = useState([]);
+    const [pickedTaskIndex, setPickedTaskIndex] = useState(null);
 
-    const generateMicroSteps = (task) => {
-        const t = task.toLowerCase();
-        if (t.includes('room') || t.includes('clean')) return ["Pick up trash.", "Put dirty clothes in hamper.", "Move dishes to kitchen.", "Make the bed.", "Put 5 things away."];
-        if (t.includes('homework') || t.includes('study')) return ["Clear desk space.", "Open assignment.", "Read instructions.", "Write first sentence.", "Take a drink of water."];
-        return ["Take a deep breath.", "Gather materials.", "Do the easiest part (2 mins).", "Drink water.", "Do next step."];
-    };
-
-    const handleSlice = () => {
+    const handleSlice = async () => {
         if (!input.trim()) return;
         setIsProcessing(true);
-        setSteps([]); setCompletedSteps([]);
-        setTimeout(() => {
-            setSteps(generateMicroSteps(input));
-            setIsProcessing(false);
-        }, 1000);
+        setSteps([]); 
+        setCompletedSteps([]);
+        setPickedTaskIndex(null);
+
+        // AI Generation with Safeguards
+        const result = await GeminiService.generate({ task: input }, 'slicer');
+        
+        // Parse list from AI response
+        const newSteps = result.split('\n')
+            .map(s => s.replace(/^\d+\.\s*|-\s*/, '').trim()) // Remove numbers/bullets
+            .filter(s => s.length > 0);
+
+        setSteps(newSteps);
+        setIsProcessing(false);
     };
 
     const toggleStep = (idx) => {
         setCompletedSteps(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
     };
+
+    const pickForMe = () => {
+        const available = steps.map((_, i) => i).filter(i => !completedSteps.includes(i));
+        if (available.length === 0) return;
+        const random = available[Math.floor(Math.random() * available.length)];
+        setPickedTaskIndex(random);
+    };
+
     const progress = steps.length > 0 ? (completedSteps.length / steps.length) * 100 : 0;
+    const isAllDone = steps.length > 0 && completedSteps.length === steps.length;
 
     // --- VISUAL TIMER LOGIC ---
     const [timerType, setTimerType] = useState('duration');
     const [totalTime, setTotalTime] = useState(15);
     const [timeLeft, setTimeLeft] = useState(15 * 60);
+    const [targetTimeStr, setTargetTimeStr] = useState('');
     const [isActive, setIsActive] = useState(false);
     const [viewType, setViewType] = useState('pie');
 
@@ -76,9 +194,32 @@ const NeuroDriver = ({ onBack }) => {
         let interval = null;
         if (isActive && timeLeft > 0) {
             interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-        } else if (timeLeft <= 0) setIsActive(false);
+        } else if (timeLeft <= 0 && isActive) {
+            setIsActive(false);
+            AudioEngine.playChime(); // Gentle audio cue
+        }
         return () => clearInterval(interval);
     }, [isActive, timeLeft]);
+
+    const handleSetTimeUntil = (e) => {
+        const val = e.target.value;
+        setTargetTimeStr(val);
+        if(!val) return;
+        
+        const now = new Date();
+        const [hours, minutes] = val.split(':').map(Number);
+        let target = new Date();
+        target.setHours(hours, minutes, 0, 0);
+        
+        if (target < now) target.setDate(target.getDate() + 1); // Assume tomorrow if time passed
+        
+        const diffMins = Math.floor((target - now) / 1000 / 60);
+        if (diffMins > 0) {
+            setTotalTime(diffMins);
+            setTimeLeft(diffMins * 60);
+            setIsActive(false); // Let user start it manually or auto-start
+        }
+    };
 
     const formatTime = (seconds) => {
         const m = Math.floor(seconds / 60);
@@ -89,125 +230,193 @@ const NeuroDriver = ({ onBack }) => {
     const percentage = Math.max(0, Math.min(1, timeLeft / (totalTime * 60)));
     const getColor = () => percentage > 0.5 ? "#22d3ee" : percentage > 0.2 ? "#c084fc" : "#e879f9";
 
+    const toggleNoise = () => {
+        const newState = !isNoiseOn;
+        setIsNoiseOn(newState);
+        AudioEngine.toggleBrownNoise(newState);
+    };
+
     return (
         <div className="min-h-screen bg-slate-950 p-4 pt-24 font-sans text-slate-200">
-            <div className="max-w-2xl mx-auto">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <div className="flex justify-center mb-4">
-                        <div className="p-4 bg-slate-900 rounded-full border border-fuchsia-500/50 shadow-[0_0_30px_rgba(192,38,211,0.2)]">
-                            <Brain className="text-cyan-400 w-10 h-10" />
-                        </div>
+            <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                {/* LEFT: PARKING LOT */}
+                <div className="lg:col-span-1 hidden lg:flex flex-col gap-4">
+                    <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4 h-full flex flex-col">
+                         <div className="flex items-center gap-2 mb-3 text-fuchsia-400 font-bold uppercase text-xs tracking-wider">
+                             <MessageSquare size={14}/> Brain Dump
+                         </div>
+                         <textarea 
+                            className="flex-1 bg-slate-950/50 border border-slate-800 rounded-xl p-3 text-sm text-slate-300 resize-none outline-none focus:border-fuchsia-500/50 transition-colors"
+                            placeholder="Distracting thought? Park it here."
+                            value={parkingLot}
+                            onChange={(e) => setParkingLot(e.target.value)}
+                         />
                     </div>
-                    <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 mb-2">NEURO DRIVER</h1>
-                    <p className="text-slate-400">Executive Function Assistant</p>
-                    <button onClick={onBack} className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Exit Tool</button>
                 </div>
 
-                {/* Main Card */}
-                <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
-                    
-                    {/* Tabs */}
-                    <div className="flex gap-4 mb-8 border-b border-slate-700/50 pb-2">
-                        <button onClick={() => setMode('slicer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'slicer' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-white'}`}>Task Slicer</button>
-                        <button onClick={() => setMode('timer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'timer' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-slate-500 hover:text-white'}`}>Visual Timer</button>
+                {/* CENTER: MAIN APP */}
+                <div className="lg:col-span-3">
+                    <div className="text-center mb-6 flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <button onClick={onBack} className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1"><ArrowRight className="rotate-180" size={14}/> Exit</button>
+                        </div>
+                        <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400">NEURO DRIVER</h1>
+                        <button onClick={toggleNoise} className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isNoiseOn ? 'text-cyan-400 animate-pulse' : 'text-slate-500 hover:text-white'}`}>
+                            {isNoiseOn ? <Volume2 size={16}/> : <VolumeX size={16}/>}
+                            {isNoiseOn ? "Focus On" : "Focus Off"}
+                        </button>
                     </div>
 
-                    {/* CONTENT: SLICER */}
-                    {mode === 'slicer' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                            <div className="flex gap-2">
-                                <input 
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
-                                    placeholder="What do you need to do? (e.g. Clean Room)"
-                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-cyan-400 transition-colors"
-                                />
-                                <button onClick={handleSlice} disabled={isProcessing} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white px-6 rounded-xl font-bold shadow-lg hover:brightness-110 transition-all disabled:opacity-50">
-                                    {isProcessing ? <Loader2 className="animate-spin"/> : <Zap/>}
-                                </button>
-                            </div>
+                    <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden min-h-[500px]">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
+                        
+                        {/* Tabs */}
+                        <div className="flex gap-4 mb-8 border-b border-slate-700/50 pb-2">
+                            <button onClick={() => setMode('slicer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'slicer' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-white'}`}>Task Slicer</button>
+                            <button onClick={() => setMode('timer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'timer' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-slate-500 hover:text-white'}`}>Visual Timer</button>
+                        </div>
 
-                            {steps.length > 0 && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-widest text-cyan-400">
-                                        <span>Progress</span>
-                                        <span>{Math.round(progress)}%</span>
+                        {/* CONTENT: SLICER */}
+                        {mode === 'slicer' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 relative">
+                                {/* GOLD STAR REWARD OVERLAY */}
+                                {isAllDone && (
+                                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm rounded-2xl animate-in zoom-in duration-500">
+                                        <Star size={120} className="text-yellow-400 fill-yellow-400 drop-shadow-[0_0_50px_rgba(250,204,21,0.6)] animate-bounce" />
+                                        <h3 className="text-2xl font-black text-white mt-6 uppercase tracking-widest">Task Complete!</h3>
+                                        <p className="text-yellow-200/80 mt-2 font-medium">Dopamine Hit Delivered.</p>
+                                        <button onClick={() => { setSteps([]); setCompletedSteps([]); setInput(''); }} className="mt-8 px-6 py-2 bg-slate-800 border border-slate-600 rounded-full hover:bg-slate-700 transition-colors text-sm text-slate-200">Start New Task</button>
                                     </div>
-                                    <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {steps.map((step, idx) => (
-                                            <div key={idx} onClick={() => toggleStep(idx)} className={`p-4 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${completedSteps.includes(idx) ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-800/30 hover:border-cyan-500/30'}`}>
-                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-600'}`}>
-                                                    {completedSteps.includes(idx) && <CheckCircle2 size={14} />}
-                                                </div>
-                                                <span className={`font-medium ${completedSteps.includes(idx) ? 'text-emerald-400 line-through' : 'text-slate-200'}`}>{step}</span>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <input 
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
+                                        placeholder="What is the big scary task? (e.g. Write Essay)"
+                                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-cyan-400 transition-colors"
+                                    />
+                                    <button onClick={handleSlice} disabled={isProcessing} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white px-6 rounded-xl font-bold shadow-lg hover:brightness-110 transition-all disabled:opacity-50">
+                                        {isProcessing ? <Loader2 className="animate-spin"/> : <Zap/>}
+                                    </button>
+                                </div>
+
+                                {steps.length > 0 && (
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex gap-4 items-center">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-cyan-400">Progress: {Math.round(progress)}%</div>
+                                                <button onClick={pickForMe} className="flex items-center gap-1 text-xs bg-slate-800 px-3 py-1 rounded-full hover:bg-fuchsia-900/50 hover:text-fuchsia-300 transition-colors border border-slate-700">
+                                                    <Shuffle size={12}/> Pick For Me
+                                                </button>
                                             </div>
-                                        ))}
+                                        </div>
+                                        
+                                        <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                                        </div>
+
+                                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {steps.map((step, idx) => {
+                                                const isPicked = pickedTaskIndex === idx;
+                                                const isHidden = pickedTaskIndex !== null && !isPicked;
+                                                
+                                                if (isHidden && !completedSteps.includes(idx)) return null; // Hide others in focus mode
+
+                                                return (
+                                                    <div key={idx} onClick={() => toggleStep(idx)} className={`p-4 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${isPicked ? 'border-fuchsia-500 bg-fuchsia-500/10 scale-105 shadow-xl' : completedSteps.includes(idx) ? 'border-emerald-500/30 bg-emerald-500/10 opacity-60' : 'border-slate-800 bg-slate-800/30 hover:border-cyan-500/30'}`}>
+                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-600'}`}>
+                                                            {completedSteps.includes(idx) && <CheckCircle2 size={14} />}
+                                                        </div>
+                                                        <span className={`font-medium ${completedSteps.includes(idx) ? 'text-emerald-400 line-through' : 'text-slate-200'}`}>{step}</span>
+                                                        {isPicked && <span className="ml-auto text-[10px] bg-fuchsia-500 text-white px-2 py-1 rounded-full font-bold uppercase">Focus</span>}
+                                                    </div>
+                                                );
+                                            })}
+                                            {pickedTaskIndex !== null && (
+                                                <button onClick={() => setPickedTaskIndex(null)} className="w-full py-2 text-xs text-slate-500 hover:text-white border border-dashed border-slate-700 rounded-lg">Show All Tasks</button>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                )}
+                            </div>
+                        )}
 
-                    {/* CONTENT: TIMER */}
-                    {mode === 'timer' && (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 flex flex-col items-center">
-                            {viewType === 'pie' ? (
-                                <div className="relative">
-                                    <svg width="240" height="240" className="transform -rotate-90">
-                                        <circle cx="120" cy="120" r="100" stroke="#1e293b" strokeWidth="12" fill="none" />
-                                        <circle cx="120" cy="120" r="100" stroke={getColor()} strokeWidth="12" fill="none" strokeLinecap="round" 
-                                            strokeDasharray={2 * Math.PI * 100} 
-                                            strokeDashoffset={2 * Math.PI * 100 * (1 - percentage)} 
-                                            className="transition-all duration-1000 ease-linear"
-                                        />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-5xl font-mono font-bold text-white tracking-tighter">{formatTime(timeLeft)}</span>
+                        {/* CONTENT: TIMER */}
+                        {mode === 'timer' && (
+                            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 flex flex-col items-center">
+                                {viewType === 'pie' ? (
+                                    <div className="relative">
+                                        <svg width="240" height="240" className="transform -rotate-90">
+                                            <circle cx="120" cy="120" r="100" stroke="#1e293b" strokeWidth="12" fill="none" />
+                                            <circle cx="120" cy="120" r="100" stroke={getColor()} strokeWidth="12" fill="none" strokeLinecap="round" 
+                                                strokeDasharray={2 * Math.PI * 100} 
+                                                strokeDashoffset={2 * Math.PI * 100 * (1 - percentage)} 
+                                                className="transition-all duration-1000 ease-linear"
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className="text-5xl font-mono font-bold text-white tracking-tighter">{formatTime(timeLeft)}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="w-full h-16 bg-slate-950 rounded-xl border border-slate-700 relative overflow-hidden">
-                                    <div className="h-full transition-all duration-1000 ease-linear" style={{ width: `${percentage * 100}%`, backgroundColor: getColor() }}></div>
-                                    <div className="absolute inset-0 flex items-center justify-center font-mono text-2xl font-bold text-white drop-shadow-md">{formatTime(timeLeft)}</div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="w-full h-16 bg-slate-950 rounded-xl border border-slate-700 relative overflow-hidden">
+                                        <div className="h-full transition-all duration-1000 ease-linear" style={{ width: `${percentage * 100}%`, backgroundColor: getColor() }}></div>
+                                        <div className="absolute inset-0 flex items-center justify-center font-mono text-2xl font-bold text-white drop-shadow-md">{formatTime(timeLeft)}</div>
+                                    </div>
+                                )}
 
-                            <div className="flex gap-4">
-                                <button onClick={() => setIsActive(!isActive)} className={`p-4 rounded-full border-2 transition-all ${isActive ? 'border-yellow-500 text-yellow-500' : 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'}`}>
-                                    {isActive ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
-                                </button>
-                                <button onClick={() => { setIsActive(false); setTimeLeft(totalTime * 60); }} className="p-4 rounded-full border-2 border-slate-600 text-slate-400 hover:text-white hover:border-white transition-all">
-                                    <RotateCcw />
-                                </button>
-                            </div>
+                                <div className="flex gap-4">
+                                    <button onClick={() => setIsActive(!isActive)} className={`p-4 rounded-full border-2 transition-all ${isActive ? 'border-yellow-500 text-yellow-500' : 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'}`}>
+                                        {isActive ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+                                    </button>
+                                    <button onClick={() => { setIsActive(false); setTimeLeft(totalTime * 60); }} className="p-4 rounded-full border-2 border-slate-600 text-slate-400 hover:text-white hover:border-white transition-all">
+                                        <RotateCcw />
+                                    </button>
+                                </div>
 
-                            <div className="w-full">
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block text-center">Set Duration (Minutes)</label>
-                                <input 
-                                    type="range" min="1" max="60" value={totalTime} 
-                                    onChange={(e) => { 
-                                        const val = Number(e.target.value); 
-                                        setTotalTime(val); 
-                                        setTimeLeft(val * 60); 
-                                        setIsActive(false); 
-                                    }} 
-                                    className="w-full accent-cyan-500"
-                                />
-                                <div className="text-center text-cyan-400 font-bold mt-2">{totalTime} min</div>
+                                <div className="w-full bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                                    <div className="flex gap-4 mb-4 text-xs font-bold uppercase text-slate-500 justify-center">
+                                        <button onClick={() => setTimerType('duration')} className={`px-4 py-1 rounded-full ${timerType === 'duration' ? 'bg-cyan-500 text-slate-900' : 'hover:text-white'}`}>Duration</button>
+                                        <button onClick={() => setTimerType('until')} className={`px-4 py-1 rounded-full ${timerType === 'until' ? 'bg-fuchsia-500 text-white' : 'hover:text-white'}`}>Time Until</button>
+                                    </div>
+
+                                    {timerType === 'duration' ? (
+                                        <>
+                                            <input 
+                                                type="range" min="1" max="60" value={totalTime} 
+                                                onChange={(e) => { 
+                                                    const val = Number(e.target.value); 
+                                                    setTotalTime(val); 
+                                                    setTimeLeft(val * 60); 
+                                                    setIsActive(false); 
+                                                }} 
+                                                className="w-full accent-cyan-500 mb-2"
+                                            />
+                                            <div className="text-center text-cyan-400 font-bold">{totalTime} min</div>
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center">
+                                            <label className="text-xs text-slate-500 mb-2">Count down until:</label>
+                                            <input 
+                                                type="time" 
+                                                value={targetTimeStr} 
+                                                onChange={handleSetTimeUntil}
+                                                className="bg-slate-900 border border-slate-700 rounded p-2 text-white text-center outline-none focus:border-fuchsia-500"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    <button onClick={() => setViewType('pie')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'pie' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Pie</button>
+                                    <button onClick={() => setViewType('bar')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'bar' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Bar</button>
+                                </div>
                             </div>
-                            
-                            <div className="flex gap-2">
-                                <button onClick={() => setViewType('pie')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'pie' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Pie</button>
-                                <button onClick={() => setViewType('bar')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'bar' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Bar</button>
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -297,6 +506,10 @@ const GeminiService = {
         systemInstruction = "You are an expert Board Certified Behavior Analyst (BCBA). Analyze the incident log. Suggest 3 specific, low-prep interventions. Output clean text.";
         userPrompt = `Analyze logs: ${JSON.stringify(data)}. Target: ${data.targetBehavior}.`;
     } 
+    else if (type === 'slicer') {
+        systemInstruction = "You are an Executive Function Coach for students with ADHD/Autism. Break down the task into 5-7 clear, micro-steps. Ensure steps are safe, appropriate, and non-violent. Return ONLY the steps as a numbered list.";
+        userPrompt = `Task to slice: ${data.task}`;
+    }
     else if (type === 'email') {
         systemInstruction = "You are a professional Special Education Teacher. Write a polite, clear email to a parent. No markdown.";
         if (data.feedbackAreas) {
@@ -475,7 +688,7 @@ const TeacherDashboard = ({ onBack }) => {
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
   const [bipAnalysis, setBipAnalysis] = useState('');
 
-  // Sync Goals
+  // Sync Goals - FIXED LOGIC HERE
   useEffect(() => {
     // If real student with DB access, fetch from Firestore
     const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' && activeStudent.id.length > 5);

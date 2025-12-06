@@ -287,7 +287,7 @@ const TeacherDashboard = ({ onBack }) => {
     }
   }, [user, showSamples]);
 
-  const displayedStudents = showSamples ? students : students.filter(s => s.id > 3);
+  const displayedStudents = showSamples ? students : students.filter(s => s.id > 3 || typeof s.id === 'string');
   const activeStudent = displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0];
 
   // Logic States
@@ -305,10 +305,15 @@ const TeacherDashboard = ({ onBack }) => {
 
   const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '' });
   const [goalText, setGoalText] = useState('');
-  const [goals, setGoals] = useState([]);
+  const [firestoreGoals, setFirestoreGoals] = useState([]);
+  const [localGoals, setLocalGoals] = useState([]); // Local state for sample/offline goals
   const [activeGoalId, setActiveGoalId] = useState(null);
   const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
-  const activeGoal = goals.find(g => g.id === activeGoalId);
+  
+  // Derived Goals: Merge Firestore + Local
+  const allGoals = [...firestoreGoals, ...localGoals].filter(g => g.studentId === activeStudent?.id);
+  const activeGoal = allGoals.find(g => g.id === activeGoalId) || allGoals[0];
+
   const [newMeasure, setNewMeasure] = useState({ date: '', score: '' });
 
   const [schedule, setSchedule] = useState(['Morning Meeting', 'ELA Block', 'Lunch']);
@@ -320,20 +325,20 @@ const TeacherDashboard = ({ onBack }) => {
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
   const [bipAnalysis, setBipAnalysis] = useState('');
 
-  // Sync Goals - FIXED LOGIC HERE
+  // Sync Goals
   useEffect(() => {
-    // Determine if the current student is a "Real" student (string ID from Firebase) or a "Local" student (number ID > 3)
-    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' || activeStudent.id > 3);
-
+    // If real student with DB access, fetch from Firestore
+    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' && activeStudent.id.length > 5);
+    
     if (user && db && isRealStudent) {
       const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), where('studentId', '==', activeStudent.id));
       return onSnapshot(q, (snap) => {
         const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setGoals(fetched);
+        setFirestoreGoals(fetched);
         if (fetched.length > 0 && !activeGoalId) setActiveGoalId(fetched[0].id);
       });
     } else {
-        setGoals([]);
+        setFirestoreGoals([]); // Clear DB goals if switching to sample student
     }
   }, [user, activeStudent]);
 
@@ -379,26 +384,49 @@ const TeacherDashboard = ({ onBack }) => {
   };
 
   const handleLockGoal = async () => {
-    // Check if the current student is a "Real" student (string ID from Firebase) or a "Local" student (number ID > 3)
-    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' || activeStudent.id > 3);
+    const newGoalObj = {
+        studentId: activeStudent.id, 
+        text: goalText, 
+        target: goalConfig.target, 
+        frequency: goalConfig.frequency, 
+        data: [], 
+        createdAt: new Date().toISOString()
+    };
+
+    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' && activeStudent.id.length > 5);
 
     if(db && user && isRealStudent) {
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), {
-        studentId: activeStudent.id, text: goalText, target: goalConfig.target, frequency: goalConfig.frequency, data: [], createdAt: serverTimestamp()
-      });
-      alert("Goal Locked!");
-      setActiveTab('monitor');
+      try {
+          await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), {
+            ...newGoalObj, createdAt: serverTimestamp()
+          });
+          alert("Goal Locked to Cloud!");
+      } catch (e) {
+          // Fallback to local if write fails
+          setLocalGoals(prev => [...prev, { ...newGoalObj, id: `local-${Date.now()}` }]);
+          alert("Goal Locked (Session Only - DB Error)!");
+      }
     } else {
-        alert("Can't save goals for sample students. Please add a new student profile to track data.");
+        // Sample student or no DB connection -> Local State
+        setLocalGoals(prev => [...prev, { ...newGoalObj, id: `local-${Date.now()}` }]);
+        alert("Goal Locked (Session Only)!");
     }
+    setActiveTab('monitor');
   };
 
   const handleAddDataPoint = async () => {
-    if(db && activeGoal && newMeasure.score) {
-      const updated = [...(activeGoal.data || []), { date: newMeasure.date, score: parseFloat(newMeasure.score) }];
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', activeGoal.id), { data: updated });
-      setNewMeasure({ date: '', score: '' });
+    if (!activeGoal || !newMeasure.score) return;
+    
+    const newData = [...(activeGoal.data || []), { date: newMeasure.date || new Date().toISOString().split('T')[0], score: parseFloat(newMeasure.score) }];
+
+    // If it's a Firestore goal
+    if (activeGoal.id && !activeGoal.id.toString().startsWith('local-') && db) {
+        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', activeGoal.id), { data: newData });
+    } else {
+        // Local goal update
+        setLocalGoals(prev => prev.map(g => g.id === activeGoal.id ? { ...g, data: newData } : g));
     }
+    setNewMeasure({ date: '', score: '' });
   };
 
   const handleLogIncident = () => {
@@ -577,8 +605,8 @@ const TeacherDashboard = ({ onBack }) => {
                     ) : (
                         <div>
                             <div className="flex gap-4 mb-6">
-                                <select className="flex-1 bg-slate-900 border border-slate-700 rounded p-3 text-white" onChange={e => setActiveGoalId(e.target.value)}>
-                                    {goals.map(g => <option key={g.id} value={g.id}>{g.text.substring(0,50)}...</option>)}
+                                <select className="flex-1 bg-slate-900 border border-slate-700 rounded p-3 text-white" value={activeGoalId || ''} onChange={e => setActiveGoalId(e.target.value)}>
+                                    {allGoals.map(g => <option key={g.id} value={g.id}>{g.text.substring(0,50)}...</option>)}
                                 </select>
                                 <DashButton onClick={() => window.print()} variant="secondary" icon={Printer}>Print</DashButton>
                             </div>

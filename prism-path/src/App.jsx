@@ -1,3 +1,6 @@
+import ResumeBuilder from './ResumeBuilder';
+import SocialMap from './SocialMap';
+import EmotionalCockpit from './EmotionalCockpit';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -8,7 +11,7 @@ import {
   ClipboardList, ArrowRight, LogOut, Calculator, Search, User, 
   Wand2, Copy, Edit2, FileDown, AlertTriangle, Mail, UploadCloud, 
   BarChart3, ShieldAlert, Star, Smile, Settings, Users, ToggleLeft, 
-  ToggleRight, FileCheck, Minus, Lock, Printer
+  ToggleRight, FileCheck, Minus, Lock, Printer, SmilePlus
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -736,7 +739,7 @@ const Disclaimer = () => (
 export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [toolsMenuOpen, setToolsMenuOpen] = useState(false); 
+  const [studentMenuOpen, setStudentMenuOpen] = useState(false); 
   const [isLowStim, setIsLowStim] = useState(false);
   const [view, setView] = useState('home'); 
   const [challenge, setChallenge] = useState('');
@@ -744,13 +747,13 @@ export default function App() {
   const [generatedPlan, setGeneratedPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const toolsRef = useRef(null);
+  const studentMenuRef = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     const handleClickOutside = (event) => {
-      if (toolsRef.current && !toolsRef.current.contains(event.target)) setToolsMenuOpen(false);
+      if (studentMenuRef.current && !studentMenuRef.current.contains(event.target)) setStudentMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => { window.removeEventListener('scroll', handleScroll); document.removeEventListener('mousedown', handleClickOutside); };
@@ -795,19 +798,31 @@ export default function App() {
                 <button onClick={() => setIsLowStim(!isLowStim)} className={`p-2 rounded-full transition-all ${isLowStim ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>{isLowStim ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <button onClick={() => setView('teacher')} className="text-sm font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1"><GraduationCap size={16} /> For Educators</button>
-                <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Features</a>
-                <a href="#accommodations" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Live Demo</a>
                 
-                <div className="relative" ref={toolsRef}>
-                  <button onClick={() => setToolsMenuOpen(!toolsMenuOpen)} className="flex items-center gap-1 text-sm font-medium text-slate-300 hover:text-cyan-400 transition-colors focus:outline-none">Tools <ChevronDown size={14} className={`transition-transform ${toolsMenuOpen ? 'rotate-180' : ''}`}/></button>
-                  {toolsMenuOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
-                        <button onClick={() => {setView('map'); setToolsMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-2 text-sm text-slate-200"><MapPin size={16} className="text-cyan-400"/> Safe Village Map</button>
-                        <button onClick={() => {setView('resume'); setToolsMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-2 text-sm text-slate-200 border-t border-slate-800"><FileText size={16} className="text-fuchsia-400"/> Resume Builder</button>
+                {/* REORGANIZED NAV: "FOR STUDENTS" DROPDOWN */}
+                <div className="relative" ref={studentMenuRef}>
+                  <button 
+                    onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
+                    className="flex items-center gap-1 text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors focus:outline-none"
+                  >
+                    <SmilePlus size={16} /> For Students <ChevronDown size={14} className={`transition-transform ${studentMenuOpen ? 'rotate-180' : ''}`}/>
+                  </button>
+                  {studentMenuOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                        <button onClick={() => {setView('resume'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group">
+                            <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-400 group-hover:bg-fuchsia-500/20"><FileText size={16}/></div> Resume Builder
+                        </button>
+                        <button onClick={() => {setView('map'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
+                            <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20"><MapPin size={16}/></div> Social Map
+                        </button>
+                        <button onClick={() => {setView('cockpit'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
+                            <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20"><Activity size={16}/></div> Emotional Cockpit
+                        </button>
                     </div>
                   )}
                 </div>
-                <button onClick={() => setView('cockpit')} className="flex items-center gap-2 text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/30"><Activity size={16} /> Cool Down</button>
+
+                <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Features</a>
                 <Button href={gemLink} primary className="!px-4 !py-2 !text-sm">Launch Gem <ExternalLink size={14} className="ml-2" /></Button>
               </div>
 
@@ -819,12 +834,16 @@ export default function App() {
                 <button onClick={() => setIsLowStim(!isLowStim)} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-full">{isLowStim ? <EyeOff size={16} /> : <Eye size={16} />}{isLowStim ? "Restore Colors" : "Low Stimulation Mode"}</button>
                 <div className="h-px bg-slate-800 w-full my-1"></div>
                 <button onClick={() => { setView('teacher'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-fuchsia-400 font-bold"><GraduationCap size={18}/> Educator Portal</button>
-                <button onClick={() => { setView('cockpit'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-indigo-400 font-bold"><Activity size={18}/> Cool Down Corner</button>
-                <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><MapPin size={18}/> Safe Village Map</button>
-                <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><FileText size={18}/> Resume Builder</button>
+                
+                <div className="pl-4 border-l-2 border-slate-800 space-y-3">
+                    <p className="text-xs uppercase font-bold text-slate-500">For Students</p>
+                    <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><FileText size={18}/> Resume Builder</button>
+                    <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><MapPin size={18}/> Social Map</button>
+                    <button onClick={() => { setView('cockpit'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><Activity size={18}/> Emotional Cockpit</button>
+                </div>
+
                 <div className="h-px bg-slate-800 w-full my-1"></div>
                 <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-white">Features</a>
-                <a href="#accommodations" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-white">Live Demo</a>
                 <Button href={gemLink} primary className="justify-center w-full">Launch Gem</Button>
               </div>
             )}

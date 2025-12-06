@@ -29,7 +29,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// --- PLACEHOLDER COMPONENTS (To fix import errors) ---
+// --- PLACEHOLDER COMPONENTS ---
 
 const ResumeBuilder = ({ onBack }) => (
   <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
@@ -320,16 +320,21 @@ const TeacherDashboard = ({ onBack }) => {
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
   const [bipAnalysis, setBipAnalysis] = useState('');
 
-  // Sync Goals
+  // Sync Goals - FIXED LOGIC HERE
   useEffect(() => {
-    if (user && db && activeStudent && activeStudent.id > 3) {
+    // Determine if the current student is a "Real" student (string ID from Firebase) or a "Local" student (number ID > 3)
+    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' || activeStudent.id > 3);
+
+    if (user && db && isRealStudent) {
       const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), where('studentId', '==', activeStudent.id));
       return onSnapshot(q, (snap) => {
         const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setGoals(fetched);
         if (fetched.length > 0 && !activeGoalId) setActiveGoalId(fetched[0].id);
       });
-    } else setGoals([]);
+    } else {
+        setGoals([]);
+    }
   }, [user, activeStudent]);
 
   // Actions
@@ -374,14 +379,17 @@ const TeacherDashboard = ({ onBack }) => {
   };
 
   const handleLockGoal = async () => {
-    if(db && user && activeStudent.id > 3) {
+    // Check if the current student is a "Real" student (string ID from Firebase) or a "Local" student (number ID > 3)
+    const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' || activeStudent.id > 3);
+
+    if(db && user && isRealStudent) {
       await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'goals'), {
         studentId: activeStudent.id, text: goalText, target: goalConfig.target, frequency: goalConfig.frequency, data: [], createdAt: serverTimestamp()
       });
       alert("Goal Locked!");
       setActiveTab('monitor');
     } else {
-        alert("Can't save to sample students.");
+        alert("Can't save goals for sample students. Please add a new student profile to track data.");
     }
   };
 

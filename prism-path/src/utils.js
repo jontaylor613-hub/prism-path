@@ -84,6 +84,10 @@ export const GeminiService = {
         systemInstruction = "Write a PLAAFP statement connecting strengths, needs, and impact. No markdown.";
         userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
     }
+    else if (type === 'resume') {
+        systemInstruction = "You are an expert Resume Writer. Rewrite the input text to be professional, action-oriented, and concise. Use strong verbs. Do NOT use markdown, bolding, or bullet points. Just return the clean, polished paragraph.";
+        userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
+    }
 
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {

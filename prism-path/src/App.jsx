@@ -293,7 +293,7 @@ const TeacherDashboard = ({ onBack }) => {
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
   const [bipAnalysis, setBipAnalysis] = useState('');
 
-  // Sync Goals
+  // Sync Goals - FIXED LOGIC HERE
   useEffect(() => {
     // If real student with DB access, fetch from Firestore
     const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' && activeStudent.id.length > 5);
@@ -715,6 +715,11 @@ export default function App() {
   const studentMenuRef = useRef(null);
 
   useEffect(() => {
+    // 1. CHECK URL PARAMS ON LOAD
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('app');
+    if (viewParam) setView(viewParam);
+
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     const handleClickOutside = (event) => {
@@ -746,7 +751,7 @@ export default function App() {
       {view === 'resume' ? <div className="relative z-10 pt-10"><ResumeBuilder onBack={() => setView('home')} isLowStim={isLowStim} /></div>
       : view === 'map' ? <div className="relative z-10 pt-20 h-screen"><SocialMap onBack={() => setView('home')} isLowStim={isLowStim} /></div>
       : view === 'cockpit' ? <div className="relative z-[150] h-screen"><EmotionalCockpit onBack={() => setView('home')} /></div>
-      : view === 'teacher' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} /></div>
+      : view === 'educator' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} /></div>
       : (
         <>
           <nav className={`fixed w-full z-50 transition-all duration-300 border-b ${isScrolled ? 'bg-slate-950/90 backdrop-blur-md border-slate-800 py-3' : 'bg-transparent border-transparent py-6'}`}>
@@ -762,9 +767,11 @@ export default function App() {
               <div className="hidden md:flex items-center space-x-6">
                 <button onClick={() => setIsLowStim(!isLowStim)} className={`p-2 rounded-full transition-all ${isLowStim ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>{isLowStim ? <EyeOff size={20} /> : <Eye size={20} />}</button>
                 <div className="h-6 w-px bg-slate-800"></div>
-                <button onClick={() => setView('teacher')} className="text-sm font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1"><GraduationCap size={16} /> For Educators</button>
                 
-                {/* REORGANIZED NAV: "FOR STUDENTS" DROPDOWN */}
+                {/* EDUCATOR LINK: Opens in new tab */}
+                <a href="?app=educator" target="_blank" className="text-sm font-bold text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1"><GraduationCap size={16} /> For Educators</a>
+                
+                {/* FOR STUDENTS DROPDOWN: Uses router links */}
                 <div className="relative" ref={studentMenuRef}>
                   <button 
                     onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
@@ -774,15 +781,15 @@ export default function App() {
                   </button>
                   {studentMenuOpen && (
                     <div className="absolute top-full left-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
-                        <button onClick={() => {setView('resume'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group">
+                        <a href="?app=resume" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group">
                             <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-400 group-hover:bg-fuchsia-500/20"><FileText size={16}/></div> Resume Builder
-                        </button>
-                        <button onClick={() => {setView('map'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
+                        </a>
+                        <a href="?app=map" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
                             <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20"><MapPin size={16}/></div> Social Map
-                        </button>
-                        <button onClick={() => {setView('cockpit'); setStudentMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
+                        </a>
+                        <a href="?app=cockpit" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
                             <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20"><Activity size={16}/></div> Emotional Cockpit
-                        </button>
+                        </a>
                     </div>
                   )}
                 </div>
@@ -798,13 +805,13 @@ export default function App() {
               <div className="md:hidden absolute top-full left-0 w-full bg-slate-900 border-b border-slate-800 p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5">
                 <button onClick={() => setIsLowStim(!isLowStim)} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-full">{isLowStim ? <EyeOff size={16} /> : <Eye size={16} />}{isLowStim ? "Restore Colors" : "Low Stimulation Mode"}</button>
                 <div className="h-px bg-slate-800 w-full my-1"></div>
-                <button onClick={() => { setView('teacher'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-fuchsia-400 font-bold"><GraduationCap size={18}/> Educator Portal</button>
+                <a href="?app=educator" target="_blank" className="flex items-center gap-2 text-fuchsia-400 font-bold"><GraduationCap size={18}/> Educator Portal</a>
                 
                 <div className="pl-4 border-l-2 border-slate-800 space-y-3">
                     <p className="text-xs uppercase font-bold text-slate-500">For Students</p>
-                    <button onClick={() => { setView('resume'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><FileText size={18}/> Resume Builder</button>
-                    <button onClick={() => { setView('map'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><MapPin size={18}/> Social Map</button>
-                    <button onClick={() => { setView('cockpit'); setMobileMenuOpen(false); }} className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><Activity size={18}/> Emotional Cockpit</button>
+                    <a href="?app=resume" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><FileText size={18}/> Resume Builder</a>
+                    <a href="?app=map" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><MapPin size={18}/> Social Map</a>
+                    <a href="?app=cockpit" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><Activity size={18}/> Emotional Cockpit</a>
                 </div>
 
                 <div className="h-px bg-slate-800 w-full my-1"></div>
@@ -906,4 +913,3 @@ export default function App() {
     </div>
   );
 }
-

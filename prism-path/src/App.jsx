@@ -85,7 +85,7 @@ const getFirebaseConfig = () => {
 
 const GOOGLE_API_KEY = getGoogleApiKey();
 const firebaseConfig = getFirebaseConfig();
-
+console.log("DEBUG FIREBASE:", firebaseConfig);
 let app, auth, db;
 if (firebaseConfig) {
   try {
@@ -797,5 +797,6 @@ export default function App() {
   );
 }
  
+
 
 

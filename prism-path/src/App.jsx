@@ -30,14 +30,19 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// --- INLINE COMPONENT DEFINITIONS ---
+// ==================================================================================
+// NOTE: IN YOUR LOCAL ENVIRONMENT, REMOVE THESE INLINE COMPONENTS AND UNCOMMENT:
+// import ResumeBuilder from './ResumeBuilder';
+// import SocialMap from './SocialMap';
+// import EmotionalCockpit from './EmotionalCockpit';
+// ==================================================================================
 
 const ResumeBuilder = ({ onBack, isLowStim }) => (
   <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
     <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <FileText size={48} className={isLowStim ? "text-fuchsia-600 mx-auto mb-4" : "text-fuchsia-400 mx-auto mb-4"} />
       <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
-      <p className="opacity-70 mb-6">This tool is currently being integrated into the main dashboard.</p>
+      <p className="opacity-70 mb-6">PLACEHOLDER: Your ResumeBuilder component will render here.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
@@ -48,40 +53,22 @@ const SocialMap = ({ onBack, isLowStim }) => (
     <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <MapPin size={48} className={isLowStim ? "text-cyan-600 mx-auto mb-4" : "text-cyan-400 mx-auto mb-4"} />
       <h2 className="text-2xl font-bold mb-2">Social Map</h2>
-      <p className="opacity-70 mb-6">The Safe Village Map is loading...</p>
+      <p className="opacity-70 mb-6">PLACEHOLDER: Your SocialMap component will render here.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
 );
 
-const EmotionalCockpit = ({ onBack }) => (
-  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-md">
+const EmotionalCockpit = ({ onBack, isLowStim }) => (
+  <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
+    <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <Activity size={48} className="text-indigo-400 mx-auto mb-4" />
-      <h2 className="text-2xl font-bold text-white mb-2">Emotional Cockpit</h2>
-      <p className="text-slate-400 mb-6">Cool Down tools are being calibrated.</p>
+      <h2 className="text-2xl font-bold mb-2">Emotional Cockpit</h2>
+      <p className="opacity-70 mb-6">PLACEHOLDER: Your EmotionalCockpit component will render here.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
 );
-
-// --- HELPER COMPONENTS (Restored) ---
-
-const Disclaimer = () => (
-  <div className="bg-fuchsia-950/40 border border-fuchsia-500/30 rounded-lg p-4 mb-6 flex items-start gap-3 text-left">
-    <Info className="text-fuchsia-400 shrink-0 mt-0.5" size={18} />
-    <p className="text-sm text-fuchsia-100/90 leading-relaxed"><strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.</p>
-  </div>
-);
-
-const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
-  const baseStyle = "inline-flex items-center px-5 py-2.5 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed";
-  const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]";
-  const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white";
-  const classes = `${baseStyle} ${primary ? primaryStyle : secondaryStyle} ${className}`;
-  if (href) return <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>{children}</a>;
-  return <button onClick={onClick} disabled={disabled} className={classes}>{children}</button>;
-};
 
 // --- CONFIGURATION & SERVICES ---
 
@@ -146,6 +133,8 @@ const formatAIResponse = (text) => {
   if (!text) return "";
   let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
   clean = clean.replace(/\.([A-Z])/g, ". $1");
+  // Remove intro phrases like "Here are the steps" or "Sure"
+  clean = clean.replace(/^(Here are|Sure|Here's).*?:/gim, "");
   return clean.trim();
 };
 
@@ -180,7 +169,7 @@ const GeminiService = {
         userPrompt = `Analyze logs: ${JSON.stringify(data)}. Target: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are an Executive Function Coach. Break the task into 5-7 clear, micro-steps. Ensure steps are safe, helpful, and appropriate for students. Do not be vague. Return ONLY the steps as a numbered list.";
+        systemInstruction = "You are an Executive Function Coach. Break the task into 5-7 clear, micro-steps. Do NOT include any introductory text like 'Here are the steps'. Start directly with step 1. Ensure steps are safe, helpful, and appropriate.";
         userPrompt = `Task to slice: ${data.task}`;
     }
     else if (type === 'email') {
@@ -265,10 +254,45 @@ const AudioEngine = {
         gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.5);
         osc.start();
         osc.stop(AudioEngine.ctx.currentTime + 1.5);
+    },
+
+    playVictory: () => {
+        AudioEngine.init();
+        const now = AudioEngine.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major Arpeggio
+        notes.forEach((freq, i) => {
+            const osc = AudioEngine.ctx.createOscillator();
+            const gain = AudioEngine.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(AudioEngine.ctx.destination);
+            osc.frequency.value = freq;
+            osc.type = 'triangle';
+            gain.gain.setValueAtTime(0, now + i*0.1);
+            gain.gain.linearRampToValueAtTime(0.1, now + i*0.1 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.5);
+            osc.start(now + i*0.1);
+            osc.stop(now + i*0.1 + 0.6);
+        });
     }
 };
 
 // --- COMPONENTS ---
+
+const Disclaimer = () => (
+    <div className="bg-fuchsia-900/20 border border-fuchsia-500/30 rounded-lg p-4 mb-6 flex items-start gap-3 text-left">
+      <Info className="text-fuchsia-400 shrink-0 mt-0.5" size={18} />
+      <p className="text-sm text-fuchsia-100/90 leading-relaxed"><strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.</p>
+    </div>
+);
+  
+const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
+    const baseStyle = "inline-flex items-center px-5 py-2.5 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed";
+    const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]";
+    const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white";
+    const classes = `${baseStyle} ${primary ? primaryStyle : secondaryStyle} ${className}`;
+    if (href) return <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>{children}</a>;
+    return <button onClick={onClick} disabled={disabled} className={classes}>{children}</button>;
+};
 
 const DashCard = ({ children, className = "", glow = false, isDark = true }) => {
     const theme = getTheme(isDark);
@@ -366,12 +390,21 @@ const NeuroDriver = ({ onBack, isDark }) => {
         setIsProcessing(true);
         setSteps([]); setCompletedSteps([]); setPickedTaskIndex(null);
         const result = await GeminiService.generate({ task: input }, 'slicer');
-        const newSteps = result.split('\n').map(s => s.replace(/^\d+\.\s*|-\s*/, '').trim()).filter(s => s.length > 0);
+        // Clean result
+        const newSteps = result.split('\n').map(s => s.replace(/^\d+\.\s*|-\s*|^\*\s*/, '').trim()).filter(s => s.length > 0);
         setSteps(newSteps);
         setIsProcessing(false);
     };
 
-    const toggleStep = (idx) => setCompletedSteps(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+    const toggleStep = (idx) => {
+        const isComplete = !completedSteps.includes(idx);
+        const newCompleted = isComplete ? [...completedSteps, idx] : completedSteps.filter(i => i !== idx);
+        setCompletedSteps(newCompleted);
+        if (newCompleted.length === steps.length && steps.length > 0) {
+            AudioEngine.playVictory();
+        }
+    };
+    
     const pickForMe = () => {
         const available = steps.map((_, i) => i).filter(i => !completedSteps.includes(i));
         if (available.length > 0) setPickedTaskIndex(available[Math.floor(Math.random() * available.length)]);
@@ -507,7 +540,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
                                                 return (
                                                     <div key={idx} onClick={() => toggleStep(idx)} className={`p-4 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${isPicked ? 'border-fuchsia-500 bg-fuchsia-500/10 scale-105 shadow-xl' : completedSteps.includes(idx) ? 'border-emerald-500/30 bg-emerald-500/10 opacity-60' : `${theme.inputBorder} ${theme.inputBg} hover:border-cyan-500/30`}`}>
-                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400'}`}>
+                                                        <div className={`w-6 h-6 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-colors aspect-square ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400'}`}>
                                                             {completedSteps.includes(idx) && <CheckCircle2 size={14} />}
                                                         </div>
                                                         <span className={`font-medium ${completedSteps.includes(idx) ? 'text-emerald-500 line-through' : theme.text}`}>{step}</span>
@@ -560,12 +593,13 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
                                     {timerType === 'duration' ? (
                                         <div className="flex flex-col items-center gap-4">
-                                             <div className="flex items-center gap-2">
-                                                 <input type="number" value={totalTime} onChange={(e) => { const val = Number(e.target.value); setTotalTime(val); setTimeLeft(val * 60); setIsActive(false); }} className={`w-20 p-2 rounded-lg border ${theme.inputBorder} ${theme.inputBg} ${theme.text} text-center font-bold`}/>
+                                             <div className="flex items-center gap-2 w-full max-w-xs">
+                                                 <input type="number" value={totalTime} onChange={(e) => { const val = Number(e.target.value); setTotalTime(val); setTimeLeft(val * 60); setIsActive(false); }} className={`w-20 p-2 rounded-lg border ${theme.inputBorder} ${theme.inputBg} ${theme.text} text-center font-bold outline-none focus:border-cyan-500`}/>
                                                  <span className={theme.textMuted}>min</span>
-                                                 <button onClick={() => { setTotalTime(t=>t+5); setTimeLeft((totalTime+5)*60); }} className="px-3 py-2 bg-slate-800 text-white text-xs rounded-lg hover:bg-slate-700">+5 Min</button>
+                                                 <button onClick={() => { setTotalTime(t=>t+5); setTimeLeft((totalTime+5)*60); }} className="px-3 py-2 bg-slate-800 text-white text-xs rounded-lg hover:bg-slate-700 ml-auto">+5 Min</button>
                                              </div>
-                                            <input type="range" min="1" max="120" value={totalTime} onChange={(e) => { const val = Number(e.target.value); setTotalTime(val); setTimeLeft(val * 60); setIsActive(false); }} className="w-full accent-cyan-500" />
+                                            {/* Slider as fallback for quick adjust */}
+                                            <input type="range" min="1" max="180" value={totalTime} onChange={(e) => { const val = Number(e.target.value); setTotalTime(val); setTimeLeft(val * 60); setIsActive(false); }} className="w-full accent-cyan-500 opacity-50 hover:opacity-100 transition-opacity" />
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center">
@@ -576,8 +610,8 @@ const NeuroDriver = ({ onBack, isDark }) => {
                                 </div>
                                 
                                 <div className="flex gap-2">
-                                    <button onClick={() => setViewType('pie')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'pie' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Pie</button>
-                                    <button onClick={() => setViewType('bar')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'bar' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Bar</button>
+                                    <button onClick={() => setViewType('pie')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'pie' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Pie</button>
+                                    <button onClick={() => setViewType('bar')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'bar' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Bar</button>
                                 </div>
                             </div>
                         )}
@@ -671,7 +705,7 @@ export default function App() {
 
       {view === 'resume' ? <div className="relative z-10 pt-10"><ResumeBuilder onBack={() => setView('home')} isLowStim={!isDark} /></div>
       : view === 'map' ? <div className="relative z-10 pt-20 h-screen"><SocialMap onBack={() => setView('home')} isLowStim={!isDark} /></div>
-      : view === 'cockpit' ? <div className="relative z-[150] h-screen"><EmotionalCockpit onBack={() => setView('home')} /></div>
+      : view === 'cockpit' ? <div className="relative z-[150] h-screen"><EmotionalCockpit onBack={() => setView('home')} isLowStim={!isDark} /></div>
       : view === 'neuro' ? <div className="relative z-[150] min-h-screen"><NeuroDriver onBack={() => setView('home')} isDark={isDark} /></div>
       : view === 'educator' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} isDark={isDark} /></div>
       : (
@@ -703,18 +737,18 @@ export default function App() {
                   </button>
                   {studentMenuOpen && (
                     <div className={`absolute top-full left-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50`}>
-                        <a href="?app=neuro" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
+                        <button onClick={() => {setView('neuro'); setStudentMenuOpen(false)}} className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
                             <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver
-                        </a>
-                        <a href="?app=resume" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        </button>
+                        <button onClick={() => {setView('resume'); setStudentMenuOpen(false)}} className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                             <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-500"><FileText size={16}/></div> Resume Builder
-                        </a>
-                        <a href="?app=map" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        </button>
+                        <button onClick={() => {setView('map'); setStudentMenuOpen(false)}} className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                             <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500"><MapPin size={16}/></div> Social Map
-                        </a>
-                        <a href="?app=cockpit" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        </button>
+                        <button onClick={() => {setView('cockpit'); setStudentMenuOpen(false)}} className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                             <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500"><Activity size={16}/></div> Emotional Cockpit
-                        </a>
+                        </button>
                     </div>
                   )}
                 </div>
@@ -729,9 +763,10 @@ export default function App() {
             {mobileMenuOpen && (
               <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
                  <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
-                 {/* Mobile links simplified for brevity */}
-                 <a href="?app=neuro" className="block py-2 font-bold text-amber-500">Neuro Driver</a>
-                 <a href="?app=resume" className="block py-2 font-bold text-fuchsia-500">Resume Builder</a>
+                 <button onClick={() => setView('neuro')} className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</button>
+                 <button onClick={() => setView('resume')} className="block w-full text-left py-2 font-bold text-fuchsia-500">Resume Builder</button>
+                 <button onClick={() => setView('cockpit')} className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</button>
+                 <button onClick={() => setView('map')} className="block w-full text-left py-2 font-bold text-cyan-500">Social Map</button>
               </div>
             )}
           </nav>
@@ -774,7 +809,15 @@ export default function App() {
                 <div className={`relative ${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6 md:p-8 shadow-2xl min-h-[500px]`}>
                     <div className="flex items-center gap-2 mb-6 opacity-50"><div className="w-3 h-3 rounded-full bg-red-500"></div><div className="w-3 h-3 rounded-full bg-yellow-500"></div><div className="w-3 h-3 rounded-full bg-green-500"></div></div>
                     <div className="prose prose-invert max-w-none">
-                        {generatedPlan ? <ReactMarkdown>{generatedPlan}</ReactMarkdown> : <div className="text-center opacity-50 pt-20"><MessageSquare size={48} className="mx-auto mb-4"/><p>Ready for input...</p></div>}
+                        {generatedPlan ? 
+                            <ReactMarkdown components={{
+                                p: ({node, ...props}) => <p className={`mb-4 leading-relaxed ${theme.text}`} {...props} />,
+                                strong: ({node, ...props}) => <strong className="font-bold text-cyan-500" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-4 marker:text-fuchsia-500" {...props} />,
+                                li: ({node, ...props}) => <li className={`pl-1 ${theme.text}`} {...props} />
+                            }}>{generatedPlan}</ReactMarkdown> 
+                            : <div className="text-center opacity-50 pt-20"><MessageSquare size={48} className={`mx-auto mb-4 ${theme.textMuted}`}/><p className={theme.textMuted}>Ready for input...</p></div>
+                        }
                     </div>
                 </div>
               </div>

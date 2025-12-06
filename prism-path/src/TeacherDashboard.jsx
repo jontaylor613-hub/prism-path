@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   LineChart, Target, BookOpen, Plus, Save, Trash2, CheckCircle,
   Brain, Layout, FileText, Sparkles, ClipboardList, ArrowRight,
@@ -9,16 +9,8 @@ import {
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer
 } from 'lucide-react';
 
-// --- CONFIGURATION ---
-const getGoogleApiKey = () => {
-  try {
-    if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
-    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-  } catch (e) {}
-  return ""; 
-};
-
-const GOOGLE_API_KEY = getGoogleApiKey();
+// --- IMPORTS FROM UTILS (The Fix) ---
+import { ComplianceService, GeminiService } from './utils';
 
 // --- AESTHETIC CONFIG ---
 const THEME = {
@@ -38,82 +30,6 @@ const THEME = {
   },
   shadows: {
     glow: "shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(217,70,239,0.5)]"
-  }
-};
-
-// --- UTILITIES ---
-
-const formatAIResponse = (text) => {
-  if (!text) return "";
-  let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
-  clean = clean.replace(/\.([A-Z])/g, ". $1");
-  return clean.trim();
-};
-
-const ComplianceService = {
-  getStatus: (dateString) => {
-    if (!dateString) return { color: 'bg-slate-600', text: 'No Date', icon: Clock };
-    const today = new Date();
-    const target = new Date(dateString); 
-    const diffTime = target - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return { color: 'bg-red-500 animate-pulse', text: 'OVERDUE', icon: AlertTriangle };
-    if (diffDays <= 30) return { color: 'bg-red-500', text: '< 1 Month', icon: Clock };
-    if (diffDays <= 90) return { color: 'bg-orange-500', text: '< 3 Months', icon: Clock };
-    if (diffDays <= 180) return { color: 'bg-yellow-500', text: '< 6 Months', icon: Calendar };
-    return { color: 'bg-emerald-500', text: 'Compliant', icon: CheckCircle };
-  }
-};
-
-const GeminiService = {
-  generate: async (data, type) => {
-    if (!GOOGLE_API_KEY) {
-      console.warn("Missing API Key");
-      return "Error: API Key not found. Please add VITE_GOOGLE_API_KEY to your .env or Vercel settings.";
-    }
-
-    let systemInstruction = "";
-    let userPrompt = "";
-
-    if (type === 'behavior') {
-        systemInstruction = "You are an expert Board Certified Behavior Analyst (BCBA). Analyze the incident log provided. Identify patterns in antecedents and consequences. Suggest 3 specific, low-prep interventions. Keep output clean, professional, and free of markdown symbols.";
-        userPrompt = `Analyze these behavior logs: ${JSON.stringify(data)}. Focus on the behavior: ${data.targetBehavior || 'General Disruption'}.`;
-    } 
-    else if (type === 'email') {
-        systemInstruction = "You are a warm, professional Special Education Teacher. Write an email to a parent. Be empathetic, clear, and concise. Do not use asterisks or markdown.";
-        if (data.feedbackAreas) {
-            userPrompt = `Write an email to the parent of ${data.student}. We are preparing for an IEP meeting. Ask for their feedback specifically regarding: ${data.feedbackAreas.join(', ')}.`;
-        } else {
-            userPrompt = `Write a positive update email for ${data.student} regarding their progress in ${data.topic}.`;
-        }
-    } 
-    else if (type === 'goal') {
-        systemInstruction = "You are a Special Education Consultant. Write a SMART goal (Specific, Measurable, Achievable, Relevant, Time-bound). Do not use markdown formatting.";
-        userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition}. Target Behavior: ${data.behavior}.`;
-    } 
-    else if (type === 'plaafp') {
-        systemInstruction = "You are an IEP compliance expert. Write a Present Levels (PLAAFP) narrative statement. Ensure it connects strengths, needs, and impact. No markdown.";
-        userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact of Disability: ${data.impact}.`;
-    }
-
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }]
-        })
-      });
-
-      const result = await response.json();
-      const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
-      return formatAIResponse(rawText);
-
-    } catch (error) {
-      console.error("Network Error:", error);
-      return "Failed to connect to AI service.";
-    }
   }
 };
 

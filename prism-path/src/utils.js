@@ -3,14 +3,18 @@ import { CheckCircle, Clock, AlertTriangle, Calendar } from 'lucide-react';
 
 // --- CONFIGURATION ---
 export const getGoogleApiKey = () => {
-  try {
-    if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
-    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-  } catch (e) {}
+  // Check VITE env (Local/Vercel React)
+  if (import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
+      return import.meta.env.VITE_GOOGLE_API_KEY;
+  }
+  // Check standard process env (Fallback)
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
+      return process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+  }
   return ""; 
 };
 
-export const GOOGLE_API_KEY = getGoogleApiKey();
+const GOOGLE_API_KEY = getGoogleApiKey();
 
 // --- THEME ENGINE ---
 export const getTheme = (isDark) => ({
@@ -54,14 +58,16 @@ export const ComplianceService = {
 
 export const GeminiService = {
   generate: async (data, type) => {
+    // 1. Debugging: Check Key existence (Don't log the actual key for security)
     if (!GOOGLE_API_KEY) {
-      console.warn("Missing API Key");
-      return "Error: API Key not found.";
+      console.error("GeminiService Error: No API Key found. Check VITE_GOOGLE_API_KEY in .env or Vercel Settings.");
+      return "Error: System Configuration Missing (API Key).";
     }
 
     let systemInstruction = "";
     let userPrompt = "";
 
+    // 2. Define Prompts
     if (type === 'behavior') {
         systemInstruction = "You are an expert BCBA. Analyze the log. Suggest 3 specific, low-prep interventions. Output clean text.";
         userPrompt = `Analyze logs: ${JSON.stringify(data)}. Target: ${data.targetBehavior}.`;
@@ -89,15 +95,29 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
+    // 3. Perform Fetch (Using Stable Model 1.5)
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] })
+        body: JSON.stringify({ 
+            contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
+        })
       });
+
+      if (!response.ok) {
+          const errData = await response.json();
+          console.error("Gemini API Error:", errData);
+          return "Error: AI Service Unavailable. Please try again.";
+      }
+
       const result = await response.json();
       return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
-    } catch (error) { return "AI Service Error"; }
+      
+    } catch (error) { 
+        console.error("Network/Fetch Error:", error);
+        return "Error: Connection Failed."; 
+    }
   }
 };
 

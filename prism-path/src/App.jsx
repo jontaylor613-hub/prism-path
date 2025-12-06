@@ -16,25 +16,7 @@ import {
   RotateCcw, Timer, Volume2, VolumeX, Shuffle, Sun, Moon
 } from 'lucide-react';
 
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged,
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc,
-  updateDoc,
-  serverTimestamp
-} from 'firebase/firestore';
-
-// --- SHARED UI COMPONENTS (Defined at top to avoid ReferenceErrors) ---
+// --- SHARED UI COMPONENTS ---
 
 const Disclaimer = () => (
   <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 rounded-xl p-4 mb-8 flex items-start gap-3 text-left shadow-sm">
@@ -64,37 +46,7 @@ const getGoogleApiKey = () => {
   return ""; 
 };
 
-const getFirebaseConfig = () => {
-  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-    try { return JSON.parse(__firebase_config); } catch(e) {}
-  }
-  try {
-    if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
-      return {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID
-      };
-    }
-  } catch (e) {}
-  return null;
-};
-
 const GOOGLE_API_KEY = getGoogleApiKey();
-const firebaseConfig = getFirebaseConfig();
-console.log("DEBUG FIREBASE:", firebaseConfig);
-let app, auth, db;
-if (firebaseConfig) {
-  try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } catch (err) { console.error("Firebase Init Error", err); }
-}
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'prism-path-default';
 
 // --- THEME ENGINE ---
 const getTheme = (isDark) => ({
@@ -432,15 +384,15 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 {/* PARKING LOT */}
                 <div className="lg:col-span-1 hidden lg:flex flex-col gap-4">
                     <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-4 h-full flex flex-col`}>
-                         <div className={`flex items-center gap-2 mb-3 ${theme.secondaryText} font-bold uppercase text-xs tracking-wider`}>
+                          <div className={`flex items-center gap-2 mb-3 ${theme.secondaryText} font-bold uppercase text-xs tracking-wider`}>
                              <MessageSquare size={14}/> Brain Dump
-                         </div>
-                         <textarea 
+                          </div>
+                          <textarea 
                             className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-xl p-3 text-sm resize-none outline-none focus:border-fuchsia-500/50 transition-colors ${theme.text}`}
                             placeholder="Distracting thought? Park it here."
                             value={parkingLot}
                             onChange={(e) => setParkingLot(e.target.value)}
-                         />
+                          />
                     </div>
                 </div>
 
@@ -796,7 +748,3 @@ export default function App() {
     </div>
   );
 }
- 
-
-
-

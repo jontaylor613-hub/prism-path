@@ -11,7 +11,7 @@ import {
   ClipboardList, ArrowRight, LogOut, Calculator, Search, User, 
   Wand2, Copy, Edit2, FileDown, AlertTriangle, Mail, UploadCloud, 
   BarChart3, ShieldAlert, Star, Smile, Settings, Users, ToggleLeft, 
-  ToggleRight, FileCheck, Minus, Lock, Printer, SmilePlus
+  ToggleRight, FileCheck, Minus, Lock, Printer, SmilePlus, Play, Pause, RotateCcw, Timer
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -31,6 +31,188 @@ import {
   updateDoc,
   serverTimestamp
 } from 'firebase/firestore';
+
+// --- NEURO DRIVER COMPONENT (Ported & Styled) ---
+
+const NeuroDriver = ({ onBack }) => {
+    const [mode, setMode] = useState('slicer'); // 'slicer' or 'timer'
+
+    // --- TASK SLICER LOGIC ---
+    const [input, setInput] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [steps, setSteps] = useState([]);
+    const [completedSteps, setCompletedSteps] = useState([]);
+
+    const generateMicroSteps = (task) => {
+        const t = task.toLowerCase();
+        if (t.includes('room') || t.includes('clean')) return ["Pick up trash.", "Put dirty clothes in hamper.", "Move dishes to kitchen.", "Make the bed.", "Put 5 things away."];
+        if (t.includes('homework') || t.includes('study')) return ["Clear desk space.", "Open assignment.", "Read instructions.", "Write first sentence.", "Take a drink of water."];
+        return ["Take a deep breath.", "Gather materials.", "Do the easiest part (2 mins).", "Drink water.", "Do next step."];
+    };
+
+    const handleSlice = () => {
+        if (!input.trim()) return;
+        setIsProcessing(true);
+        setSteps([]); setCompletedSteps([]);
+        setTimeout(() => {
+            setSteps(generateMicroSteps(input));
+            setIsProcessing(false);
+        }, 1000);
+    };
+
+    const toggleStep = (idx) => {
+        setCompletedSteps(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+    };
+    const progress = steps.length > 0 ? (completedSteps.length / steps.length) * 100 : 0;
+
+    // --- VISUAL TIMER LOGIC ---
+    const [timerType, setTimerType] = useState('duration');
+    const [totalTime, setTotalTime] = useState(15);
+    const [timeLeft, setTimeLeft] = useState(15 * 60);
+    const [isActive, setIsActive] = useState(false);
+    const [viewType, setViewType] = useState('pie');
+
+    useEffect(() => {
+        let interval = null;
+        if (isActive && timeLeft > 0) {
+            interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
+        } else if (timeLeft <= 0) setIsActive(false);
+        return () => clearInterval(interval);
+    }, [isActive, timeLeft]);
+
+    const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const percentage = Math.max(0, Math.min(1, timeLeft / (totalTime * 60)));
+    const getColor = () => percentage > 0.5 ? "#22d3ee" : percentage > 0.2 ? "#c084fc" : "#e879f9";
+
+    return (
+        <div className="min-h-screen bg-slate-950 p-4 pt-24 font-sans text-slate-200">
+            <div className="max-w-2xl mx-auto">
+                {/* Header */}
+                <div className="text-center mb-8">
+                    <div className="flex justify-center mb-4">
+                        <div className="p-4 bg-slate-900 rounded-full border border-fuchsia-500/50 shadow-[0_0_30px_rgba(192,38,211,0.2)]">
+                            <Brain className="text-cyan-400 w-10 h-10" />
+                        </div>
+                    </div>
+                    <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 mb-2">NEURO DRIVER</h1>
+                    <p className="text-slate-400">Executive Function Assistant</p>
+                    <button onClick={onBack} className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Exit Tool</button>
+                </div>
+
+                {/* Main Card */}
+                <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
+                    
+                    {/* Tabs */}
+                    <div className="flex gap-4 mb-8 border-b border-slate-700/50 pb-2">
+                        <button onClick={() => setMode('slicer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'slicer' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500 hover:text-white'}`}>Task Slicer</button>
+                        <button onClick={() => setMode('timer')} className={`flex-1 pb-2 text-center font-bold text-sm transition-all ${mode === 'timer' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-slate-500 hover:text-white'}`}>Visual Timer</button>
+                    </div>
+
+                    {/* CONTENT: SLICER */}
+                    {mode === 'slicer' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                            <div className="flex gap-2">
+                                <input 
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
+                                    placeholder="What do you need to do? (e.g. Clean Room)"
+                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-4 text-white outline-none focus:border-cyan-400 transition-colors"
+                                />
+                                <button onClick={handleSlice} disabled={isProcessing} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white px-6 rounded-xl font-bold shadow-lg hover:brightness-110 transition-all disabled:opacity-50">
+                                    {isProcessing ? <Loader2 className="animate-spin"/> : <Zap/>}
+                                </button>
+                            </div>
+
+                            {steps.length > 0 && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-widest text-cyan-400">
+                                        <span>Progress</span>
+                                        <span>{Math.round(progress)}%</span>
+                                    </div>
+                                    <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {steps.map((step, idx) => (
+                                            <div key={idx} onClick={() => toggleStep(idx)} className={`p-4 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${completedSteps.includes(idx) ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-800/30 hover:border-cyan-500/30'}`}>
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-600'}`}>
+                                                    {completedSteps.includes(idx) && <CheckCircle2 size={14} />}
+                                                </div>
+                                                <span className={`font-medium ${completedSteps.includes(idx) ? 'text-emerald-400 line-through' : 'text-slate-200'}`}>{step}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* CONTENT: TIMER */}
+                    {mode === 'timer' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 flex flex-col items-center">
+                            {viewType === 'pie' ? (
+                                <div className="relative">
+                                    <svg width="240" height="240" className="transform -rotate-90">
+                                        <circle cx="120" cy="120" r="100" stroke="#1e293b" strokeWidth="12" fill="none" />
+                                        <circle cx="120" cy="120" r="100" stroke={getColor()} strokeWidth="12" fill="none" strokeLinecap="round" 
+                                            strokeDasharray={2 * Math.PI * 100} 
+                                            strokeDashoffset={2 * Math.PI * 100 * (1 - percentage)} 
+                                            className="transition-all duration-1000 ease-linear"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-5xl font-mono font-bold text-white tracking-tighter">{formatTime(timeLeft)}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="w-full h-16 bg-slate-950 rounded-xl border border-slate-700 relative overflow-hidden">
+                                    <div className="h-full transition-all duration-1000 ease-linear" style={{ width: `${percentage * 100}%`, backgroundColor: getColor() }}></div>
+                                    <div className="absolute inset-0 flex items-center justify-center font-mono text-2xl font-bold text-white drop-shadow-md">{formatTime(timeLeft)}</div>
+                                </div>
+                            )}
+
+                            <div className="flex gap-4">
+                                <button onClick={() => setIsActive(!isActive)} className={`p-4 rounded-full border-2 transition-all ${isActive ? 'border-yellow-500 text-yellow-500' : 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'}`}>
+                                    {isActive ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+                                </button>
+                                <button onClick={() => { setIsActive(false); setTimeLeft(totalTime * 60); }} className="p-4 rounded-full border-2 border-slate-600 text-slate-400 hover:text-white hover:border-white transition-all">
+                                    <RotateCcw />
+                                </button>
+                            </div>
+
+                            <div className="w-full">
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block text-center">Set Duration (Minutes)</label>
+                                <input 
+                                    type="range" min="1" max="60" value={totalTime} 
+                                    onChange={(e) => { 
+                                        const val = Number(e.target.value); 
+                                        setTotalTime(val); 
+                                        setTimeLeft(val * 60); 
+                                        setIsActive(false); 
+                                    }} 
+                                    className="w-full accent-cyan-500"
+                                />
+                                <div className="text-center text-cyan-400 font-bold mt-2">{totalTime} min</div>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button onClick={() => setViewType('pie')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'pie' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Pie</button>
+                                <button onClick={() => setViewType('bar')} className={`px-4 py-1 rounded text-xs font-bold uppercase ${viewType === 'bar' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}>Bar</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- CONFIGURATION & SERVICES ---
 
@@ -293,7 +475,7 @@ const TeacherDashboard = ({ onBack }) => {
   const [newIncident, setNewIncident] = useState({ date: '', antecedent: '', behavior: '', consequence: '' });
   const [bipAnalysis, setBipAnalysis] = useState('');
 
-  // Sync Goals - FIXED LOGIC HERE
+  // Sync Goals
   useEffect(() => {
     // If real student with DB access, fetch from Firestore
     const isRealStudent = activeStudent && (typeof activeStudent.id === 'string' && activeStudent.id.length > 5);
@@ -751,6 +933,7 @@ export default function App() {
       {view === 'resume' ? <div className="relative z-10 pt-10"><ResumeBuilder onBack={() => setView('home')} isLowStim={isLowStim} /></div>
       : view === 'map' ? <div className="relative z-10 pt-20 h-screen"><SocialMap onBack={() => setView('home')} isLowStim={isLowStim} /></div>
       : view === 'cockpit' ? <div className="relative z-[150] h-screen"><EmotionalCockpit onBack={() => setView('home')} /></div>
+      : view === 'neuro' ? <div className="relative z-[150] min-h-screen"><NeuroDriver onBack={() => setView('home')} /></div>
       : view === 'educator' ? <div className="relative z-[150] min-h-screen"><TeacherDashboard onBack={() => setView('home')} /></div>
       : (
         <>
@@ -781,7 +964,10 @@ export default function App() {
                   </button>
                   {studentMenuOpen && (
                     <div className="absolute top-full left-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
-                        <a href="?app=resume" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group">
+                        <a href="?app=neuro" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group">
+                            <div className="p-1.5 rounded bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20"><Brain size={16}/></div> Neuro Driver
+                        </a>
+                        <a href="?app=resume" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
                             <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-400 group-hover:bg-fuchsia-500/20"><FileText size={16}/></div> Resume Builder
                         </a>
                         <a href="?app=map" className="block w-full text-left px-4 py-3 hover:bg-slate-800 flex items-center gap-3 text-sm text-slate-200 group border-t border-slate-800/50">
@@ -809,6 +995,7 @@ export default function App() {
                 
                 <div className="pl-4 border-l-2 border-slate-800 space-y-3">
                     <p className="text-xs uppercase font-bold text-slate-500">For Students</p>
+                    <a href="?app=neuro" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><Brain size={18}/> Neuro Driver</a>
                     <a href="?app=resume" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><FileText size={18}/> Resume Builder</a>
                     <a href="?app=map" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><MapPin size={18}/> Social Map</a>
                     <a href="?app=cockpit" className="flex items-center gap-2 text-slate-300 hover:text-cyan-400"><Activity size={18}/> Emotional Cockpit</a>

@@ -30,19 +30,34 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// ==================================================================================
-// NOTE: IN YOUR LOCAL ENVIRONMENT, REMOVE THESE INLINE COMPONENTS AND UNCOMMENT:
-// import ResumeBuilder from './ResumeBuilder';
-// import SocialMap from './SocialMap';
-// import EmotionalCockpit from './EmotionalCockpit';
-// ==================================================================================
+// --- SHARED UI COMPONENTS (Defined at top to avoid ReferenceErrors) ---
+
+const Disclaimer = () => (
+  <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 rounded-xl p-4 mb-8 flex items-start gap-3 text-left shadow-sm">
+    <Info className="text-fuchsia-500 shrink-0 mt-0.5" size={18} />
+    <p className="text-sm text-fuchsia-900/80 dark:text-fuchsia-100/90 leading-relaxed font-medium">
+      <strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.
+    </p>
+  </div>
+);
+
+const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
+    const baseStyle = "inline-flex items-center px-6 py-3 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-sm";
+    const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-md hover:shadow-cyan-500/25";
+    const secondaryStyle = "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-white dark:bg-slate-800 dark:text-cyan-400 dark:border-slate-700 dark:hover:bg-slate-700";
+    const classes = `${baseStyle} ${primary ? primaryStyle : secondaryStyle} ${className}`;
+    if (href) return <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>{children}</a>;
+    return <button onClick={onClick} disabled={disabled} className={classes}>{children}</button>;
+};
+
+// --- PLACEHOLDER COMPONENTS ---
 
 const ResumeBuilder = ({ onBack, isLowStim }) => (
   <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isLowStim ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`}>
     <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <FileText size={48} className={isLowStim ? "text-fuchsia-600 mx-auto mb-4" : "text-fuchsia-400 mx-auto mb-4"} />
       <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
-      <p className="opacity-70 mb-6">PLACEHOLDER: Your ResumeBuilder component will render here.</p>
+      <p className="opacity-70 mb-6">Build a resume that highlights your unique strengths.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
@@ -53,7 +68,7 @@ const SocialMap = ({ onBack, isLowStim }) => (
     <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <MapPin size={48} className={isLowStim ? "text-cyan-600 mx-auto mb-4" : "text-cyan-400 mx-auto mb-4"} />
       <h2 className="text-2xl font-bold mb-2">Social Map</h2>
-      <p className="opacity-70 mb-6">PLACEHOLDER: Your SocialMap component will render here.</p>
+      <p className="opacity-70 mb-6">Visualizing your safe village and support network.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
@@ -64,7 +79,7 @@ const EmotionalCockpit = ({ onBack, isLowStim }) => (
     <div className={`p-8 rounded-2xl border text-center max-w-md ${isLowStim ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
       <Activity size={48} className="text-indigo-400 mx-auto mb-4" />
       <h2 className="text-2xl font-bold mb-2">Emotional Cockpit</h2>
-      <p className="opacity-70 mb-6">PLACEHOLDER: Your EmotionalCockpit component will render here.</p>
+      <p className="opacity-70 mb-6">Tools to regulate, reset, and recharge.</p>
       <button onClick={onBack} className="px-6 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 transition-colors">Return Home</button>
     </div>
   </div>
@@ -133,7 +148,6 @@ const formatAIResponse = (text) => {
   if (!text) return "";
   let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
   clean = clean.replace(/\.([A-Z])/g, ". $1");
-  // Remove intro phrases like "Here are the steps" or "Sure"
   clean = clean.replace(/^(Here are|Sure|Here's).*?:/gim, "");
   return clean.trim();
 };
@@ -169,8 +183,8 @@ const GeminiService = {
         userPrompt = `Analyze logs: ${JSON.stringify(data)}. Target: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are an Executive Function Coach. Break the task into 5-7 clear, micro-steps. Do NOT include any introductory text like 'Here are the steps'. Start directly with step 1. Ensure steps are safe, helpful, and appropriate.";
-        userPrompt = `Task to slice: ${data.task}`;
+        systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Do NOT use introductory phrases. Just list the steps. Example: 1. Get a pencil. 2. Open notebook.";
+        userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {
         systemInstruction = "You are a professional Special Education Teacher. Write a polite email to a parent. No markdown.";
@@ -259,8 +273,8 @@ const AudioEngine = {
     playVictory: () => {
         AudioEngine.init();
         const now = AudioEngine.ctx.currentTime;
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major Arpeggio
-        notes.forEach((freq, i) => {
+        // Triumphant Major Arpeggio
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
             const osc = AudioEngine.ctx.createOscillator();
             const gain = AudioEngine.ctx.createGain();
             osc.connect(gain);
@@ -269,30 +283,14 @@ const AudioEngine = {
             osc.type = 'triangle';
             gain.gain.setValueAtTime(0, now + i*0.1);
             gain.gain.linearRampToValueAtTime(0.1, now + i*0.1 + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.6);
             osc.start(now + i*0.1);
-            osc.stop(now + i*0.1 + 0.6);
+            osc.stop(now + i*0.1 + 0.7);
         });
     }
 };
 
 // --- COMPONENTS ---
-
-const Disclaimer = () => (
-    <div className="bg-fuchsia-900/20 border border-fuchsia-500/30 rounded-lg p-4 mb-6 flex items-start gap-3 text-left">
-      <Info className="text-fuchsia-400 shrink-0 mt-0.5" size={18} />
-      <p className="text-sm text-fuchsia-100/90 leading-relaxed"><strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.</p>
-    </div>
-);
-  
-const Button = ({ children, primary, href, onClick, className = "", disabled }) => {
-    const baseStyle = "inline-flex items-center px-5 py-2.5 rounded-full font-bold transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed";
-    const primaryStyle = "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]";
-    const secondaryStyle = "bg-slate-800 text-cyan-400 border border-slate-700 hover:bg-slate-700 hover:text-white";
-    const classes = `${baseStyle} ${primary ? primaryStyle : secondaryStyle} ${className}`;
-    if (href) return <a href={href} {...(href.startsWith('http') ? {target:"_blank", rel:"noopener noreferrer"} : {})} className={classes}>{children}</a>;
-    return <button onClick={onClick} disabled={disabled} className={classes}>{children}</button>;
-};
 
 const DashCard = ({ children, className = "", glow = false, isDark = true }) => {
     const theme = getTheme(isDark);
@@ -410,6 +408,12 @@ const NeuroDriver = ({ onBack, isDark }) => {
         if (available.length > 0) setPickedTaskIndex(available[Math.floor(Math.random() * available.length)]);
     };
 
+    const handleSpeak = () => {
+        const text = steps.map((s, i) => `Step ${i + 1}. ${s}`).join('. ');
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+    };
+
     const progress = steps.length > 0 ? (completedSteps.length / steps.length) * 100 : 0;
     const isAllDone = steps.length > 0 && completedSteps.length === steps.length;
 
@@ -524,6 +528,9 @@ const NeuroDriver = ({ onBack, isDark }) => {
                                                 <button onClick={pickForMe} className={`flex items-center gap-1 text-xs px-3 py-1 rounded-full border transition-colors ${theme.inputBg} ${theme.inputBorder} ${theme.text} hover:border-fuchsia-400`}>
                                                     <Shuffle size={12}/> Pick For Me
                                                 </button>
+                                                <button onClick={handleSpeak} className={`flex items-center gap-1 text-xs px-3 py-1 rounded-full border transition-colors ${theme.inputBg} ${theme.inputBorder} ${theme.text} hover:border-cyan-400`}>
+                                                    <Volume2 size={12}/> Read Tasks
+                                                </button>
                                             </div>
                                         </div>
                                         
@@ -540,8 +547,8 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
                                                 return (
                                                     <div key={idx} onClick={() => toggleStep(idx)} className={`p-4 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${isPicked ? 'border-fuchsia-500 bg-fuchsia-500/10 scale-105 shadow-xl' : completedSteps.includes(idx) ? 'border-emerald-500/30 bg-emerald-500/10 opacity-60' : `${theme.inputBorder} ${theme.inputBg} hover:border-cyan-500/30`}`}>
-                                                        <div className={`w-6 h-6 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-colors aspect-square ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400'}`}>
-                                                            {completedSteps.includes(idx) && <CheckCircle2 size={14} />}
+                                                        <div className={`w-8 h-8 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-colors aspect-square ${completedSteps.includes(idx) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400'}`}>
+                                                            {completedSteps.includes(idx) && <CheckCircle2 size={16} />}
                                                         </div>
                                                         <span className={`font-medium ${completedSteps.includes(idx) ? 'text-emerald-500 line-through' : theme.text}`}>{step}</span>
                                                         {isPicked && <span className="ml-auto text-[10px] bg-fuchsia-500 text-white px-2 py-1 rounded-full font-bold uppercase">Focus</span>}

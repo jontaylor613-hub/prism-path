@@ -55,17 +55,38 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
+  // --- CACHING HELPERS (Simplified) ---
+  getCacheKey: (data, type) => {
+    try {
+      const inputString = JSON.stringify(data);
+      return `${type}_${btoa(inputString).slice(0, 30)}`;
+    } catch { return null; }
+  },
+  getCache: (key) => {
+    if (!key) return null;
+    return localStorage.getItem(key);
+  },
+  setCache: (key, result) => {
+    if (!key || !result) return;
+    localStorage.setItem(key, result);
+  },
+  // ------------------------------------
+
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY settings.";
     }
 
+    const cacheKey = GeminiService.getCacheKey(data, type);
+    const cachedResult = GeminiService.getCache(cacheKey);
+    if (cachedResult) { return cachedResult; } // Cache Hit!
+
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts (Removed for brevity, assuming standard logic from previous turn)
+    // 1. Define Prompts
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
@@ -95,54 +116,41 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // --- 2. THE MODEL HUNTER LOGIC ---
-    
-    const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
-    const MODEL_CANDIDATES = [
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest', 
-        'gemini-1.5-pro',
-        'gemini-2.0-flash-exp'
-    ];
-    
-    let finalResult = null;
-    
-    for (const model of MODEL_CANDIDATES) {
-        try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+    // Safety check for empty prompt fields (prevents 400s)
+    if (!userPrompt.trim()) return "Error: Prompt content cannot be empty. Please fill in the input fields.";
 
-            if (response.ok) {
-                finalResult = await response.json();
-                console.log(`Success using model: ${model}`);
-                break; 
-            }
-            
-            if (response.status === 429 || response.status === 403) {
-                 throw new Error("Key/Quota Blocked");
-            }
-            
-        } catch (e) {
-            if (e.message.includes('Key/Quota')) throw e;
-            // Network failure or 400/404 errors will be caught here, allowing the loop to continue
+    // --- 2. SINGLE API CALL (Efficiency) ---
+    try {
+        const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            if (response.status === 429) throw new Error("Key/Quota Blocked");
+            if (response.status === 404) throw new Error("Model Not Found (404)");
+            throw new Error(`AI Status ${response.status}`);
         }
-    }
 
-    if (finalResult) {
-        return formatAIResponse(finalResult.candidates?.[0]?.content?.parts?.[0]?.text);
-    } else {
-        return "Error: All standard models failed. Your Google Cloud project may need the Generative Language API enabled.";
+        const resultData = await response.json();
+        const finalResult = formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
+        
+        // Cache the good result
+        GeminiService.setCache(cacheKey, finalResult); 
+
+        return finalResult;
+        
+    } catch (error) { 
+        return "Error: AI System Busy (Rate Limit or Restricted Key). Please try regenerating your key and trying again in 30 seconds."; 
     }
   }
 };
 
 
 // --- AUDIO UTILS (Exported for NeuroDriver) ---
-// THIS SECTION WAS THE CAUSE OF THE BUILD FAILURE
-export const AudioEngine = { // <--- CORRECTLY EXPORTED
+export const AudioEngine = { 
     ctx: null,
     
     init: () => {
@@ -152,12 +160,7 @@ export const AudioEngine = { // <--- CORRECTLY EXPORTED
 
     toggleBrownNoise: (play) => {
         AudioEngine.init();
-        // This function would contain your actual noise generation logic 
-        // (which is extensive, so NeuroDriver likely imports a version of it).
-        // For simplicity in the shared utility file: we just log it.
         console.log(`Toggling Brown Noise: ${play}`);
-        
-        // Note: The full synthesis logic is kept in NeuroDriver, but the structure is here.
     },
 
     playVictory: () => {

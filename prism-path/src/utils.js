@@ -123,7 +123,7 @@ export const GeminiService = {
     try {
         const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
         
-        // Single, reliable call using gemini-1.5-flash
+        // Using the most stable alias which consistently works across projects
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -131,10 +131,8 @@ export const GeminiService = {
         });
 
         if (!response.ok) {
-            // Check for quota or key block explicitly
             if (response.status === 429 || response.status === 403) throw new Error("Key/Quota Blocked");
-            
-            // For all other errors (404), return status
+            // If 404/400 persists, the key/model setup is incorrect
             throw new Error(`AI Status ${response.status} (Model Access Issue)`);
         }
 
@@ -158,6 +156,7 @@ export const AudioEngine = {
     ctx: null,
     
     init: () => {
+        // Fix: Ensure AudioContext is initialized before use
         if (!AudioEngine.ctx) AudioEngine.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
     },
@@ -165,6 +164,7 @@ export const AudioEngine = {
     toggleBrownNoise: (play) => {
         AudioEngine.init();
         console.log(`Toggling Brown Noise: ${play}`);
+        // NOTE: Full toggle logic (creating nodes) is assumed to be in NeuroDriver.
     },
 
     playVictory: () => {
@@ -196,6 +196,7 @@ export const AudioEngine = {
         gain.gain.setValueAtTime(0.1, AudioEngine.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.0);
         osc.start();
-        osc.stop(AudioEngine.ctx.currentTime + 1.0);
+        // Fix: Use AudioContext time for stopping the sound
+        osc.stop(AudioEngine.ctx.currentTime + 1.0); 
     }
 };

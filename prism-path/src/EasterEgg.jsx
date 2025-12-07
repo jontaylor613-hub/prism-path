@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Trophy, Play, RotateCcw } from 'lucide-react';
+import { X, Trophy, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { getTheme } from './utils';
 
+// The Sacred Code
 const KONAMI_CODE = [
   'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 
   'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 
@@ -9,20 +10,21 @@ const KONAMI_CODE = [
 ];
 
 const EasterEgg = ({ isDark }) => {
+  // UI State
   const [isOpen, setIsOpen] = useState(false);
   const [gameActive, setGameActive] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(parseInt(localStorage.getItem('prism_runner_hiscore') || '0'));
-  
-  // Track inputs for the code
-  const [inputHistory, setInputHistory] = useState([]);
+  const [soundOn, setSoundOn] = useState(false); // Default off for politeness
 
+  // Refs
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const musicIntervalRef = useRef(null);
   
-  // --- GAME STATE REF ---
-  // Stores all game variables in a mutable object that doesn't trigger re-renders
+  // Game State Ref
   const gameState = useRef({
       player: {
           x: 50,
@@ -30,7 +32,7 @@ const EasterEgg = ({ isDark }) => {
           width: 30,
           height: 30,
           dy: 0,
-          jumpForce: 13, // Increased slightly
+          jumpForce: 13,
           grounded: true,
           color: '#22d3ee' 
       },
@@ -40,11 +42,117 @@ const EasterEgg = ({ isDark }) => {
       scoreCount: 0
   });
 
-  // --- 1. KONAMI CODE LISTENER ---
+  // --- AUDIO ENGINE (80s SYNTHWAVE) ---
+  const initAudio = () => {
+      if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume();
+      }
+  };
+
+  const playJumpSound = () => {
+      if (!soundOn || !audioCtxRef.current) return;
+      const ctx = audioCtxRef.current;
+      const t = ctx.currentTime;
+      
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.linearRampToValueAtTime(600, t + 0.1); // Slide up
+      
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.1);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.1);
+  };
+
+  const playCrashSound = () => {
+      if (!soundOn || !audioCtxRef.current) return;
+      const ctx = audioCtxRef.current;
+      const t = ctx.currentTime;
+      
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(100, t);
+      osc.frequency.exponentialRampToValueAtTime(10, t + 0.5); // Slide down
+      
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.5);
+  };
+
+  const startMusic = () => {
+      if (!audioCtxRef.current) initAudio();
+      if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
+      if (!soundOn) return;
+
+      const ctx = audioCtxRef.current;
+      let noteIndex = 0;
+      // Simple Cyberpunk Bassline: C2 - C2 - Eb2 - F2
+      const bassline = [65.41, 65.41, 77.78, 87.31]; 
+
+      const playNote = () => {
+          const t = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const filter = ctx.createBiquadFilter();
+
+          osc.type = 'sawtooth';
+          osc.frequency.value = bassline[noteIndex % bassline.length];
+          
+          // Lowpass filter for that "muffled 80s" sound
+          filter.type = 'lowpass';
+          filter.frequency.value = 800;
+
+          gain.gain.setValueAtTime(0.15, t);
+          gain.gain.linearRampToValueAtTime(0, t + 0.2); // Staccato
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(t);
+          osc.stop(t + 0.2);
+          
+          noteIndex++;
+      };
+
+      playNote();
+      musicIntervalRef.current = setInterval(playNote, 250); // 4 notes per second (120 BPM)
+  };
+
+  const stopMusic = () => {
+      if (musicIntervalRef.current) {
+          clearInterval(musicIntervalRef.current);
+          musicIntervalRef.current = null;
+      }
+  };
+
+  // Toggle Music live
   useEffect(() => {
-    const handleCodeEntry = (e) => {
+      if (gameActive && soundOn) startMusic();
+      else stopMusic();
+  }, [soundOn, gameActive]);
+
+
+  // --- 1. LISTENER ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-      if (isOpen) return; // Don't track code if game is open
+      if (isOpen) return;
 
       setInputHistory((prev) => {
         const newHistory = [...prev, e.key];
@@ -58,11 +166,11 @@ const EasterEgg = ({ isDark }) => {
       });
     };
 
-    window.addEventListener('keydown', handleCodeEntry);
-    return () => window.removeEventListener('keydown', handleCodeEntry);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // --- 2. GAME ENGINE & INPUTS ---
+  // --- 2. INPUTS & ENGINE ---
   useEffect(() => {
     if (!isOpen) return;
 
@@ -71,45 +179,35 @@ const EasterEgg = ({ isDark }) => {
     const groundHeight = 250;
     const gravity = 0.7;
 
-    // --- INPUT HANDLING (Inside Effect to access current Ref) ---
     const jump = () => {
         if (!gameActive) return;
         const p = gameState.current.player;
-        // Simple check: If near ground, allow jump
         if (p.y >= groundHeight - p.height - 5) { 
             p.dy = -p.jumpForce;
             p.grounded = false;
+            playJumpSound(); // SFX
         }
     };
 
     const handleInput = (e) => {
-        // Space or Arrow Up
         if (e.type === 'keydown') {
             if (e.code === 'Space' || e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (!gameActive && !gameOver) {
-                    startGame(); // Space to start
-                } else {
-                    jump();
-                }
+                if (!gameActive && !gameOver) startGame();
+                else jump();
             }
         }
-        // Click or Tap
         if (e.type === 'mousedown' || e.type === 'touchstart') {
-            // Check if clicking close button
             if (e.target.closest('button')) return; 
-            
             e.preventDefault();
             jump();
         }
     };
 
-    // Attach Global Listeners when game is open
     window.addEventListener('keydown', handleInput);
     window.addEventListener('mousedown', handleInput);
     window.addEventListener('touchstart', handleInput, { passive: false });
 
-    // --- MAIN LOOP ---
     const loop = () => {
         if (!gameActive) return;
 
@@ -118,26 +216,27 @@ const EasterEgg = ({ isDark }) => {
         state.scoreCount++;
         setScore(Math.floor(state.scoreCount / 10));
 
-        // Speed Progression
         if (state.frames % 1000 === 0) state.gameSpeed += 1;
 
-        // 1. Draw Background
+        // Draw
         ctx.fillStyle = isDark ? '#0f172a' : '#f8fafc';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 2. Draw Ground
+        // Ground (Neon Grid Effect)
         ctx.beginPath();
         ctx.moveTo(0, groundHeight);
         ctx.lineTo(canvas.width, groundHeight);
-        ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+        ctx.strokeStyle = isDark ? '#f0abfc' : '#cbd5e1'; // Pink line in dark mode
         ctx.lineWidth = 2;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#f0abfc';
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
-        // 3. Player Physics
+        // Player Logic
         state.player.dy += gravity;
         state.player.y += state.player.dy;
 
-        // Ground Collision
         if (state.player.y > groundHeight - state.player.height) {
             state.player.y = groundHeight - state.player.height;
             state.player.dy = 0;
@@ -146,24 +245,22 @@ const EasterEgg = ({ isDark }) => {
 
         // Draw Player
         ctx.fillStyle = state.player.color;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = state.player.color;
         ctx.fillRect(state.player.x, state.player.y, state.player.width, state.player.height);
         ctx.shadowBlur = 0;
 
-        // 4. Obstacle Logic
-        // Spawn Rate
+        // Obstacles
         if (state.frames % 100 === 0 || (state.frames % 60 === 0 && Math.random() > 0.6 && state.gameSpeed > 8)) {
             state.obstacles.push({
                 x: canvas.width,
                 y: groundHeight - 30,
                 width: 20,
                 height: Math.random() > 0.5 ? 30 : 50,
-                color: '#d946ef' // Fuchsia
+                color: '#d946ef'
             });
         }
 
-        // Move & Draw Obstacles
         for (let i = 0; i < state.obstacles.length; i++) {
             let obs = state.obstacles[i];
             obs.x -= state.gameSpeed;
@@ -174,7 +271,6 @@ const EasterEgg = ({ isDark }) => {
             ctx.fillRect(obs.x, obs.y - (obs.height - 30), obs.width, obs.height);
             ctx.shadowBlur = 0;
 
-            // Collision Check (AABB)
             if (
                 state.player.x < obs.x + obs.width &&
                 state.player.x + state.player.width > obs.x &&
@@ -183,10 +279,11 @@ const EasterEgg = ({ isDark }) => {
             ) {
                 setGameOver(true);
                 setGameActive(false);
-                return; // Stop Loop
+                playCrashSound(); // SFX
+                stopMusic();
+                return; 
             }
 
-            // Despawn
             if (obs.x + obs.width < 0) {
                 state.obstacles.shift();
                 i--;
@@ -196,9 +293,7 @@ const EasterEgg = ({ isDark }) => {
         requestRef.current = requestAnimationFrame(loop);
     };
 
-    if (gameActive) {
-        requestRef.current = requestAnimationFrame(loop);
-    }
+    if (gameActive) requestRef.current = requestAnimationFrame(loop);
 
     return () => {
         window.removeEventListener('keydown', handleInput);
@@ -208,7 +303,6 @@ const EasterEgg = ({ isDark }) => {
     };
   }, [isOpen, gameActive, isDark]);
 
-  // High Score Logic
   useEffect(() => {
       if (gameOver && score > highScore) {
           setHighScore(score);
@@ -216,8 +310,9 @@ const EasterEgg = ({ isDark }) => {
       }
   }, [gameOver]);
 
-  const startGame = () => {
-      // Reset Ref Data
+  const startGame = (e) => {
+      if (e) e.stopPropagation();
+      initAudio(); // Unlock audio context on first click
       gameState.current = {
           player: { x: 50, y: 220, width: 30, height: 30, dy: 0, jumpForce: 13, grounded: true, color: '#22d3ee' },
           obstacles: [],
@@ -240,35 +335,39 @@ const EasterEgg = ({ isDark }) => {
             <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 mb-2">
                 <div className="flex items-center gap-2">
                     <span className="text-fuchsia-500 font-black tracking-widest uppercase">Prism Runner</span>
-                    <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30">Dev Mode</span>
+                    <button 
+                        onClick={() => setSoundOn(!soundOn)} 
+                        className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${soundOn ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}
+                    >
+                        {soundOn ? <Volume2 size={12} /> : <VolumeX size={12} />} Sound {soundOn ? 'ON' : 'OFF'}
+                    </button>
                 </div>
-                <button onClick={() => { setIsOpen(false); setGameActive(false); }} className="text-slate-400 hover:text-white transition-colors">
+                <button onClick={() => { setIsOpen(false); setGameActive(false); stopMusic(); }} className="text-slate-400 hover:text-white transition-colors">
                     <X />
                 </button>
             </div>
 
             {/* Game Canvas */}
-            <div className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 select-none cursor-pointer">
+            <div className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 select-none cursor-pointer active:scale-[0.99] transition-transform"
+                 onMouseDown={e => { if(gameActive) { e.preventDefault(); } }}
+            >
                 <canvas ref={canvasRef} width={800} height={300} className="w-full h-full object-contain pointer-events-none" />
 
-                {/* Score UI */}
                 <div className="absolute top-4 right-4 flex gap-4 text-mono font-bold font-mono">
                     <div className="text-slate-400">HI <span className="text-white">{highScore.toString().padStart(5, '0')}</span></div>
                     <div className="text-slate-400">SCORE <span className="text-cyan-400">{score.toString().padStart(5, '0')}</span></div>
                 </div>
 
-                {/* Start Screen */}
                 {!gameActive && !gameOver && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
                         <h1 className="text-4xl font-black text-white mb-2 tracking-tighter">PRISM RUNNER</h1>
-                        <p className="text-cyan-400 mb-6 font-mono text-sm">PRESS SPACE OR CLICK TO JUMP</p>
+                        <p className="text-cyan-400 mb-6 font-mono text-sm">TAP or SPACE to JUMP</p>
                         <button onClick={startGame} className="flex items-center gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-8 py-3 rounded-full font-bold transition-all hover:scale-105 active:scale-95">
                             <Play fill="white" size={18}/> START GAME
                         </button>
                     </div>
                 )}
 
-                {/* Game Over Screen */}
                 {gameOver && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm animate-in zoom-in duration-200">
                         <h2 className="text-red-500 font-black text-3xl mb-2">SYSTEM CRASH</h2>

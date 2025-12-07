@@ -58,13 +58,13 @@ export const GeminiService = {
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       console.error("GeminiService Error: No API Key found.");
-      return "Error: API Key Missing.";
+      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY settings.";
     }
 
     let systemInstruction = "";
     let userPrompt = "";
-
-    // 1. Define Prompts
+    
+    // 1. Define Prompts (Removed for brevity, assuming standard logic from previous turn)
     if (type === 'accommodation') {
         systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
@@ -96,29 +96,54 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch - SINGLE MODEL ONLY
-    // We strictly use gemini-1.5-flash. It is the most reliable.
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
-        })
-      });
+    // --- 2. THE MODEL HUNTER LOGIC ---
+    
+    const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
+    const MODEL_CANDIDATES = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro',
+        'gemini-2.0-flash-exp'
+    ];
+    
+    let finalResult = null;
+    
+    for (const model of MODEL_CANDIDATES) {
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-      if (!response.ok) {
-          if (response.status === 429) return "Error: Too many requests. Please wait 1 minute.";
-          if (response.status === 404) return "Error: Model not found. Check Google Cloud settings.";
-          return `Error: AI Service Unavailable (Status ${response.status})`;
-      }
+            if (response.ok) {
+                finalResult = await response.json();
+                console.log(`Success using model: ${model}`);
+                break; 
+            }
+            
+            if (response.status === 404 || response.status === 400) {
+                 console.warn(`Model ${model} failed (Status ${response.status}). Trying next...`);
+                continue; 
+            }
+            
+            // If we hit a hard error (429, 403), we give up, as the key is the problem
+            if (response.status === 429 || response.status === 403) {
+                 console.error(`Fatal AI Error: Key or Quota blocked by ${response.status}`);
+                 return "Error: Key/Quota Blocked. Try regenerating your API key.";
+            }
+            
+        } catch (e) {
+            // Network failure, stop trying.
+            console.error("Fatal Network Error:", e);
+            return "Error: Network connection failed.";
+        }
+    }
 
-      const result = await response.json();
-      return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
-      
-    } catch (error) { 
-        console.error("AI Service Error:", error);
-        return "Error: Connection Failed."; 
+    if (finalResult) {
+        return formatAIResponse(finalResult.candidates?.[0]?.content?.parts?.[0]?.text);
+    } else {
+        return "Error: All standard models failed. Your Google Cloud project may need the Generative Language API enabled.";
     }
   }
 };
@@ -158,6 +183,6 @@ export const AudioEngine = {
         gain.gain.setValueAtTime(0.1, AudioEngine.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.0);
         osc.start();
-        osc.stop(AudioEngine.ctx.currentTime + 1.0);
+        osc.stop(AudioContext.currentTime + 1.0);
     }
 };

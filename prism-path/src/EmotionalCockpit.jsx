@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wind, Activity, ArrowLeft, Volume2, VolumeX, 
   Trash2, Eye, Hand, Ear, CloudRain, Trees, Coffee,
-  Move, Music, Zap
+  Move, Music, Zap, Sparkles // <--- FIXED: Added Sparkles to imports
 } from 'lucide-react';
+import { getTheme } from './utils'; // <--- FIXED: Import theme engine
 
 // --- INTERNAL AUDIO SYNTHESIZER ---
 const CockpitAudio = {
     ctx: null,
     ambienceNodes: [], 
     musicNodes: [],    
-    musicInterval: null, // TRACKER FOR THE LOFI LOOP
+    musicInterval: null,
 
     init: () => {
         if (!CockpitAudio.ctx) CockpitAudio.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -37,108 +38,77 @@ const CockpitAudio = {
     },
 
     stopAll: () => {
-        // 1. KILL THE LOFI LOOP TIMER
         if (CockpitAudio.musicInterval) {
             clearInterval(CockpitAudio.musicInterval);
             CockpitAudio.musicInterval = null;
         }
-
-        // 2. STOP AMBIENCE (Rain/Forest)
-        CockpitAudio.ambienceNodes.forEach(node => {
-            try { node.stop(); node.disconnect(); } catch(e){}
-        });
+        CockpitAudio.ambienceNodes.forEach(node => { try { node.stop(); node.disconnect(); } catch(e){} });
         CockpitAudio.ambienceNodes = [];
-
-        // 3. STOP ACTIVE MUSIC NOTES
-        CockpitAudio.musicNodes.forEach(node => {
-            try { node.stop(); node.disconnect(); } catch(e){}
-        });
+        CockpitAudio.musicNodes.forEach(node => { try { node.stop(); node.disconnect(); } catch(e){} });
         CockpitAudio.musicNodes = [];
     },
 
     playAmbience: (type) => {
-        // CRITICAL: Stop everything before starting something new
         CockpitAudio.stopAll(); 
         CockpitAudio.init();
-        
         if (!type) return;
 
-        // --- NOISE GENERATOR ---
         if (['rain', 'brown', 'forest'].includes(type)) {
             const bufferSize = CockpitAudio.ctx.sampleRate * 2;
             const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
             const data = buffer.getChannelData(0);
             let lastOut = 0;
-            
             for (let i = 0; i < bufferSize; i++) {
                 const white = Math.random() * 2 - 1;
                 data[i] = (lastOut + (0.02 * white)) / 1.02; 
                 lastOut = data[i];
                 data[i] *= 3.5; 
             }
-
             const noise = CockpitAudio.ctx.createBufferSource();
             noise.buffer = buffer;
             noise.loop = true;
             const gain = CockpitAudio.ctx.createGain();
             gain.gain.value = type === 'rain' ? 0.15 : 0.25;
-            
             noise.connect(gain);
             gain.connect(CockpitAudio.ctx.destination);
             noise.start();
             CockpitAudio.ambienceNodes.push(noise);
         }
 
-        // --- LOFI MUSIC GENERATOR ---
         if (type === 'lofi') {
             const playChord = (notes, time) => {
                 notes.forEach(freq => {
                     const osc = CockpitAudio.ctx.createOscillator();
                     const gain = CockpitAudio.ctx.createGain();
-                    
                     osc.type = 'triangle'; 
                     osc.frequency.value = freq;
-                    
-                    // Detune for "Tape Wobble" effect
                     osc.detune.setValueAtTime(0, time);
                     osc.detune.linearRampToValueAtTime(10, time + 2); 
-                    
                     osc.connect(gain);
                     gain.connect(CockpitAudio.ctx.destination);
-                    
-                    // Soft envelope
                     gain.gain.setValueAtTime(0, time);
                     gain.gain.linearRampToValueAtTime(0.08, time + 1);
                     gain.gain.exponentialRampToValueAtTime(0.001, time + 6);
-                    
                     osc.start(time);
                     osc.stop(time + 6);
                     CockpitAudio.musicNodes.push(osc);
                 });
             };
-
             const loopChords = () => {
                 const t = CockpitAudio.ctx.currentTime;
-                // C Maj 7
                 playChord([261.63, 329.63, 392.00, 493.88], t);
-                // F Maj 7 (delayed)
                 setTimeout(() => {
-                    // Check if we are still supposed to be playing before triggering the second chord
-                    if (CockpitAudio.musicInterval) {
-                        playChord([174.61, 220.00, 261.63, 329.63], CockpitAudio.ctx.currentTime);
-                    }
+                    if (CockpitAudio.musicInterval) playChord([174.61, 220.00, 261.63, 329.63], CockpitAudio.ctx.currentTime);
                 }, 4000);
             };
-
-            loopChords(); // Play immediately
-            // Save the ID so we can kill it later
+            loopChords();
             CockpitAudio.musicInterval = setInterval(loopChords, 8000);
         }
     }
 };
 
 // --- SUB-COMPONENT: WORRY SHREDDER ---
-const WorryShredder = () => {
+const WorryShredder = ({ theme }) => {
     const [worry, setWorry] = useState('');
     const [isShredding, setIsShredding] = useState(false);
     const [shredded, setShredded] = useState(false);
@@ -156,19 +126,19 @@ const WorryShredder = () => {
 
     return (
         <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-4">
-            <h2 className="text-3xl font-bold text-white mb-2">Worry Shredder</h2>
-            <p className="text-slate-400 mb-8 text-center">Type what's bothering you. Then let it go.</p>
+            <h2 className={`text-3xl font-bold ${theme.text} mb-2`}>Worry Shredder</h2>
+            <p className={`${theme.textMuted} mb-8 text-center`}>Type what's bothering you. Then let it go.</p>
             
             <div className="relative w-full">
                 <textarea 
                     value={worry}
                     onChange={(e) => setWorry(e.target.value)}
                     placeholder="I am worried about..."
-                    className={`w-full h-40 bg-slate-100 text-slate-900 p-4 rounded-t-xl transition-all duration-1000 ${isShredding ? 'translate-y-[100%] opacity-0 scale-y-0' : ''}`}
+                    className={`w-full h-40 ${theme.inputBg} ${theme.text} border ${theme.inputBorder} p-4 rounded-t-xl transition-all duration-1000 ${isShredding ? 'translate-y-[100%] opacity-0 scale-y-0' : ''}`}
                     disabled={isShredding}
                 />
-                <div className="absolute -bottom-12 left-0 w-full h-16 bg-slate-800 border-t-4 border-slate-950 flex items-center justify-center rounded-b-xl z-10 shadow-2xl">
-                    <div className="w-3/4 h-2 bg-black rounded-full"></div>
+                <div className={`absolute -bottom-12 left-0 w-full h-16 ${theme.cardBg} border-t-4 ${theme.cardBorder} flex items-center justify-center rounded-b-xl z-10 shadow-2xl`}>
+                    <div className="w-3/4 h-2 bg-black/20 rounded-full"></div>
                 </div>
             </div>
 
@@ -191,8 +161,8 @@ const WorryShredder = () => {
     );
 };
 
-// --- SUB-COMPONENT: 5-4-3-2-1 GROUNDING ---
-const GroundingTool = () => {
+// --- SUB-COMPONENT: GROUNDING ---
+const GroundingTool = ({ theme }) => {
     const [step, setStep] = useState(5); 
     const [count, setCount] = useState(0); 
 
@@ -214,8 +184,8 @@ const GroundingTool = () => {
     if (step === 0) return (
         <div className="flex flex-col items-center justify-center h-full animate-in zoom-in">
             <Sparkles size={64} className="text-yellow-400 mb-4 animate-spin-slow"/>
-            <h2 className="text-3xl font-bold text-white">You are Grounded.</h2>
-            <button onClick={() => {setStep(5); setCount(0);}} className="mt-8 text-slate-400 hover:text-white underline">Start Over</button>
+            <h2 className={`text-3xl font-bold ${theme.text}`}>You are Grounded.</h2>
+            <button onClick={() => {setStep(5); setCount(0);}} className={`mt-8 ${theme.textMuted} hover:${theme.text} underline`}>Start Over</button>
         </div>
     );
 
@@ -223,19 +193,19 @@ const GroundingTool = () => {
 
     return (
         <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto">
-            <h2 className="text-xl font-bold text-slate-400 mb-8 uppercase tracking-widest">Grounding Exercise</h2>
-            <div onClick={handleClick} className={`w-64 h-64 rounded-full ${steps[step].bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-all active:scale-95 shadow-[0_0_30px_rgba(0,0,0,0.3)]`}>
+            <h2 className={`text-xl font-bold ${theme.textMuted} mb-8 uppercase tracking-widest`}>Grounding Exercise</h2>
+            <div onClick={handleClick} className={`w-64 h-64 rounded-full ${steps[step].bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-all active:scale-95 shadow-xl`}>
                 <CurrentIcon size={64} className={`${steps[step].color} mb-4`}/>
-                <div className="text-6xl font-black text-white mb-2">{step - count}</div>
+                <div className={`text-6xl font-black ${theme.text} mb-2`}>{step - count}</div>
                 <div className={`text-sm font-bold uppercase ${steps[step].color}`}>More {steps[step].label}</div>
             </div>
-            <p className="mt-8 text-slate-500 text-center animate-pulse">Look around. Find {step - count} more.</p>
+            <p className={`mt-8 ${theme.textMuted} text-center animate-pulse`}>Look around. Find {step - count} more.</p>
         </div>
     );
 };
 
 // --- SUB-COMPONENT: SOUNDSCAPES ---
-const Soundscapes = () => {
+const Soundscapes = ({ theme }) => {
     const [active, setActive] = useState(null);
 
     const toggle = (type) => {
@@ -248,44 +218,63 @@ const Soundscapes = () => {
         }
     };
 
-    // Cleanup when leaving Soundscapes tool
-    useEffect(() => {
-        return () => CockpitAudio.stopAll();
-    }, []);
+    useEffect(() => { return () => CockpitAudio.stopAll(); }, []);
 
     return (
-        <div className="h-full flex flex-col relative overflow-hidden rounded-3xl">
+        <div className={`h-full flex flex-col relative overflow-hidden rounded-3xl ${theme.cardBg}`}>
+            {/* BACKGROUND ANIMATIONS */}
             <div className={`absolute inset-0 transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
-                {active === 'rain' && <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-blue-900/40"><div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/diagonal-striped-brick.png')]"></div></div>}
-                {active === 'brown' && <div className="absolute inset-0 bg-gradient-to-b from-amber-950/50 to-slate-900"><div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div></div>}
-                {active === 'forest' && <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/50 to-slate-900"><div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/leaf.png')]"></div></div>}
+                {/* RAIN EFFECT: Hazy Grey Blue + Digital Rain */}
+                {active === 'rain' && (
+                    <div className="absolute inset-0 bg-slate-800/80 backdrop-blur-sm overflow-hidden">
+                        <div className="absolute inset-0 rain-animation opacity-30"></div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-slate-700/50 to-blue-900/30"></div>
+                    </div>
+                )}
+                {active === 'brown' && <div className="absolute inset-0 bg-gradient-to-b from-amber-900/40 to-slate-900"></div>}
+                {active === 'forest' && <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 to-slate-900"></div>}
                 {active === 'lofi' && <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-slate-900"><div className="absolute inset-0 flex items-center justify-center opacity-10"><Music size={300} /></div></div>}
             </div>
 
             <div className="relative z-10 flex flex-col items-center justify-center h-full p-8">
-                <h2 className="text-3xl font-bold text-white mb-8 drop-shadow-md">Sonic Sanctuary</h2>
+                <h2 className={`text-3xl font-bold ${theme.text} mb-8 drop-shadow-md`}>Sonic Sanctuary</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
-                    <button onClick={() => toggle('rain')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'rain' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                    <button onClick={() => toggle('rain')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'rain' ? 'bg-blue-500/20 border-blue-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
                         <CloudRain size={24} /> <span className="font-bold">Rainy Window</span>
                     </button>
-                    <button onClick={() => toggle('brown')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'brown' ? 'bg-amber-500/20 border-amber-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                    <button onClick={() => toggle('brown')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'brown' ? 'bg-amber-500/20 border-amber-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
                         <Coffee size={24} /> <span className="font-bold">Cozy Library</span>
                     </button>
-                    <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                    <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
                         <Trees size={24} /> <span className="font-bold">Deep Forest</span>
                     </button>
-                    <button onClick={() => toggle('lofi')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'lofi' ? 'bg-indigo-500/20 border-indigo-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
-                        <Music size={24} /> <span className="font-bold">Lofi Lounge (Music)</span>
+                    <button onClick={() => toggle('lofi')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'lofi' ? 'bg-indigo-500/20 border-indigo-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
+                        <Music size={24} /> <span className="font-bold">Lofi Lounge</span>
                     </button>
                 </div>
-                {active && <button onClick={() => toggle(active)} className="mt-8 px-6 py-2 bg-slate-900/50 rounded-full border border-slate-600 text-slate-400 text-sm hover:text-white">Stop Audio</button>}
+                {active && <button onClick={() => toggle(active)} className={`mt-8 px-6 py-2 ${theme.inputBg} rounded-full border ${theme.inputBorder} ${theme.textMuted} text-sm hover:${theme.text}`}>Stop Audio</button>}
             </div>
+            
+            {/* CSS FOR RAIN */}
+            <style>{`
+                .rain-animation {
+                    background-image: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.5));
+                    background-size: 2px 20px;
+                    width: 100%;
+                    height: 100%;
+                    animation: raining 0.5s linear infinite;
+                }
+                @keyframes raining {
+                    0% { background-position: 0 0; }
+                    100% { background-position: 5px 20px; }
+                }
+            `}</style>
         </div>
     );
 };
 
 // --- SUB-COMPONENT: BUBBLE WRAP ---
-const BubbleWrap = () => {
+const BubbleWrap = ({ theme }) => {
   const [bubbles, setBubbles] = useState(Array(20).fill(false));
   const [timeLeft, setTimeLeft] = useState(120); 
   const [isActive, setIsActive] = useState(true);
@@ -315,37 +304,37 @@ const BubbleWrap = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-300 relative">
       <div className="flex justify-between items-center w-full max-w-sm mb-6">
-          <h2 className="text-xl font-bold text-cyan-300">Pop the bubbles</h2>
+          <h2 className={`text-xl font-bold ${theme.text}`}>Pop the bubbles</h2>
           <div className="flex items-center gap-4">
-              <button onClick={() => setIsMuted(!isMuted)} className="text-slate-400 hover:text-white transition-colors">
+              <button onClick={() => setIsMuted(!isMuted)} className={`${theme.textMuted} hover:${theme.text} transition-colors`}>
                   {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
               </button>
-              <div className={`font-mono text-xl font-bold ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
+              <div className={`font-mono text-xl font-bold ${timeLeft < 10 ? 'text-red-500 animate-pulse' : theme.textMuted}`}>
                   {formatTime(timeLeft)}
               </div>
           </div>
       </div>
-      <div className="grid grid-cols-4 gap-4 p-4 bg-slate-800 rounded-2xl shadow-inner border border-slate-700">
+      <div className={`grid grid-cols-4 gap-4 p-4 ${theme.inputBg} rounded-2xl shadow-inner border ${theme.inputBorder}`}>
         {bubbles.map((popped, i) => (
-          <button key={i} onClick={() => pop(i)} disabled={timeLeft <= 0} className={`w-16 h-16 rounded-full transition-all duration-100 transform scale-100 active:scale-95 shadow-lg flex items-center justify-center border-4 ${popped ? 'bg-slate-900 border-slate-800 shadow-inner' : 'bg-gradient-to-br from-cyan-400 to-blue-500 border-cyan-300'}`}>
+          <button key={i} onClick={() => pop(i)} disabled={timeLeft <= 0} className={`w-16 h-16 rounded-full transition-all duration-100 transform scale-100 active:scale-95 shadow-lg flex items-center justify-center border-4 ${popped ? `${theme.bg} border-slate-700 shadow-inner` : 'bg-gradient-to-br from-cyan-400 to-blue-500 border-cyan-300'}`}>
             {popped && <div className="w-2 h-2 bg-white/20 rounded-full"></div>}
           </button>
         ))}
       </div>
       {timeLeft <= 0 ? (
           <div className="mt-8 text-center">
-              <p className="text-white font-bold mb-2">Session Complete</p>
-              <button onClick={() => {setTimeLeft(120); setBubbles(Array(20).fill(false));}} className="px-4 py-2 bg-slate-700 rounded-full text-white hover:bg-slate-600">Restart Timer</button>
+              <p className={`${theme.text} font-bold mb-2`}>Session Complete</p>
+              <button onClick={() => {setTimeLeft(120); setBubbles(Array(20).fill(false));}} className={`px-4 py-2 ${theme.cardBg} rounded-full border ${theme.cardBorder} ${theme.text}`}>Restart Timer</button>
           </div>
       ) : (
-          <button onClick={() => setBubbles(Array(20).fill(false))} className="mt-8 text-slate-400 hover:text-white underline text-sm">Reset Board</button>
+          <button onClick={() => setBubbles(Array(20).fill(false))} className={`mt-8 ${theme.textMuted} hover:${theme.text} underline text-sm`}>Reset Board</button>
       )}
     </div>
   );
 };
 
 // --- SUB-COMPONENT: BOX BREATHING ---
-const BreathingOrb = () => {
+const BreathingOrb = ({ theme }) => {
   const [phase, setPhase] = useState('Inhale'); 
 
   useEffect(() => {
@@ -356,7 +345,7 @@ const BreathingOrb = () => {
         setTimeout(() => {
           setPhase('Exhale');
           setTimeout(() => {
-              setPhase('Hold '); 
+              setPhase('Hold'); 
           }, 4000);
         }, 4000);
       }, 4000);
@@ -369,16 +358,16 @@ const BreathingOrb = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
       <div className="absolute top-[15%] z-20 text-center">
-          <h2 className="text-4xl font-bold text-white mb-2 tracking-widest uppercase transition-all duration-500">
+          <h2 className={`text-4xl font-bold ${theme.text} mb-2 tracking-widest uppercase transition-all duration-500`}>
               {phase === 'Inhale' ? 'Breathe In' : phase === 'Exhale' ? 'Breathe Out' : 'Hold'}
           </h2>
       </div>
       <div className="relative flex items-center justify-center h-[400px] w-[400px]">
-        <div className="absolute w-[300px] h-[300px] border-2 border-slate-800 rounded-full"></div>
+        <div className={`absolute w-[300px] h-[300px] border-2 ${theme.cardBorder} rounded-full`}></div>
         <div className="breathing-orb bg-cyan-500 rounded-full shadow-[0_0_50px_rgba(6,182,212,0.5)]"></div>
         <div className="absolute z-10 pointer-events-none"><Wind size={48} className="text-white/80" /></div>
       </div>
-      <p className="mt-12 text-slate-500 text-xs tracking-widest uppercase">Box Breathing (4-4-4-4)</p>
+      <p className={`mt-12 ${theme.textMuted} text-xs tracking-widest uppercase`}>Box Breathing (4-4-4-4)</p>
       <style>{`
         .breathing-orb { width: 100px; height: 100px; animation: breathe 16s infinite ease-in-out; }
         @keyframes breathe {
@@ -394,7 +383,7 @@ const BreathingOrb = () => {
 };
 
 // --- SUB-COMPONENT: NOISE METER ---
-const NoiseMeter = () => {
+const NoiseMeter = ({ theme }) => {
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState(null);
   const audioContextRef = useRef(null);
@@ -435,12 +424,12 @@ const NoiseMeter = () => {
   if (displayVol > 40) color = "bg-yellow-400";
   if (displayVol > 70) color = "bg-red-500";
 
-  if (error) return <div className="text-center text-slate-500 mt-20">{error}</div>;
+  if (error) return <div className={`text-center ${theme.textMuted} mt-20`}>{error}</div>;
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
-        <h2 className="text-2xl font-bold text-white mb-8">Noise Monitor</h2>
-        <div className="w-24 h-64 bg-slate-800 rounded-full p-2 relative overflow-hidden border border-slate-600">
+        <h2 className={`text-2xl font-bold ${theme.text} mb-8`}>Noise Monitor</h2>
+        <div className={`w-24 h-64 ${theme.inputBg} rounded-full p-2 relative overflow-hidden border ${theme.inputBorder}`}>
             <div className={`absolute bottom-0 left-0 w-full transition-all duration-100 ease-out rounded-b-full ${color}`} style={{ height: `${displayVol}%` }} />
         </div>
     </div>
@@ -448,22 +437,21 @@ const NoiseMeter = () => {
 };
 
 // --- MAIN CONTROLLER ---
-export default function EmotionalCockpit({ onBack }) {
+export default function EmotionalCockpit({ onBack, isLowStim }) {
   const [tool, setTool] = useState('menu'); 
+  const theme = getTheme(!isLowStim); // Convert isLowStim (light) to isDark logic
 
-  // Cleanup ANY audio when exiting the component or switching tools
   useEffect(() => {
-      // Force stop all audio when unmounting or switching
       return () => {
           CockpitAudio.stopAll();
       };
   }, [tool]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col">
-      <div className="p-6 flex justify-between items-center border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
+    <div className={`fixed inset-0 z-[100] ${theme.bg} ${theme.text} flex flex-col`}>
+      <div className={`p-6 flex justify-between items-center border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md`}>
         {tool === 'menu' ? (
-            <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold transition-colors"><ArrowLeft /> Exit Cool Down</button>
+            <button onClick={onBack} className={`flex items-center gap-2 ${theme.textMuted} hover:${theme.text} font-bold transition-colors`}><ArrowLeft /> Exit Cool Down</button>
         ) : (
             <button onClick={() => setTool('menu')} className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-bold transition-colors"><ArrowLeft /> Back to Tools</button>
         )}
@@ -473,21 +461,21 @@ export default function EmotionalCockpit({ onBack }) {
       <div className="flex-1 overflow-hidden relative">
         {tool === 'menu' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 h-full max-w-5xl mx-auto items-center justify-center content-center">
-                <button onClick={() => setTool('breathe')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-cyan-500 transition-all"><Wind size={32} className="text-cyan-400 mb-2"/><h3 className="font-bold text-white">Breathing Orb</h3></button>
-                <button onClick={() => setTool('grounding')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-emerald-500 transition-all"><Eye size={32} className="text-emerald-400 mb-2"/><h3 className="font-bold text-white">5-4-3-2-1 Grounding</h3></button>
-                <button onClick={() => setTool('shredder')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-red-500 transition-all"><Trash2 size={32} className="text-red-400 mb-2"/><h3 className="font-bold text-white">Worry Shredder</h3></button>
-                <button onClick={() => setTool('sound')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-blue-500 transition-all"><CloudRain size={32} className="text-blue-400 mb-2"/><h3 className="font-bold text-white">Sonic Sanctuary</h3></button>
-                <button onClick={() => setTool('fidget')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-fuchsia-500 transition-all"><Move size={32} className="text-fuchsia-400 mb-2"/><h3 className="font-bold text-white">Bubble Pop</h3></button>
-                <button onClick={() => setTool('noise')} className="group h-40 bg-slate-900 border border-slate-700 rounded-2xl flex flex-col items-center justify-center hover:bg-slate-800 hover:border-yellow-500 transition-all"><Volume2 size={32} className="text-yellow-400 mb-2"/><h3 className="font-bold text-white">Noise Meter</h3></button>
+                <button onClick={() => setTool('breathe')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-cyan-500 transition-all`}><Wind size={32} className="text-cyan-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Breathing Orb</h3></button>
+                <button onClick={() => setTool('grounding')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-emerald-500 transition-all`}><Eye size={32} className="text-emerald-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>5-4-3-2-1 Grounding</h3></button>
+                <button onClick={() => setTool('shredder')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-red-500 transition-all`}><Trash2 size={32} className="text-red-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Worry Shredder</h3></button>
+                <button onClick={() => setTool('sound')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-blue-500 transition-all`}><CloudRain size={32} className="text-blue-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Sonic Sanctuary</h3></button>
+                <button onClick={() => setTool('fidget')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-fuchsia-500 transition-all`}><Move size={32} className="text-fuchsia-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Bubble Pop</h3></button>
+                <button onClick={() => setTool('noise')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-yellow-500 transition-all`}><Volume2 size={32} className="text-yellow-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Noise Meter</h3></button>
             </div>
         )}
 
-        {tool === 'breathe' && <BreathingOrb />}
-        {tool === 'fidget' && <BubbleWrap />}
-        {tool === 'noise' && <NoiseMeter />}
-        {tool === 'shredder' && <WorryShredder />}
-        {tool === 'grounding' && <GroundingTool />}
-        {tool === 'sound' && <Soundscapes />}
+        {tool === 'breathe' && <BreathingOrb theme={theme} />}
+        {tool === 'fidget' && <BubbleWrap theme={theme} />}
+        {tool === 'noise' && <NoiseMeter theme={theme} />}
+        {tool === 'shredder' && <WorryShredder theme={theme} />}
+        {tool === 'grounding' && <GroundingTool theme={theme} />}
+        {tool === 'sound' && <Soundscapes theme={theme} />}
       </div>
     </div>
   );

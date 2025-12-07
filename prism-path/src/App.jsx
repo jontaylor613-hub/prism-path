@@ -31,8 +31,7 @@ const FeatureCard = ({ icon: Icon, title, description, delay, isDark, to }) => {
     return (
         <Link 
             to={to}
-            target="_blank" // Opens in new tab for easy sharing/multi-tasking
-            rel="noopener noreferrer" 
+            // REMOVED: target="_blank" to keep navigation in the same tab
             className={`group relative p-1 rounded-2xl bg-gradient-to-b ${isDark ? 'from-slate-700 to-slate-800' : 'from-slate-200 to-slate-100'} hover:from-cyan-500 hover:to-fuchsia-500 transition-all duration-500 cursor-pointer block`} 
             style={{ animationDelay: `${delay}ms` }}
         >
@@ -100,7 +99,8 @@ const Home = ({ isDark, setIsDark }) => {
             </button>
             <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
             
-            <a href="/educator" target="_blank" rel="noopener noreferrer" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</a>
+            {/* CHANGED: Using Link instead of <a> for internal navigation */}
+            <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
             
             <div className="relative" ref={studentMenuRef}>
               <button 
@@ -111,18 +111,19 @@ const Home = ({ isDark, setIsDark }) => {
               </button>
               {studentMenuOpen && (
                 <div className={`absolute top-full left-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50`}>
-                    <a href="/neuro" target="_blank" rel="noopener noreferrer" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
+                    {/* CHANGED: Using Link instead of <a> */}
+                    <Link to="/neuro" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
                         <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver
-                    </a>
-                    <a href="/resume" target="_blank" rel="noopener noreferrer" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                    </Link>
+                    <Link to="/resume" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                         <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-500"><FileText size={16}/></div> Resume Builder
-                    </a>
-                    <a href="/map" target="_blank" rel="noopener noreferrer" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                    </Link>
+                    <Link to="/map" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                         <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500"><MapPin size={16}/></div> Social Map
-                    </a>
-                    <a href="/cockpit" target="_blank" rel="noopener noreferrer" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                    </Link>
+                    <Link to="/cockpit" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                         <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500"><Activity size={16}/></div> Emotional Cockpit
-                    </a>
+                    </Link>
                 </div>
               )}
             </div>
@@ -137,10 +138,11 @@ const Home = ({ isDark, setIsDark }) => {
         {mobileMenuOpen && (
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
              <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
-             <a href="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</a>
-             <a href="/resume" className="block w-full text-left py-2 font-bold text-fuchsia-500">Resume Builder</a>
-             <a href="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</a>
-             <a href="/map" className="block w-full text-left py-2 font-bold text-cyan-500">Social Map</a>
+             {/* CHANGED: Mobile Menu Links */}
+             <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
+             <Link to="/resume" className="block w-full text-left py-2 font-bold text-fuchsia-500">Resume Builder</Link>
+             <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
+             <Link to="/map" className="block w-full text-left py-2 font-bold text-cyan-500">Social Map</Link>
           </div>
         )}
       </nav>
@@ -186,7 +188,6 @@ const Home = ({ isDark, setIsDark }) => {
                     {generatedPlan ? 
                         <ReactMarkdown components={{
                             p: ({node, ...props}) => <p className={`mb-4 leading-relaxed ${theme.text}`} {...props} />,
-                            // FIX: Styling <strong> tags (strategy headings) dynamically
                             strong: ({node, ...props}) => <strong className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} {...props} />,
                             ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-4 marker:text-fuchsia-500" {...props} />,
                             li: ({node, ...props}) => <li className={`pl-1 ${theme.text}`} {...props} />

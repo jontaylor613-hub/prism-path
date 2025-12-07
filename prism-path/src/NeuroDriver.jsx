@@ -147,6 +147,9 @@ const DriverAudio = {
 const NeuroDriver = ({ onBack, isDark }) => { 
   const theme = getTheme(isDark);
   
+  // Specific Text Color Logic (White in Dark, Black in Light)
+  const numberColor = isDark ? "text-white" : "text-slate-900";
+  
   // App State
   const [task, setTask] = useState('');
   const [steps, setSteps] = useState([]);
@@ -210,8 +213,6 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 DriverAudio.playAlarm();
             } else {
                 setTimeLeft(diffSeconds);
-                // Dynamically update totalTime for progress bar in 'until' mode 
-                // (optional: creates shrinking bar effect based on start time)
             }
         }
       }, 1000);
@@ -231,7 +232,6 @@ const NeuroDriver = ({ onBack, isDark }) => {
   const handleUntilChange = (e) => {
       setTargetTimeStr(e.target.value);
       setTimerActive(false);
-      // Calc initial diff for display
       if (e.target.value) {
           const now = new Date();
           const [hours, minutes] = e.target.value.split(':').map(Number);
@@ -277,6 +277,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
+    // Format: "1:05:09" or "25:00"
     if (h > 0) return `${h}:${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
     return `${m}:${sec < 10 ? '0' : ''}${sec}`;
   };
@@ -389,14 +390,16 @@ const NeuroDriver = ({ onBack, isDark }) => {
                                 strokeLinecap="round"
                             />
                         </svg>
-                        <div className={`text-6xl font-mono font-bold ${timerActive ? 'text-cyan-400' : theme.text} z-10`}>
+                        {/* FIXED: Clean Sans Font + Strict Color (No Blue/Yellow) */}
+                        <div className={`text-6xl font-sans tabular-nums tracking-wider font-bold ${numberColor} z-10`}>
                             {formatTime(timeLeft)}
                         </div>
                      </div>
                 ) : (
                     // RECTANGULAR BAR MODE
                     <div className="w-full">
-                        <div className={`text-9xl font-mono font-bold text-center mb-6 tracking-tighter ${timerActive ? 'text-cyan-400' : theme.text}`}>
+                        {/* FIXED: Clean Sans Font + Strict Color */}
+                        <div className={`text-9xl font-sans tabular-nums tracking-wider font-bold text-center mb-6 ${numberColor}`}>
                             {formatTime(timeLeft)}
                         </div>
                         <div className={`w-full h-8 ${theme.inputBg} rounded-full overflow-hidden border ${theme.inputBorder}`}>

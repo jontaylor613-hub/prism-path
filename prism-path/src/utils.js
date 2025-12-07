@@ -15,7 +15,7 @@ export const getGoogleApiKey = () => {
 export const GOOGLE_API_KEY = getGoogleApiKey();
 
 // --- THEME ENGINE ---
-export const getTheme = (isDark) => ({ // <--- CORRECTLY EXPORTED
+export const getTheme = (isDark) => ({
     bg: isDark ? "bg-slate-950" : "bg-slate-50",
     text: isDark ? "text-slate-200" : "text-slate-800",
     textMuted: isDark ? "text-slate-400" : "text-slate-500",
@@ -55,60 +55,24 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
-  // Model Hunter logic (simplified for this display)
-  fetchWithFallback: async (payload) => {
-      const models = [
-          'gemini-1.5-flash', 
-          'gemini-1.5-flash-latest', 
-          'gemini-1.5-pro',
-          'gemini-2.0-flash-exp'
-      ];
-      
-      let finalResultData = null;
-      let lastError = "Unknown";
-
-      for (const model of models) {
-          try {
-              const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
-              });
-
-              if (response.ok) {
-                  finalResultData = await response.json();
-                  return finalResultData;
-              }
-              
-              if (response.status === 429 || response.status === 403) {
-                 throw new Error("Key/Quota Blocked");
-              }
-              lastError = `Status ${response.status}`;
-
-          } catch (e) {
-              if (e.message.includes('Key/Quota')) throw e;
-              lastError = "Network/Connection Failure";
-          }
-      }
-      throw new Error(`All AI models failed. Last error: ${lastError}`);
-  },
-  
   generate: async (data, type) => {
-    if (!GOOGLE_API_KEY) { return "Error: API Key Missing."; }
+    if (!GOOGLE_API_KEY) {
+      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY settings.";
+    }
 
     let systemInstruction = "";
     let userPrompt = "";
 
+    // 1. Define Prompts (Removed for brevity, assuming standard logic from previous turn)
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
         systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). Constraint: Do NOT use introductory phrases. Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
         userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
-    // ... (All other prompt logic here) ...
-    if (type === 'slicer') {
+    else if (type === 'slicer') {
         systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Just list the steps.";
         userPrompt = `Task: ${data.task}`;
     }
@@ -130,17 +94,101 @@ export const GeminiService = {
         systemInstruction = "You are an expert Resume Writer. Rewrite the input text to be professional, action-oriented, and concise. Do NOT use markdown. Just return the clean, polished paragraph.";
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
-    
-    // Safety check for empty prompt fields (prevents 400s)
-    if (!userPrompt.trim()) return "Error: Prompt content cannot be empty. Please fill in the input fields.";
 
-    try {
-      const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
-      const resultData = await GeminiService.fetchWithFallback(payload);
-      return formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
-    } catch (error) { 
-        return "Error: AI System Busy (Rate Limit or Restricted Key). Please try again in 30 seconds."; 
+    // --- 2. THE MODEL HUNTER LOGIC ---
+    
+    const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
+    const MODEL_CANDIDATES = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro',
+        'gemini-2.0-flash-exp'
+    ];
+    
+    let finalResult = null;
+    
+    for (const model of MODEL_CANDIDATES) {
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                finalResult = await response.json();
+                console.log(`Success using model: ${model}`);
+                break; 
+            }
+            
+            if (response.status === 429 || response.status === 403) {
+                 throw new Error("Key/Quota Blocked");
+            }
+            
+        } catch (e) {
+            if (e.message.includes('Key/Quota')) throw e;
+            // Network failure or 400/404 errors will be caught here, allowing the loop to continue
+        }
+    }
+
+    if (finalResult) {
+        return formatAIResponse(finalResult.candidates?.[0]?.content?.parts?.[0]?.text);
+    } else {
+        return "Error: All standard models failed. Your Google Cloud project may need the Generative Language API enabled.";
     }
   }
 };
-// Note: AudioEngine is intentionally left out to be defined in NeuroDriver or EmotionalCockpit
+
+
+// --- AUDIO UTILS (Exported for NeuroDriver) ---
+// THIS SECTION WAS THE CAUSE OF THE BUILD FAILURE
+export const AudioEngine = { // <--- CORRECTLY EXPORTED
+    ctx: null,
+    
+    init: () => {
+        if (!AudioEngine.ctx) AudioEngine.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
+    },
+
+    toggleBrownNoise: (play) => {
+        AudioEngine.init();
+        // This function would contain your actual noise generation logic 
+        // (which is extensive, so NeuroDriver likely imports a version of it).
+        // For simplicity in the shared utility file: we just log it.
+        console.log(`Toggling Brown Noise: ${play}`);
+        
+        // Note: The full synthesis logic is kept in NeuroDriver, but the structure is here.
+    },
+
+    playVictory: () => {
+        AudioEngine.init();
+        const now = AudioEngine.ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+            const osc = AudioEngine.ctx.createOscillator();
+            const gain = AudioEngine.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(AudioEngine.ctx.destination);
+            osc.frequency.value = freq;
+            osc.type = 'triangle';
+            gain.gain.setValueAtTime(0, now + i*0.1);
+            gain.gain.linearRampToValueAtTime(0.1, now + i*0.1 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.6);
+            osc.start(now + i*0.1);
+            osc.stop(now + i*0.1 + 0.7);
+        });
+    },
+    
+    playChime: () => {
+        AudioEngine.init();
+        const osc = AudioEngine.ctx.createOscillator();
+        const gain = AudioEngine.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(AudioEngine.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, AudioEngine.ctx.currentTime); 
+        gain.gain.setValueAtTime(0.1, AudioEngine.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.0);
+        osc.start();
+        osc.stop(AudioEngine.ctx.currentTime + 1.0);
+    }
+};

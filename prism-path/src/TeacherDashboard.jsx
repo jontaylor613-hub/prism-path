@@ -7,11 +7,173 @@ import {
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer,
-  Sun, Moon, Loader2
+  Sun, Moon, Loader2, Thermometer
 } from 'lucide-react';
 
 // --- IMPORTS ---
 import { ComplianceService, GeminiService, getTheme } from './utils';
+
+// --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
+const BurnoutCheck = ({ theme }) => {
+    const [step, setStep] = useState('intro'); // intro, quiz, results
+    const [answers, setAnswers] = useState({});
+    const [score, setScore] = useState(0);
+
+    const questions = [
+        { id: 1, text: "I feel emotionally drained from my work." },
+        { id: 2, text: "I feel used up at the end of the workday." },
+        { id: 3, text: "I dread getting up in the morning and having to face another day on the job." },
+        { id: 4, text: "I feel I am working too hard on my job." },
+        { id: 5, text: "I feel frustrated by my job." }
+    ];
+
+    const handleAnswer = (qId, value) => {
+        setAnswers({ ...answers, [qId]: value });
+    };
+
+    const calculateResults = () => {
+        const total = Object.values(answers).reduce((a, b) => a + b, 0);
+        setScore(total);
+        setStep('results');
+    };
+
+    const getLocalSupport = () => {
+        // Dynamic Location Search - No API Key needed
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const { latitude, longitude } = position.coords;
+                // Opens Google Maps searching for support near exact coords
+                const url = `https://www.google.com/maps/search/mental+health+support+teacher+support+groups/@${latitude},${longitude},12z`;
+                window.open(url, '_blank');
+            }, () => {
+                // Fallback if permission denied
+                window.open('https://www.google.com/maps/search/mental+health+support+near+me', '_blank');
+            });
+        } else {
+            window.open('https://www.google.com/maps/search/mental+health+support+near+me', '_blank');
+        }
+    };
+
+    const getResultContent = () => {
+        if (score < 12) return {
+            level: "Low Risk",
+            color: "text-emerald-500",
+            bg: "bg-emerald-500/10 border-emerald-500",
+            msg: "You are balancing well! Keep prioritizing your boundaries.",
+            tips: ["Share a positive moment with a colleague today.", "Take your full lunch break away from your desk.", "Drink a glass of water right now."]
+        };
+        if (score < 20) return {
+            level: "Moderate Risk",
+            color: "text-amber-500",
+            bg: "bg-amber-500/10 border-amber-500",
+            msg: "Warning signs detected. You may be pushing too hard.",
+            tips: ["Say 'no' to one extra task this week.", "Leave school exactly at contract time on Friday.", "Schedule 15 mins of silence today."]
+        };
+        return {
+            level: "High Risk",
+            color: "text-red-500",
+            bg: "bg-red-500/10 border-red-500",
+            msg: "You are in the burnout zone. Please prioritize recovery.",
+            tips: ["Speak with your union rep or admin about workload.", "Use a sick day for mental health.", "Connect with professional support immediately."]
+        };
+    };
+
+    const resultData = getResultContent();
+
+    return (
+        <Card className="p-8 h-full flex flex-col items-center justify-center min-h-[500px]" theme={theme}>
+            
+            {step === 'intro' && (
+                <div className="text-center max-w-lg animate-in zoom-in">
+                    <div className="bg-fuchsia-500/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6 text-fuchsia-500">
+                        <Heart size={40} fill="currentColor" />
+                    </div>
+                    <h2 className={`text-3xl font-bold ${theme.text} mb-4`}>Educator Pulse Check</h2>
+                    <p className={`${theme.textMuted} mb-8 leading-relaxed`}>
+                        Teaching is demanding. This quick, private check-in helps you gauge your energy levels and connects you with local resources.
+                    </p>
+                    <Button onClick={() => setStep('quiz')} theme={theme}>Start Check-in</Button>
+                </div>
+            )}
+
+            {step === 'quiz' && (
+                <div className="w-full max-w-xl animate-in slide-in-from-right">
+                    <h3 className={`text-xl font-bold ${theme.text} mb-6`}>Over the last 2 weeks...</h3>
+                    <div className="space-y-8">
+                        {questions.map((q) => (
+                            <div key={q.id} className="space-y-3">
+                                <p className={`font-medium ${theme.text}`}>{q.text}</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {[1, 2, 3, 4, 5].map((val) => (
+                                        <button
+                                            key={val}
+                                            onClick={() => handleAnswer(q.id, val)}
+                                            className={`p-3 rounded-lg border transition-all ${
+                                                answers[q.id] === val 
+                                                ? 'bg-cyan-500 text-white border-cyan-500' 
+                                                : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:border-cyan-400`
+                                            }`}
+                                        >
+                                            {val}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex justify-between text-xs uppercase tracking-widest opacity-50">
+                                    <span className={theme.textMuted}>Never</span>
+                                    <span className={theme.textMuted}>Always</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-8 flex justify-end">
+                        <Button 
+                            onClick={calculateResults}
+                            disabled={Object.keys(answers).length < questions.length}
+                            theme={theme}
+                        >
+                            See Results
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {step === 'results' && (
+                <div className="w-full max-w-2xl animate-in zoom-in">
+                    <div className={`p-6 rounded-xl border-l-8 mb-8 ${resultData.bg}`}>
+                        <h3 className={`text-2xl font-black mb-2 ${resultData.color}`}>{resultData.level}</h3>
+                        <p className={`${theme.text} text-lg`}>{resultData.msg}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <h4 className={`font-bold ${theme.textMuted} uppercase tracking-widest text-sm mb-4`}>Suggested Actions</h4>
+                            <ul className="space-y-3">
+                                {resultData.tips.map((tip, i) => (
+                                    <li key={i} className={`flex items-start gap-3 ${theme.text}`}>
+                                        <CheckCircle size={18} className="text-cyan-500 mt-1 shrink-0" />
+                                        <span>{tip}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className={`${theme.inputBg} p-6 rounded-xl border ${theme.cardBorder} flex flex-col items-center justify-center text-center`}>
+                            <MapPin size={32} className="text-fuchsia-500 mb-3" />
+                            <h4 className={`font-bold ${theme.text} mb-2`}>Find Local Support</h4>
+                            <p className={`text-sm ${theme.textMuted} mb-4`}>Locate support groups and therapists near your current location.</p>
+                            <Button onClick={getLocalSupport} variant="secondary" icon={ArrowRight} theme={theme}>Search Near Me</Button>
+                        </div>
+                    </div>
+
+                    <div className="text-center">
+                        <button onClick={() => {setStep('intro'); setAnswers({});}} className={`text-sm ${theme.textMuted} hover:${theme.text} underline`}>
+                            Retake Check-in
+                        </button>
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+};
 
 // --- CHART COMPONENT ---
 const SimpleLineChart = ({ data, target, theme }) => {
@@ -327,7 +489,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior'].map((tab) => (
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Wellness'].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab.toLowerCase() ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg' : `${theme.textMuted} hover:${theme.text}`}`}>{tab}</button>
             ))}
           </div>
@@ -527,6 +689,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               )}
           </div>
         )}
+
+        {/* --- WELLNESS TAB (NEW) --- */}
+        {activeTab === 'wellness' && (
+            <BurnoutCheck theme={theme} />
+        )}
+
       </main>
       
       {isAddingStudent && (

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wind, Activity, ArrowLeft, Volume2, VolumeX, 
   Trash2, Eye, Hand, Ear, CloudRain, Trees, Coffee,
-  Move, Music, Zap, Sparkles // <--- FIXED: Added Sparkles to imports
+  Move, Music, Zap, Sparkles 
 } from 'lucide-react';
-import { getTheme } from './utils'; // <--- FIXED: Import theme engine
+import { getTheme } from './utils';
 
 // --- INTERNAL AUDIO SYNTHESIZER ---
 const CockpitAudio = {
@@ -27,6 +27,7 @@ const CockpitAudio = {
         osc.connect(gain);
         gain.connect(CockpitAudio.ctx.destination);
 
+        // "Pop" Sound Physics
         osc.frequency.setValueAtTime(600, t);
         osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
         
@@ -53,14 +54,16 @@ const CockpitAudio = {
         CockpitAudio.init();
         if (!type) return;
 
-        if (['rain', 'brown', 'forest'].includes(type)) {
-            const bufferSize = CockpitAudio.ctx.sampleRate * 2;
-            const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
-            const data = buffer.getChannelData(0);
+        const bufferSize = CockpitAudio.ctx.sampleRate * 2;
+        const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // --- 1. COZY LIBRARY (Brown Noise - Deep Rumble) ---
+        if (type === 'brown') {
             let lastOut = 0;
             for (let i = 0; i < bufferSize; i++) {
                 const white = Math.random() * 2 - 1;
-                data[i] = (lastOut + (0.02 * white)) / 1.02; 
+                data[i] = (lastOut + (0.02 * white)) / 1.02; // Heavy filtering
                 lastOut = data[i];
                 data[i] *= 3.5; 
             }
@@ -68,13 +71,73 @@ const CockpitAudio = {
             noise.buffer = buffer;
             noise.loop = true;
             const gain = CockpitAudio.ctx.createGain();
-            gain.gain.value = type === 'rain' ? 0.15 : 0.25;
+            gain.gain.value = 0.35; // Louder to hear the rumble
             noise.connect(gain);
             gain.connect(CockpitAudio.ctx.destination);
             noise.start();
             CockpitAudio.ambienceNodes.push(noise);
         }
 
+        // --- 2. RAINY WINDOW (Pink Noise - Hissier) ---
+        if (type === 'rain') {
+            let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                // Paul Kellett's refined Pink Noise Algorithm
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                data[i] *= 0.11; 
+                b6 = white * 0.115926;
+            }
+            const noise = CockpitAudio.ctx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+            const gain = CockpitAudio.ctx.createGain();
+            gain.gain.value = 0.15; 
+            noise.connect(gain);
+            gain.connect(CockpitAudio.ctx.destination);
+            noise.start();
+            CockpitAudio.ambienceNodes.push(noise);
+        }
+
+        // --- 3. WATERFALL / FOREST (Band-Passed White Noise) ---
+        if (type === 'forest') {
+            // Generate Pure White Noise first
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = CockpitAudio.ctx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+
+            // Create Waterfall Physics:
+            // HighPass (cuts rumble) + LowPass (cuts hiss) = Rushing Water
+            const lowPass = CockpitAudio.ctx.createBiquadFilter();
+            lowPass.type = 'lowpass';
+            lowPass.frequency.value = 800; // Cuts harsh hiss
+
+            const highPass = CockpitAudio.ctx.createBiquadFilter();
+            highPass.type = 'highpass';
+            highPass.frequency.value = 300; // Cuts mud/rumble
+
+            const gain = CockpitAudio.ctx.createGain();
+            gain.gain.value = 0.2; 
+
+            noise.connect(highPass);
+            highPass.connect(lowPass);
+            lowPass.connect(gain);
+            gain.connect(CockpitAudio.ctx.destination);
+            
+            noise.start();
+            CockpitAudio.ambienceNodes.push(noise);
+        }
+
+        // --- 4. LOFI MUSIC GENERATOR ---
         if (type === 'lofi') {
             const playChord = (notes, time) => {
                 notes.forEach(freq => {
@@ -128,7 +191,6 @@ const WorryShredder = ({ theme }) => {
         <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-4">
             <h2 className={`text-3xl font-bold ${theme.text} mb-2`}>Worry Shredder</h2>
             <p className={`${theme.textMuted} mb-8 text-center`}>Type what's bothering you. Then let it go.</p>
-            
             <div className="relative w-full">
                 <textarea 
                     value={worry}
@@ -141,18 +203,11 @@ const WorryShredder = ({ theme }) => {
                     <div className="w-3/4 h-2 bg-black/20 rounded-full"></div>
                 </div>
             </div>
-
             <div className="mt-20">
                 {shredded ? (
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold animate-in zoom-in">
-                        <Zap /> Gone!
-                    </div>
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold animate-in zoom-in"><Zap /> Gone!</div>
                 ) : (
-                    <button 
-                        onClick={handleShred}
-                        disabled={!worry || isShredding}
-                        className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-                    >
+                    <button onClick={handleShred} disabled={!worry || isShredding} className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95">
                         {isShredding ? "Shredding..." : "Shred It"}
                     </button>
                 )}
@@ -222,9 +277,8 @@ const Soundscapes = ({ theme }) => {
 
     return (
         <div className={`h-full flex flex-col relative overflow-hidden rounded-3xl ${theme.cardBg}`}>
-            {/* BACKGROUND ANIMATIONS */}
+            {/* VISUALS */}
             <div className={`absolute inset-0 transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
-                {/* RAIN EFFECT: Hazy Grey Blue + Digital Rain */}
                 {active === 'rain' && (
                     <div className="absolute inset-0 bg-slate-800/80 backdrop-blur-sm overflow-hidden">
                         <div className="absolute inset-0 rain-animation opacity-30"></div>
@@ -232,7 +286,12 @@ const Soundscapes = ({ theme }) => {
                     </div>
                 )}
                 {active === 'brown' && <div className="absolute inset-0 bg-gradient-to-b from-amber-900/40 to-slate-900"></div>}
-                {active === 'forest' && <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 to-slate-900"></div>}
+                {active === 'forest' && (
+                    <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/30 to-cyan-900/40 backdrop-blur-sm">
+                        {/* Subtle water ripple effect visual simulation */}
+                        <div className="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-cyan-500/10 to-transparent"></div>
+                    </div>
+                )}
                 {active === 'lofi' && <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-slate-900"><div className="absolute inset-0 flex items-center justify-center opacity-10"><Music size={300} /></div></div>}
             </div>
 
@@ -246,7 +305,7 @@ const Soundscapes = ({ theme }) => {
                         <Coffee size={24} /> <span className="font-bold">Cozy Library</span>
                     </button>
                     <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
-                        <Trees size={24} /> <span className="font-bold">Deep Forest</span>
+                        <Trees size={24} /> <span className="font-bold">Waterfall & Nature</span>
                     </button>
                     <button onClick={() => toggle('lofi')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'lofi' ? 'bg-indigo-500/20 border-indigo-400 text-white' : `${theme.inputBg} ${theme.cardBorder} ${theme.textMuted} hover:${theme.text}`}`}>
                         <Music size={24} /> <span className="font-bold">Lofi Lounge</span>
@@ -255,7 +314,6 @@ const Soundscapes = ({ theme }) => {
                 {active && <button onClick={() => toggle(active)} className={`mt-8 px-6 py-2 ${theme.inputBg} rounded-full border ${theme.inputBorder} ${theme.textMuted} text-sm hover:${theme.text}`}>Stop Audio</button>}
             </div>
             
-            {/* CSS FOR RAIN */}
             <style>{`
                 .rain-animation {
                     background-image: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.5));

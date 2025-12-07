@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wind, Activity, ArrowLeft, Volume2, VolumeX, 
   Trash2, Eye, Hand, Ear, CloudRain, Trees, Coffee,
-  Move, Music, Zap, Speaker
+  Move, Music, Zap
 } from 'lucide-react';
 
 // --- INTERNAL AUDIO SYNTHESIZER ---
 const CockpitAudio = {
     ctx: null,
-    ambienceNodes: [], // Tracks loops (rain, noise)
-    musicNodes: [],    // Tracks musical oscillators
-    
+    ambienceNodes: [], 
+    musicNodes: [],    
+    musicInterval: null, // TRACKER FOR THE LOFI LOOP
+
     init: () => {
         if (!CockpitAudio.ctx) CockpitAudio.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (CockpitAudio.ctx.state === 'suspended') CockpitAudio.ctx.resume();
@@ -25,7 +26,6 @@ const CockpitAudio = {
         osc.connect(gain);
         gain.connect(CockpitAudio.ctx.destination);
 
-        // "Pop" Physics: Quick frequency drop + volume decay
         osc.frequency.setValueAtTime(600, t);
         osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
         
@@ -37,13 +37,19 @@ const CockpitAudio = {
     },
 
     stopAll: () => {
-        // Stop Ambience
+        // 1. KILL THE LOFI LOOP TIMER
+        if (CockpitAudio.musicInterval) {
+            clearInterval(CockpitAudio.musicInterval);
+            CockpitAudio.musicInterval = null;
+        }
+
+        // 2. STOP AMBIENCE (Rain/Forest)
         CockpitAudio.ambienceNodes.forEach(node => {
             try { node.stop(); node.disconnect(); } catch(e){}
         });
         CockpitAudio.ambienceNodes = [];
 
-        // Stop Music
+        // 3. STOP ACTIVE MUSIC NOTES
         CockpitAudio.musicNodes.forEach(node => {
             try { node.stop(); node.disconnect(); } catch(e){}
         });
@@ -51,11 +57,13 @@ const CockpitAudio = {
     },
 
     playAmbience: (type) => {
-        CockpitAudio.stopAll(); // Clear previous sounds
+        // CRITICAL: Stop everything before starting something new
+        CockpitAudio.stopAll(); 
         CockpitAudio.init();
+        
         if (!type) return;
 
-        // 1. GENERATE NOISE (Rain/Forest/Library)
+        // --- NOISE GENERATOR ---
         if (['rain', 'brown', 'forest'].includes(type)) {
             const bufferSize = CockpitAudio.ctx.sampleRate * 2;
             const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
@@ -64,7 +72,7 @@ const CockpitAudio = {
             
             for (let i = 0; i < bufferSize; i++) {
                 const white = Math.random() * 2 - 1;
-                data[i] = (lastOut + (0.02 * white)) / 1.02; // Brown noise filter
+                data[i] = (lastOut + (0.02 * white)) / 1.02; 
                 lastOut = data[i];
                 data[i] *= 3.5; 
             }
@@ -73,8 +81,6 @@ const CockpitAudio = {
             noise.buffer = buffer;
             noise.loop = true;
             const gain = CockpitAudio.ctx.createGain();
-            
-            // Adjust tone/volume
             gain.gain.value = type === 'rain' ? 0.15 : 0.25;
             
             noise.connect(gain);
@@ -83,27 +89,24 @@ const CockpitAudio = {
             CockpitAudio.ambienceNodes.push(noise);
         }
 
-        // 2. GENERATE LOFI MUSIC (Ambient Chords)
+        // --- LOFI MUSIC GENERATOR ---
         if (type === 'lofi') {
-            const now = CockpitAudio.ctx.currentTime;
-            
-            // Simple Lofi Chord Progression Generator (Cmaj7 -> Fmaj7)
             const playChord = (notes, time) => {
                 notes.forEach(freq => {
                     const osc = CockpitAudio.ctx.createOscillator();
                     const gain = CockpitAudio.ctx.createGain();
                     
-                    osc.type = 'triangle'; // Soft "electric piano" tone
+                    osc.type = 'triangle'; 
                     osc.frequency.value = freq;
                     
-                    // Lofi Wobble (Detune)
+                    // Detune for "Tape Wobble" effect
                     osc.detune.setValueAtTime(0, time);
-                    osc.detune.linearRampToValueAtTime(10, time + 2); // Slight pitch drift
+                    osc.detune.linearRampToValueAtTime(10, time + 2); 
                     
                     osc.connect(gain);
                     gain.connect(CockpitAudio.ctx.destination);
                     
-                    // Envelope (Slow attack, long sustain)
+                    // Soft envelope
                     gain.gain.setValueAtTime(0, time);
                     gain.gain.linearRampToValueAtTime(0.08, time + 1);
                     gain.gain.exponentialRampToValueAtTime(0.001, time + 6);
@@ -114,17 +117,21 @@ const CockpitAudio = {
                 });
             };
 
-            // Loop Chords every 5 seconds
             const loopChords = () => {
                 const t = CockpitAudio.ctx.currentTime;
-                // Chord 1: C Major 7 (C, E, G, B)
+                // C Maj 7
                 playChord([261.63, 329.63, 392.00, 493.88], t);
-                // Chord 2: F Major 7 (F, A, C, E) - Plays after 4s
-                setTimeout(() => playChord([174.61, 220.00, 261.63, 329.63], CockpitAudio.ctx.currentTime), 4000);
+                // F Maj 7 (delayed)
+                setTimeout(() => {
+                    // Check if we are still supposed to be playing before triggering the second chord
+                    if (CockpitAudio.musicInterval) {
+                        playChord([174.61, 220.00, 261.63, 329.63], CockpitAudio.ctx.currentTime);
+                    }
+                }, 4000);
             };
 
-            loopChords();
-            // Store interval ID in a way we can clear it (using a hacky interval for the synth loop)
+            loopChords(); // Play immediately
+            // Save the ID so we can kill it later
             CockpitAudio.musicInterval = setInterval(loopChords, 8000);
         }
     }
@@ -160,8 +167,6 @@ const WorryShredder = () => {
                     className={`w-full h-40 bg-slate-100 text-slate-900 p-4 rounded-t-xl transition-all duration-1000 ${isShredding ? 'translate-y-[100%] opacity-0 scale-y-0' : ''}`}
                     disabled={isShredding}
                 />
-                
-                {/* The Shredder Machine Visual */}
                 <div className="absolute -bottom-12 left-0 w-full h-16 bg-slate-800 border-t-4 border-slate-950 flex items-center justify-center rounded-b-xl z-10 shadow-2xl">
                     <div className="w-3/4 h-2 bg-black rounded-full"></div>
                 </div>
@@ -201,15 +206,9 @@ const GroundingTool = () => {
 
     const handleClick = () => {
         if (count + 1 >= step) {
-            if (step === 1) {
-                setStep(0);
-            } else {
-                setStep(step - 1);
-                setCount(0);
-            }
-        } else {
-            setCount(count + 1);
-        }
+            if (step === 1) setStep(0);
+            else { setStep(step - 1); setCount(0); }
+        } else { setCount(count + 1); }
     };
 
     if (step === 0) return (
@@ -225,19 +224,17 @@ const GroundingTool = () => {
     return (
         <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto">
             <h2 className="text-xl font-bold text-slate-400 mb-8 uppercase tracking-widest">Grounding Exercise</h2>
-            
             <div onClick={handleClick} className={`w-64 h-64 rounded-full ${steps[step].bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-all active:scale-95 shadow-[0_0_30px_rgba(0,0,0,0.3)]`}>
                 <CurrentIcon size={64} className={`${steps[step].color} mb-4`}/>
                 <div className="text-6xl font-black text-white mb-2">{step - count}</div>
                 <div className={`text-sm font-bold uppercase ${steps[step].color}`}>More {steps[step].label}</div>
             </div>
-
             <p className="mt-8 text-slate-500 text-center animate-pulse">Look around. Find {step - count} more.</p>
         </div>
     );
 };
 
-// --- SUB-COMPONENT: SOUNDSCAPES (Fixed) ---
+// --- SUB-COMPONENT: SOUNDSCAPES ---
 const Soundscapes = () => {
     const [active, setActive] = useState(null);
 
@@ -245,23 +242,19 @@ const Soundscapes = () => {
         if (active === type) {
             setActive(null);
             CockpitAudio.stopAll();
-            clearInterval(CockpitAudio.musicInterval);
         } else {
             setActive(type);
             CockpitAudio.playAmbience(type);
         }
     };
 
+    // Cleanup when leaving Soundscapes tool
     useEffect(() => {
-        return () => {
-            CockpitAudio.stopAll();
-            clearInterval(CockpitAudio.musicInterval);
-        };
+        return () => CockpitAudio.stopAll();
     }, []);
 
     return (
         <div className="h-full flex flex-col relative overflow-hidden rounded-3xl">
-            {/* VISUALS */}
             <div className={`absolute inset-0 transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
                 {active === 'rain' && <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-blue-900/40"><div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/diagonal-striped-brick.png')]"></div></div>}
                 {active === 'brown' && <div className="absolute inset-0 bg-gradient-to-b from-amber-950/50 to-slate-900"><div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div></div>}
@@ -272,19 +265,15 @@ const Soundscapes = () => {
             <div className="relative z-10 flex flex-col items-center justify-center h-full p-8">
                 <h2 className="text-3xl font-bold text-white mb-8 drop-shadow-md">Sonic Sanctuary</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
-                    {/* BUTTONS */}
                     <button onClick={() => toggle('rain')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'rain' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
                         <CloudRain size={24} /> <span className="font-bold">Rainy Window</span>
                     </button>
-
                     <button onClick={() => toggle('brown')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'brown' ? 'bg-amber-500/20 border-amber-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
                         <Coffee size={24} /> <span className="font-bold">Cozy Library</span>
                     </button>
-
                     <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
                         <Trees size={24} /> <span className="font-bold">Deep Forest</span>
                     </button>
-
                     <button onClick={() => toggle('lofi')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'lofi' ? 'bg-indigo-500/20 border-indigo-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
                         <Music size={24} /> <span className="font-bold">Lofi Lounge (Music)</span>
                     </button>
@@ -295,12 +284,12 @@ const Soundscapes = () => {
     );
 };
 
-// --- SUB-COMPONENT: BUBBLE WRAP (Mute Added) ---
+// --- SUB-COMPONENT: BUBBLE WRAP ---
 const BubbleWrap = () => {
   const [bubbles, setBubbles] = useState(Array(20).fill(false));
   const [timeLeft, setTimeLeft] = useState(120); 
   const [isActive, setIsActive] = useState(true);
-  const [isMuted, setIsMuted] = useState(false); // NEW STATE
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
       if (!isActive || timeLeft <= 0) return;
@@ -310,12 +299,8 @@ const BubbleWrap = () => {
 
   const pop = (index) => {
     if (!isActive || timeLeft <= 0) return;
-    
-    // Play Sound only if not muted
     if (!isMuted) CockpitAudio.playPop(); 
-    
     if (navigator.vibrate) navigator.vibrate(50);
-    
     const newBubbles = [...bubbles];
     newBubbles[index] = !newBubbles[index];
     setBubbles(newBubbles);
@@ -329,7 +314,6 @@ const BubbleWrap = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-300 relative">
-      {/* HEADER WITH CONTROLS */}
       <div className="flex justify-between items-center w-full max-w-sm mb-6">
           <h2 className="text-xl font-bold text-cyan-300">Pop the bubbles</h2>
           <div className="flex items-center gap-4">
@@ -341,24 +325,13 @@ const BubbleWrap = () => {
               </div>
           </div>
       </div>
-
       <div className="grid grid-cols-4 gap-4 p-4 bg-slate-800 rounded-2xl shadow-inner border border-slate-700">
         {bubbles.map((popped, i) => (
-          <button
-            key={i}
-            onClick={() => pop(i)}
-            disabled={timeLeft <= 0}
-            className={`w-16 h-16 rounded-full transition-all duration-100 transform scale-100 active:scale-95 shadow-lg flex items-center justify-center border-4 ${
-              popped 
-                ? 'bg-slate-900 border-slate-800 shadow-inner' 
-                : 'bg-gradient-to-br from-cyan-400 to-blue-500 border-cyan-300'
-            }`}
-          >
+          <button key={i} onClick={() => pop(i)} disabled={timeLeft <= 0} className={`w-16 h-16 rounded-full transition-all duration-100 transform scale-100 active:scale-95 shadow-lg flex items-center justify-center border-4 ${popped ? 'bg-slate-900 border-slate-800 shadow-inner' : 'bg-gradient-to-br from-cyan-400 to-blue-500 border-cyan-300'}`}>
             {popped && <div className="w-2 h-2 bg-white/20 rounded-full"></div>}
           </button>
         ))}
       </div>
-
       {timeLeft <= 0 ? (
           <div className="mt-8 text-center">
               <p className="text-white font-bold mb-2">Session Complete</p>
@@ -371,11 +344,9 @@ const BubbleWrap = () => {
   );
 };
 
-// --- SUB-COMPONENT: BOX BREATHING (Fixed Animation) ---
+// --- SUB-COMPONENT: BOX BREATHING ---
 const BreathingOrb = () => {
-  const [phase, setPhase] = useState('Inhale'); // Text State
-  // We use CSS classes to drive the Orb animation independently from React state renders
-  // This ensures "Inhale" (4s) -> "Hold" (4s) -> "Exhale" (4s) -> "Hold" (4s)
+  const [phase, setPhase] = useState('Inhale'); 
 
   useEffect(() => {
     const cycle = () => {
@@ -385,7 +356,7 @@ const BreathingOrb = () => {
         setTimeout(() => {
           setPhase('Exhale');
           setTimeout(() => {
-              setPhase('Hold');
+              setPhase('Hold '); 
           }, 4000);
         }, 4000);
       }, 4000);
@@ -397,42 +368,25 @@ const BreathingOrb = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
-      {/* STATIC TEXT CONTAINER (Doesn't move) */}
       <div className="absolute top-[15%] z-20 text-center">
           <h2 className="text-4xl font-bold text-white mb-2 tracking-widest uppercase transition-all duration-500">
               {phase === 'Inhale' ? 'Breathe In' : phase === 'Exhale' ? 'Breathe Out' : 'Hold'}
           </h2>
       </div>
-
       <div className="relative flex items-center justify-center h-[400px] w-[400px]">
-        {/* Guiding Ring (Static) */}
         <div className="absolute w-[300px] h-[300px] border-2 border-slate-800 rounded-full"></div>
-        
-        {/* The Animated Orb */}
-        {/* Note: We use CSS animation classes defined below for smoothness */}
         <div className="breathing-orb bg-cyan-500 rounded-full shadow-[0_0_50px_rgba(6,182,212,0.5)]"></div>
-        
-        {/* Center Icon (Static) */}
-        <div className="absolute z-10 pointer-events-none">
-            <Wind size={48} className="text-white/80" />
-        </div>
+        <div className="absolute z-10 pointer-events-none"><Wind size={48} className="text-white/80" /></div>
       </div>
-      
       <p className="mt-12 text-slate-500 text-xs tracking-widest uppercase">Box Breathing (4-4-4-4)</p>
-
-      {/* CSS Animation embedded locally */}
       <style>{`
-        .breathing-orb {
-            width: 100px;
-            height: 100px;
-            animation: breathe 16s infinite ease-in-out;
-        }
+        .breathing-orb { width: 100px; height: 100px; animation: breathe 16s infinite ease-in-out; }
         @keyframes breathe {
-            0% { transform: scale(1); opacity: 0.5; }       /* Start Inhale */
-            25% { transform: scale(3); opacity: 1; }        /* End Inhale (Hold) */
-            50% { transform: scale(3); opacity: 1; }        /* End Hold (Start Exhale) */
-            75% { transform: scale(1); opacity: 0.5; }      /* End Exhale (Hold) */
-            100% { transform: scale(1); opacity: 0.5; }     /* End Hold */
+            0% { transform: scale(1); opacity: 0.5; }
+            25% { transform: scale(3); opacity: 1; }
+            50% { transform: scale(3); opacity: 1; }
+            75% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 0.5; }
         }
       `}</style>
     </div>
@@ -459,7 +413,6 @@ const NoiseMeter = () => {
         analyserRef.current.fftSize = 256;
         const bufferLength = analyserRef.current.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-
         const updateVolume = () => {
           analyserRef.current.getByteFrequencyData(dataArray);
           let sum = 0;
@@ -498,17 +451,16 @@ const NoiseMeter = () => {
 export default function EmotionalCockpit({ onBack }) {
   const [tool, setTool] = useState('menu'); 
 
-  // Stop any lingering audio when switching tools or exiting
+  // Cleanup ANY audio when exiting the component or switching tools
   useEffect(() => {
+      // Force stop all audio when unmounting or switching
       return () => {
           CockpitAudio.stopAll();
-          clearInterval(CockpitAudio.musicInterval);
       };
   }, [tool]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col">
-      {/* Header */}
       <div className="p-6 flex justify-between items-center border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
         {tool === 'menu' ? (
             <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold transition-colors"><ArrowLeft /> Exit Cool Down</button>
@@ -518,7 +470,6 @@ export default function EmotionalCockpit({ onBack }) {
         <div className="flex items-center gap-2 text-fuchsia-400 font-bold tracking-widest uppercase text-sm"><Activity size={18}/> Emotional Cockpit</div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 overflow-hidden relative">
         {tool === 'menu' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 h-full max-w-5xl mx-auto items-center justify-center content-center">

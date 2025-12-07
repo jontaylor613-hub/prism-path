@@ -21,17 +21,16 @@ const EasterEgg = ({ isDark }) => {
   const requestRef = useRef(null);
   
   // GAME STATE REF
-  // We use a ref so the event listener always sees the current position/grounded state
   const gameState = useRef({
       player: {
           x: 50,
-          y: 220, // Start ON THE GROUND (250 - 30 height) to fix jump bug
+          y: 220, // Grounded Position
           width: 30,
           height: 30,
           dy: 0,
           jumpForce: 12,
-          grounded: true, // Start grounded
-          color: '#22d3ee' // Cyan
+          grounded: true,
+          color: '#22d3ee' 
       },
       obstacles: [],
       frames: 0,
@@ -39,25 +38,24 @@ const EasterEgg = ({ isDark }) => {
       scoreCount: 0
   });
 
-  // --- 1. KONAMI LISTENER (With Safety Check) ---
+  // --- 1. KONAMI LISTENER ---
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // SAFETY CHECK: Ignore input fields so users don't trigger it accidentally
+      // Safety: Ignore typing in inputs
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
-      // If game is open, prevent scrolling but don't handle game logic here
       if (isOpen) {
+          // If playing, Space jumps
           if (e.code === 'Space' || e.key === 'ArrowUp') {
               e.preventDefault(); 
+              triggerJump();
           }
           return;
       }
 
       setInputHistory((prev) => {
         const newHistory = [...prev, e.key];
-        if (newHistory.length > KONAMI_CODE.length) {
-          newHistory.shift();
-        }
+        if (newHistory.length > KONAMI_CODE.length) newHistory.shift();
         
         if (JSON.stringify(newHistory) === JSON.stringify(KONAMI_CODE)) {
           setIsOpen(true); 
@@ -71,28 +69,16 @@ const EasterEgg = ({ isDark }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // --- 2. GAME INPUT HANDLER (Separate Effect) ---
-  useEffect(() => {
-      if (!isOpen || !gameActive) return;
+  // --- 2. JUMP ACTION (Click or Space) ---
+  const triggerJump = () => {
+      const p = gameState.current.player;
+      if (p.grounded) {
+          p.dy = -p.jumpForce;
+          p.grounded = false;
+      }
+  };
 
-      const handleGameInput = (e) => {
-          if (e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') {
-              e.preventDefault(); // Stop scrolling
-              const p = gameState.current.player;
-              
-              // Only jump if strictly grounded
-              if (p.grounded) {
-                  p.dy = -p.jumpForce;
-                  p.grounded = false;
-              }
-          }
-      };
-
-      window.addEventListener('keydown', handleGameInput);
-      return () => window.removeEventListener('keydown', handleGameInput);
-  }, [isOpen, gameActive]);
-
-  // --- 3. GAME LOOP ENGINE ---
+  // --- 3. GAME LOOP ---
   useEffect(() => {
     if (!isOpen || !gameActive) return;
 
@@ -101,18 +87,9 @@ const EasterEgg = ({ isDark }) => {
     const groundHeight = 250;
     const gravity = 0.6;
 
-    // Reset State on Start
+    // Reset State
     gameState.current = {
-        player: { 
-            x: 50, 
-            y: 220, // 250 (ground) - 30 (height)
-            width: 30, 
-            height: 30, 
-            dy: 0, 
-            jumpForce: 12, 
-            grounded: true, 
-            color: '#22d3ee' 
-        },
+        player: { x: 50, y: 220, width: 30, height: 30, dy: 0, jumpForce: 12, grounded: true, color: '#22d3ee' },
         obstacles: [],
         frames: 0,
         gameSpeed: 5,
@@ -127,11 +104,11 @@ const EasterEgg = ({ isDark }) => {
 
         if (state.frames % 1000 === 0) state.gameSpeed += 1; 
 
-        // Clear
+        // Draw Background
         ctx.fillStyle = isDark ? '#0f172a' : '#f8fafc';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Ground
+        // Draw Ground
         ctx.beginPath();
         ctx.moveTo(0, groundHeight);
         ctx.lineTo(canvas.width, groundHeight);
@@ -139,18 +116,15 @@ const EasterEgg = ({ isDark }) => {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // --- PLAYER PHYSICS ---
-        // Apply Gravity
+        // --- PHYSICS ---
         if (state.player.y < groundHeight - state.player.height) {
             state.player.dy += gravity;
             state.player.grounded = false;
         } else {
-            // Hit Ground
             state.player.dy = 0;
             state.player.grounded = true;
             state.player.y = groundHeight - state.player.height;
         }
-        
         state.player.y += state.player.dy;
 
         // Draw Player
@@ -167,7 +141,7 @@ const EasterEgg = ({ isDark }) => {
                 y: groundHeight - 30,
                 width: 20,
                 height: Math.random() > 0.5 ? 30 : 50,
-                color: '#d946ef' // Fuchsia
+                color: '#d946ef'
             });
         }
 
@@ -181,7 +155,7 @@ const EasterEgg = ({ isDark }) => {
             ctx.fillRect(obs.x, obs.y - (obs.height - 30), obs.width, obs.height);
             ctx.shadowBlur = 0;
 
-            // Collision
+            // Collision Detection
             if (
                 state.player.x < obs.x + obs.width &&
                 state.player.x + state.player.width > obs.x &&
@@ -204,13 +178,9 @@ const EasterEgg = ({ isDark }) => {
     };
 
     requestRef.current = requestAnimationFrame(loop);
-
-    return () => {
-        cancelAnimationFrame(requestRef.current);
-    };
+    return () => cancelAnimationFrame(requestRef.current);
   }, [isOpen, gameActive, isDark]);
 
-  // High Score Logic
   useEffect(() => {
       if (gameOver && score > highScore) {
           setHighScore(score);
@@ -218,7 +188,8 @@ const EasterEgg = ({ isDark }) => {
       }
   }, [gameOver, score, highScore]);
 
-  const startGame = () => {
+  const startGame = (e) => {
+      e.stopPropagation(); // Prevent jump when clicking start button
       setGameActive(true);
       setGameOver(false);
       setScore(0);
@@ -241,9 +212,14 @@ const EasterEgg = ({ isDark }) => {
                 </button>
             </div>
 
-            {/* Game Canvas */}
-            <div className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5">
-                <canvas ref={canvasRef} width={800} height={300} className="w-full h-full object-contain" />
+            {/* CLICKABLE GAME AREA */}
+            <div 
+                // ADDED: Click/Touch handlers on the container
+                onMouseDown={triggerJump}
+                onTouchStart={triggerJump}
+                className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 cursor-pointer active:scale-[0.99] transition-transform"
+            >
+                <canvas ref={canvasRef} width={800} height={300} className="w-full h-full object-contain pointer-events-none" />
 
                 <div className="absolute top-4 right-4 flex gap-4 text-mono font-bold font-mono">
                     <div className="text-slate-400">HI <span className="text-white">{highScore.toString().padStart(5, '0')}</span></div>
@@ -253,7 +229,7 @@ const EasterEgg = ({ isDark }) => {
                 {!gameActive && !gameOver && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
                         <h1 className="text-4xl font-black text-white mb-2 tracking-tighter">PRISM RUNNER</h1>
-                        <p className="text-cyan-400 mb-6 font-mono text-sm">PRESS SPACE TO JUMP</p>
+                        <p className="text-cyan-400 mb-6 font-mono text-sm">TAP or CLICK TO JUMP</p>
                         <button onClick={startGame} className="flex items-center gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-8 py-3 rounded-full font-bold transition-all hover:scale-105 active:scale-95">
                             <Play fill="white" size={18}/> START GAME
                         </button>

@@ -55,57 +55,16 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
-  // SUPER MODEL HUNTER: Tries every known alias until one works
-  fetchWithFallback: async (payload) => {
-      const models = [
-          'gemini-1.5-flash-latest', // Alias often works when specific version fails
-          'gemini-1.5-flash',        // Standard
-          'gemini-1.5-flash-001',    // Specific version
-          'gemini-1.5-pro',          // Higher tier fallback
-          'gemini-2.0-flash-exp'     // Experimental (last resort)
-      ];
-
-      let lastError = "";
-
-      for (const model of models) {
-          try {
-              const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
-              });
-
-              if (response.ok) {
-                  const data = await response.json();
-                  return data; 
-              }
-              
-              // Log specific failure but keep trying
-              console.warn(`Model ${model} failed: ${response.status}`);
-              
-              // If we hit a Rate Limit (429), waiting 1s might help the next model
-              if (response.status === 429) {
-                  await new Promise(r => setTimeout(r, 1000));
-              }
-              
-              lastError = `Status ${response.status}`;
-
-          } catch (e) {
-              console.error(`Connection failed for ${model}`);
-          }
-      }
-      throw new Error(`All AI models failed. Last error: ${lastError}. Check API Key Quota.`);
-  },
-
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
-      return "Error: API Key Missing. Please check VITE_GOOGLE_API_KEY settings.";
+      console.error("GeminiService Error: No API Key found.");
+      return "Error: API Key Missing.";
     }
 
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts (Updated for Persona)
+    // 1. Define Prompts
     if (type === 'accommodation') {
         systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
@@ -137,14 +96,29 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch with Super Hunter
+    // 2. Perform Fetch - SINGLE MODEL ONLY
+    // We strictly use gemini-1.5-flash. It is the most reliable.
     try {
-      const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
-      const resultData = await GeminiService.fetchWithFallback(payload);
-      return formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
+        })
+      });
+
+      if (!response.ok) {
+          if (response.status === 429) return "Error: Too many requests. Please wait 1 minute.";
+          if (response.status === 404) return "Error: Model not found. Check Google Cloud settings.";
+          return `Error: AI Service Unavailable (Status ${response.status})`;
+      }
+
+      const result = await response.json();
+      return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
+      
     } catch (error) { 
         console.error("AI Service Error:", error);
-        return "Error: AI System Busy (Rate Limit). Please try again in 30 seconds."; 
+        return "Error: Connection Failed."; 
     }
   }
 };

@@ -55,7 +55,7 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
-  // --- CACHING HELPERS (Simplified) ---
+  // --- CACHING HELPERS ---
   getCacheKey: (data, type) => {
     try {
       const inputString = JSON.stringify(data);
@@ -84,9 +84,9 @@ export const GeminiService = {
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts (Ensuring No Conversational Fluff)
+    // 1. Define Prompts
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
@@ -123,7 +123,7 @@ export const GeminiService = {
     try {
         const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
         
-        // Single, reliable call using 1.5-flash
+        // Single, reliable call using gemini-1.5-flash
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -134,8 +134,8 @@ export const GeminiService = {
             // Check for quota or key block explicitly
             if (response.status === 429 || response.status === 403) throw new Error("Key/Quota Blocked");
             
-            // For all other errors (400, 404), return a generic error.
-            throw new Error(`AI Status ${response.status}`);
+            // For all other errors (404), return status
+            throw new Error(`AI Status ${response.status} (Model Access Issue)`);
         }
 
         const resultData = await response.json();
@@ -179,6 +179,7 @@ export const AudioEngine = {
             osc.type = 'triangle';
             gain.gain.setValueAtTime(0, now + i*0.1);
             gain.gain.linearRampToValueAtTime(0.1, now + i*0.1 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.6);
             osc.start(now + i*0.1);
             osc.stop(now + i*0.1 + 0.7);
         });

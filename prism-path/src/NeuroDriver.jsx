@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Brain, CheckCircle, Clock, RotateCcw, Zap, 
   CloudRain, Trees, Coffee, Music, VolumeX, 
-  Play, Pause, Plus, Trash2, ArrowLeft
+  Play, Pause, Plus, Trash2, ArrowLeft, Hourglass, Settings
 } from 'lucide-react';
 import { getTheme, GeminiService } from './utils';
 
@@ -38,7 +38,6 @@ const DriverAudio = {
         const buffer = DriverAudio.ctx.createBuffer(1, bufferSize, DriverAudio.ctx.sampleRate);
         const data = buffer.getChannelData(0);
 
-        // --- NOISE GENERATORS ---
         if (['rain', 'brown', 'forest'].includes(type)) {
             let lastOut = 0;
             for (let i = 0; i < bufferSize; i++) {
@@ -47,14 +46,12 @@ const DriverAudio = {
                 lastOut = data[i];
                 data[i] *= 3.5; 
             }
-
             const noise = DriverAudio.ctx.createBufferSource();
             noise.buffer = buffer;
             noise.loop = true;
             const gain = DriverAudio.ctx.createGain();
 
             if (type === 'forest') {
-                 // Bandpass filter for "Rushing Water" effect
                  const lowPass = DriverAudio.ctx.createBiquadFilter();
                  lowPass.type = 'lowpass';
                  lowPass.frequency.value = 800;
@@ -66,21 +63,17 @@ const DriverAudio = {
                  lowPass.connect(gain);
                  gain.gain.value = 0.2; 
             } else if (type === 'rain') {
-                 // Pink-ish noise via simpler filter
                  gain.gain.value = 0.15; 
                  noise.connect(gain);
             } else {
-                 // Brown noise (Deep)
                  gain.gain.value = 0.35; 
                  noise.connect(gain);
             }
-            
             gain.connect(DriverAudio.ctx.destination);
             noise.start();
             DriverAudio.ambienceNodes.push(noise);
         }
 
-        // --- LOFI GENERATOR ---
         if (type === 'lofi') {
             const playChord = (notes, time) => {
                 notes.forEach(freq => {
@@ -116,17 +109,19 @@ const DriverAudio = {
 const NeuroDriver = ({ onBack, isDark }) => {
   const theme = getTheme(isDark);
   
-  // State
+  // App State
   const [task, setTask] = useState('');
   const [steps, setSteps] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeSound, setActiveSound] = useState(null); // 'rain', 'brown', 'forest', 'lofi'
+  const [activeSound, setActiveSound] = useState(null);
   
   // Timer State
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 min default
+  const [totalTime, setTotalTime] = useState(25 * 60); // Total duration for circle math
+  const [timeLeft, setTimeLeft] = useState(25 * 60);   // Current remaining
   const [timerActive, setTimerActive] = useState(false);
+  const [finishMode, setFinishMode] = useState(false); // Toggle "Time Until" mode
 
-  // --- AUDIO HANDLER ---
+  // Audio Toggle
   const toggleSound = (soundType) => {
       if (activeSound === soundType) {
           setActiveSound(null);
@@ -137,44 +132,68 @@ const NeuroDriver = ({ onBack, isDark }) => {
       }
   };
 
-  // Cleanup audio on unmount
-  useEffect(() => {
-      return () => DriverAudio.stopAll();
-  }, []);
+  useEffect(() => { return () => DriverAudio.stopAll(); }, []);
 
-  // Timer Effect
+  // Timer Tick
   useEffect(() => {
     let interval = null;
     if (timerActive && timeLeft > 0) {
       interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    } else if (timeLeft === 0) {
+    } else if (timeLeft === 0 && timerActive) {
       setTimerActive(false);
-      // Play a simple beep locally if needed, or just stop
+      // Optional: Add beep here
     }
     return () => clearInterval(interval);
   }, [timerActive, timeLeft]);
 
+  // Handle Slider Change
+  const handleSliderChange = (e) => {
+      const minutes = parseInt(e.target.value);
+      const seconds = minutes * 60;
+      setTotalTime(seconds);
+      setTimeLeft(seconds);
+      setTimerActive(false); // Pause when adjusting
+  };
+
+  const addFiveMinutes = () => {
+      setTotalTime(prev => prev + 300);
+      setTimeLeft(prev => prev + 300);
+  };
+
+  // Calculations for Circle & Time
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const getFinishTime = () => {
+      const date = new Date();
+      date.setSeconds(date.getSeconds() + timeLeft);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // SVG Circle Logic
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const progress = timeLeft / totalTime;
+  const dashOffset = circumference * (1 - progress);
+  
+  // Color Logic: Start Cyan, Fade to Pink halfway
+  const isHalfway = progress < 0.5;
+  const strokeColor = isHalfway ? '#e879f9' : '#22d3ee'; // Fuchsia vs Cyan (Tailwind colors)
+
   const handleSlice = async () => {
     if (!task.trim()) return;
     setIsProcessing(true);
     try {
         const result = await GeminiService.generate({ task }, 'slicer');
-        // Parse list items (looking for numbers or bullets)
         const lines = result.split('\n').filter(line => line.match(/^(\d+\.|-|\*)/));
         const cleanSteps = lines.map(line => ({ 
             text: line.replace(/^(\d+\.|-|\*)\s*/, ''), 
             done: false 
         }));
-        
-        if (cleanSteps.length > 0) setSteps(cleanSteps);
-        else setSteps([{ text: "Could not parse steps. Try a simpler task name.", done: false }]);
-        
+        setSteps(cleanSteps.length > 0 ? cleanSteps : [{ text: "Could not parse steps. Try simpler task.", done: false }]);
     } catch (error) {
         setSteps([{ text: "Connection error. Please try again.", done: false }]);
     }
@@ -188,7 +207,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} p-6 flex flex-col items-center`}>
+    <div className={`min-h-screen ${theme.bg} ${theme.text} p-4 md:p-8 flex flex-col items-center`}>
       <div className="w-full max-w-2xl animate-in slide-in-from-bottom-4 duration-500">
         
         {/* HEADER */}
@@ -202,58 +221,98 @@ const NeuroDriver = ({ onBack, isDark }) => {
             </div>
         </div>
 
-        {/* CONTROLS CONTAINER */}
+        {/* MAIN CONTROLS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             
             {/* TIMER CARD */}
-            <div className={`${theme.cardBg} border ${theme.cardBorder} p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center relative overflow-hidden`}>
-                <div className={`text-6xl font-mono font-bold mb-4 ${timerActive ? 'text-amber-500' : theme.textMuted}`}>
-                    {formatTime(timeLeft)}
+            <div className={`${theme.cardBg} border ${theme.cardBorder} p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center relative`}>
+                
+                {/* CIRCULAR TIMER */}
+                <div className="relative w-48 h-48 flex items-center justify-center mb-6">
+                    {/* Background Circle */}
+                    <svg className="absolute w-full h-full transform -rotate-90">
+                        <circle cx="96" cy="96" r={radius} stroke={isDark ? "#334155" : "#e2e8f0"} strokeWidth="8" fill="transparent" />
+                        <circle 
+                            cx="96" cy="96" r={radius} 
+                            stroke={strokeColor} 
+                            strokeWidth="8" 
+                            fill="transparent" 
+                            strokeDasharray={circumference}
+                            strokeDashoffset={dashOffset}
+                            strokeLinecap="round"
+                            className="transition-all duration-1000 ease-linear"
+                        />
+                    </svg>
+                    
+                    {/* Time Display */}
+                    <div className="text-center z-10">
+                        <button onClick={() => setFinishMode(!finishMode)} className="flex flex-col items-center">
+                            {finishMode ? (
+                                <>
+                                    <span className={`text-xs uppercase tracking-widest ${theme.textMuted} mb-1`}>Finish At</span>
+                                    <span className={`text-4xl font-mono font-bold ${timerActive ? 'text-amber-500' : theme.text}`}>{getFinishTime()}</span>
+                                </>
+                            ) : (
+                                <span className={`text-5xl font-mono font-bold ${timerActive ? 'text-amber-500' : theme.text}`}>{formatTime(timeLeft)}</span>
+                            )}
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-4 z-10">
-                    <button onClick={() => setTimerActive(!timerActive)} className={`p-3 rounded-full ${timerActive ? 'bg-amber-500/20 text-amber-500' : `${theme.inputBg} ${theme.text}`}`}>
-                        {timerActive ? <Pause /> : <Play />}
-                    </button>
-                    <button onClick={() => { setTimerActive(false); setTimeLeft(25*60); }} className={`p-3 rounded-full ${theme.inputBg} ${theme.textMuted} hover:${theme.text}`}>
-                        <RotateCcw />
-                    </button>
+
+                {/* SLIDER & CONTROLS */}
+                <div className="w-full space-y-4">
+                     <input 
+                        type="range" 
+                        min="1" max="90" 
+                        value={Math.ceil(totalTime / 60)} 
+                        onChange={handleSliderChange}
+                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    />
+                    
+                    <div className="flex justify-between items-center w-full px-2">
+                        <button onClick={() => { setTimerActive(false); setTimeLeft(25*60); setTotalTime(25*60); }} className={`${theme.inputBg} p-2 rounded-full border ${theme.inputBorder} ${theme.textMuted} hover:${theme.text}`}><RotateCcw size={18} /></button>
+                        
+                        <button onClick={() => setTimerActive(!timerActive)} className={`p-4 rounded-full shadow-lg transition-transform active:scale-95 ${timerActive ? 'bg-amber-500/20 text-amber-500' : 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white'}`}>
+                            {timerActive ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+                        </button>
+
+                        <button onClick={addFiveMinutes} className={`${theme.inputBg} p-2 rounded-full border ${theme.inputBorder} ${theme.text} hover:border-fuchsia-500 text-xs font-bold`}>+5m</button>
+                    </div>
                 </div>
-                {/* Visual Progress Bar Background */}
-                <div className="absolute bottom-0 left-0 h-1 bg-amber-500 transition-all duration-1000" style={{ width: `${(timeLeft / 1500) * 100}%` }}></div>
             </div>
 
-            {/* SOUNDSCAPES CARD */}
+            {/* SOUND ENGINE CARD */}
             <div className={`${theme.cardBg} border ${theme.cardBorder} p-6 rounded-2xl shadow-lg flex flex-col justify-center`}>
                 <h3 className={`text-sm font-bold uppercase tracking-widest ${theme.textMuted} mb-4 flex items-center gap-2`}>
                     <Music size={16}/> Focus Audio
                 </h3>
-                <div className="grid grid-cols-4 gap-2">
-                    <button onClick={() => toggleSound('rain')} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeSound === 'rain' ? 'bg-blue-500 text-white shadow-lg scale-105' : `${theme.inputBg} ${theme.textMuted} hover:${theme.text}`}`}>
-                        <CloudRain size={20} />
-                        <span className="text-[10px] font-bold">Rain</span>
+                <div className="grid grid-cols-2 gap-3 h-full content-start">
+                    <button onClick={() => toggleSound('rain')} className={`p-4 rounded-xl flex items-center justify-between border transition-all ${activeSound === 'rain' ? 'bg-blue-500 border-blue-400 text-white' : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:${theme.text}`}`}>
+                        <div className="flex items-center gap-2"><CloudRain size={20} /> <span className="font-bold text-sm">Rain</span></div>
+                        {activeSound === 'rain' && <div className="w-2 h-2 bg-white rounded-full animate-pulse"/>}
                     </button>
-                    <button onClick={() => toggleSound('brown')} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeSound === 'brown' ? 'bg-amber-600 text-white shadow-lg scale-105' : `${theme.inputBg} ${theme.textMuted} hover:${theme.text}`}`}>
-                        <Coffee size={20} />
-                        <span className="text-[10px] font-bold">Cozy</span>
+                    <button onClick={() => toggleSound('brown')} className={`p-4 rounded-xl flex items-center justify-between border transition-all ${activeSound === 'brown' ? 'bg-amber-600 border-amber-500 text-white' : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:${theme.text}`}`}>
+                        <div className="flex items-center gap-2"><Coffee size={20} /> <span className="font-bold text-sm">Cozy</span></div>
+                        {activeSound === 'brown' && <div className="w-2 h-2 bg-white rounded-full animate-pulse"/>}
                     </button>
-                    <button onClick={() => toggleSound('forest')} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeSound === 'forest' ? 'bg-emerald-600 text-white shadow-lg scale-105' : `${theme.inputBg} ${theme.textMuted} hover:${theme.text}`}`}>
-                        <Trees size={20} />
-                        <span className="text-[10px] font-bold">Nature</span>
+                    <button onClick={() => toggleSound('forest')} className={`p-4 rounded-xl flex items-center justify-between border transition-all ${activeSound === 'forest' ? 'bg-emerald-600 border-emerald-500 text-white' : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:${theme.text}`}`}>
+                        <div className="flex items-center gap-2"><Trees size={20} /> <span className="font-bold text-sm">Nature</span></div>
+                        {activeSound === 'forest' && <div className="w-2 h-2 bg-white rounded-full animate-pulse"/>}
                     </button>
-                    <button onClick={() => toggleSound('lofi')} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeSound === 'lofi' ? 'bg-indigo-500 text-white shadow-lg scale-105' : `${theme.inputBg} ${theme.textMuted} hover:${theme.text}`}`}>
-                        <Music size={20} />
-                        <span className="text-[10px] font-bold">Lofi</span>
+                    <button onClick={() => toggleSound('lofi')} className={`p-4 rounded-xl flex items-center justify-between border transition-all ${activeSound === 'lofi' ? 'bg-indigo-500 border-indigo-400 text-white' : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:${theme.text}`}`}>
+                        <div className="flex items-center gap-2"><Music size={20} /> <span className="font-bold text-sm">Lofi</span></div>
+                        {activeSound === 'lofi' && <div className="w-2 h-2 bg-white rounded-full animate-pulse"/>}
                     </button>
                 </div>
                 {activeSound && (
-                    <button onClick={() => toggleSound(activeSound)} className="mt-4 text-xs text-center text-red-400 hover:text-red-300 flex items-center justify-center gap-1">
-                        <VolumeX size={12}/> Stop Audio
+                    <button onClick={() => { setActiveSound(null); DriverAudio.stopAll(); }} className="mt-4 w-full py-2 text-xs text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors">
+                        Stop Audio
                     </button>
                 )}
             </div>
         </div>
 
-        {/* TASK SLICER INPUT */}
+        {/* TASK SLICER (AI) */}
         <div className="relative mb-8">
             <input 
                 type="text" 

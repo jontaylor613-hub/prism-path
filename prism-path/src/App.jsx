@@ -14,6 +14,7 @@ import SocialMap from './SocialMap';
 import EmotionalCockpit from './EmotionalCockpit';
 import TeacherDashboard from './TeacherDashboard';
 import NeuroDriver from './NeuroDriver';
+import VisualSchedule from './VisualSchedule'; // <--- ADDED IMPORT
 import { getTheme, GeminiService } from './utils';
 
 // --- SHARED UI COMPONENTS ---
@@ -31,7 +32,6 @@ const FeatureCard = ({ icon: Icon, title, description, delay, isDark, to }) => {
     return (
         <Link 
             to={to}
-            // REMOVED: target="_blank" to keep navigation in the same tab
             className={`group relative p-1 rounded-2xl bg-gradient-to-b ${isDark ? 'from-slate-700 to-slate-800' : 'from-slate-200 to-slate-100'} hover:from-cyan-500 hover:to-fuchsia-500 transition-all duration-500 cursor-pointer block`} 
             style={{ animationDelay: `${delay}ms` }}
         >
@@ -99,7 +99,6 @@ const Home = ({ isDark, setIsDark }) => {
             </button>
             <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
             
-            {/* CHANGED: Using Link instead of <a> for internal navigation */}
             <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
             
             <div className="relative" ref={studentMenuRef}>
@@ -111,18 +110,27 @@ const Home = ({ isDark, setIsDark }) => {
               </button>
               {studentMenuOpen && (
                 <div className={`absolute top-full left-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50`}>
-                    {/* CHANGED: Using Link instead of <a> */}
+                    
+                    {/* ORDER: Neuro, Cockpit, Schedules, Resume, Map */}
+                    
                     <Link to="/neuro" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
                         <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver
                     </Link>
-                    <Link to="/resume" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-500"><FileText size={16}/></div> Resume Builder
-                    </Link>
-                    <Link to="/map" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500"><MapPin size={16}/></div> Social Map
-                    </Link>
+                    
                     <Link to="/cockpit" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                         <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500"><Activity size={16}/></div> Emotional Cockpit
+                    </Link>
+
+                    <Link to="/schedule" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-500"><Calendar size={16}/></div> Visual Schedules
+                    </Link>
+
+                    <Link to="/resume" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500"><FileText size={16}/></div> Resume Builder
+                    </Link>
+                    
+                    <Link to="/map" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-500"><MapPin size={16}/></div> Social Map
                     </Link>
                 </div>
               )}
@@ -138,11 +146,12 @@ const Home = ({ isDark, setIsDark }) => {
         {mobileMenuOpen && (
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
              <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
-             {/* CHANGED: Mobile Menu Links */}
+             {/* Mobile Menu Order Updated */}
              <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
-             <Link to="/resume" className="block w-full text-left py-2 font-bold text-fuchsia-500">Resume Builder</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
-             <Link to="/map" className="block w-full text-left py-2 font-bold text-cyan-500">Social Map</Link>
+             <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
+             <Link to="/resume" className="block w-full text-left py-2 font-bold text-cyan-500">Resume Builder</Link>
+             <Link to="/map" className="block w-full text-left py-2 font-bold text-emerald-500">Social Map</Link>
           </div>
         )}
       </nav>
@@ -162,7 +171,8 @@ const Home = ({ isDark, setIsDark }) => {
       <section id="features" className="relative z-10 py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <FeatureCard to="/neuro" icon={Brain} title="Cognitive Support" description="Neuro-divergent friendly task slicer and focus tools." delay={0} isDark={isDark} />
-          <FeatureCard to="/" icon={Calendar} title="Visual Schedules" description="Generate clear structured visual timelines." delay={100} isDark={isDark} />
+          {/* UPDATED: Visual Schedules now links directly to the tool */}
+          <FeatureCard to="/schedule" icon={Calendar} title="Visual Schedules" description="Generate clear structured visual timelines." delay={100} isDark={isDark} />
           <FeatureCard to="/cockpit" icon={Heart} title="Emotional Regulation" description="Tips for sensory breaks and emotional check-ins." delay={200} isDark={isDark} />
           <FeatureCard to="/" icon={ShieldCheck} title="Distraction Free" description="Clean, text-based plans without clutter." delay={300} isDark={isDark} />
           <FeatureCard to="/" icon={Clock} title="Time Saving" description="Seconds, not hours of research." delay={400} isDark={isDark} />
@@ -253,6 +263,12 @@ export default function App() {
         <Route path="/educator" element={
           <div className="relative z-[150] min-h-screen">
             <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+          </div>
+        } />
+
+        <Route path="/schedule" element={
+          <div className="relative z-[150] min-h-screen">
+            <VisualSchedule onBack={handleExit} isDark={isDark} />
           </div>
         } />
       </Routes>

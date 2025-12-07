@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Trophy, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { getTheme } from './utils';
 
+const KONAMI_CODE = [
+  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 
+  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 
+  'b', 'a', 'Enter'
+];
+
 const EasterEgg = ({ isDark }) => {
   // UI State
   const [isOpen, setIsOpen] = useState(false);
@@ -9,7 +15,9 @@ const EasterEgg = ({ isDark }) => {
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(parseInt(localStorage.getItem('prism_runner_hiscore') || '0'));
-  const [soundOn, setSoundOn] = useState(false);
+  
+  // Sound State (Visual)
+  const [isSoundOn, setIsSoundOn] = useState(true); // Default ON
 
   // Refs
   const canvasRef = useRef(null);
@@ -17,8 +25,8 @@ const EasterEgg = ({ isDark }) => {
   const audioCtxRef = useRef(null);
   const musicIntervalRef = useRef(null);
   
-  // --- ROBUST KEY LISTENER REF ---
-  // We use a Ref instead of State so it captures fast typing instantly
+  // KEY FIX: Sound Ref ensures the game loop sees the live value
+  const soundRef = useRef(true); 
   const keyHistory = useRef([]);
 
   // Game State Ref
@@ -30,7 +38,14 @@ const EasterEgg = ({ isDark }) => {
       scoreCount: 0
   });
 
-  // --- 1. KONAMI CODE ENGINE (FIXED) ---
+  // Sync State to Ref
+  const toggleSound = () => {
+      const newState = !isSoundOn;
+      setIsSoundOn(newState);
+      soundRef.current = newState; // Update Ref for game loop
+  };
+
+  // --- 1. KONAMI CODE ENGINE ---
   useEffect(() => {
     const secretCode = [
         'arrowup', 'arrowup', 
@@ -41,24 +56,15 @@ const EasterEgg = ({ isDark }) => {
     ];
 
     const handleCodeEntry = (e) => {
-      // 1. Safety: Ignore if typing in a text box
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-      
-      // 2. If game is open, don't track code
       if (isOpen) return; 
 
-      // 3. Normalize key (make lowercase so CapsLock doesn't break it)
       const key = e.key.toLowerCase();
-      console.log("Key pressed:", key); // DEBUG: Check console to see if keys register
-
-      // 4. Update History
       keyHistory.current = [...keyHistory.current, key].slice(-11);
 
-      // 5. Check Match
       if (JSON.stringify(keyHistory.current) === JSON.stringify(secretCode)) {
-          console.log("CHEAT CODE ACTIVATED");
           setIsOpen(true);
-          keyHistory.current = []; // Reset
+          keyHistory.current = []; 
       }
     };
 
@@ -77,7 +83,7 @@ const EasterEgg = ({ isDark }) => {
   };
 
   const playJumpSound = () => {
-      if (!soundOn || !audioCtxRef.current) return;
+      if (!soundRef.current || !audioCtxRef.current) return;
       const ctx = audioCtxRef.current;
       const t = ctx.currentTime;
       const osc = ctx.createOscillator();
@@ -94,7 +100,7 @@ const EasterEgg = ({ isDark }) => {
   };
 
   const playCrashSound = () => {
-      if (!soundOn || !audioCtxRef.current) return;
+      if (!soundRef.current || !audioCtxRef.current) return;
       const ctx = audioCtxRef.current;
       const t = ctx.currentTime;
       const osc = ctx.createOscillator();
@@ -113,13 +119,14 @@ const EasterEgg = ({ isDark }) => {
   const startMusic = () => {
       if (!audioCtxRef.current) initAudio();
       if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
-      if (!soundOn) return;
+      if (!soundRef.current) return;
 
       const ctx = audioCtxRef.current;
       let noteIndex = 0;
       const bassline = [65.41, 65.41, 77.78, 87.31]; 
 
       const playNote = () => {
+          if (!soundRef.current) return; // Double check inside interval
           const t = ctx.currentTime;
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
@@ -148,10 +155,11 @@ const EasterEgg = ({ isDark }) => {
       }
   };
 
+  // Watch for toggle changes while game is running
   useEffect(() => {
-      if (gameActive && soundOn) startMusic();
+      if (gameActive && isSoundOn) startMusic();
       else stopMusic();
-  }, [soundOn, gameActive]);
+  }, [isSoundOn, gameActive]);
 
   // --- GAME ENGINE ---
   useEffect(() => {
@@ -173,7 +181,6 @@ const EasterEgg = ({ isDark }) => {
     };
 
     const handleInput = (e) => {
-        // KEYBOARD
         if (e.type === 'keydown') {
             if (e.code === 'Space' || e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -181,9 +188,8 @@ const EasterEgg = ({ isDark }) => {
                 else jump();
             }
         }
-        // MOUSE / TOUCH
         if (e.type === 'mousedown' || e.type === 'touchstart') {
-            if (e.target.closest('button')) return; // Ignore button clicks
+            if (e.target.closest('button')) return;
             e.preventDefault();
             if (!gameActive && !gameOver) startGame();
             else jump();
@@ -291,8 +297,9 @@ const EasterEgg = ({ isDark }) => {
       }
   }, [gameOver]);
 
-  const startGame = () => {
-      initAudio(); // Initialize audio context on user interaction
+  const startGame = (e) => {
+      if (e) e.stopPropagation();
+      initAudio(); // Audio must resume on a user click
       gameState.current = {
           player: { x: 50, y: 220, width: 30, height: 30, dy: 0, jumpForce: 13, grounded: true, color: '#22d3ee' },
           obstacles: [],
@@ -310,14 +317,15 @@ const EasterEgg = ({ isDark }) => {
   return (
     <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
         <div className="relative w-full max-w-3xl bg-slate-900 border-2 border-cyan-500/50 rounded-2xl p-2 shadow-[0_0_50px_rgba(34,211,238,0.2)]">
+            
             <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 mb-2">
                 <div className="flex items-center gap-2">
                     <span className="text-fuchsia-500 font-black tracking-widest uppercase">Prism Runner</span>
                     <button 
-                        onClick={() => setSoundOn(!soundOn)} 
-                        className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${soundOn ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}
+                        onClick={toggleSound} 
+                        className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${isSoundOn ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}
                     >
-                        {soundOn ? <Volume2 size={12} /> : <VolumeX size={12} />} Sound
+                        {isSoundOn ? <Volume2 size={12} /> : <VolumeX size={12} />} Sound
                     </button>
                 </div>
                 <button onClick={() => { setIsOpen(false); setGameActive(false); stopMusic(); }} className="text-slate-400 hover:text-white transition-colors">
@@ -325,8 +333,12 @@ const EasterEgg = ({ isDark }) => {
                 </button>
             </div>
 
-            <div className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 cursor-pointer active:scale-[0.99] transition-transform">
+            <div 
+                className="relative w-full h-[300px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 select-none cursor-pointer active:scale-[0.99] transition-transform"
+                onMouseDown={e => { if(gameActive) e.preventDefault(); }}
+            >
                 <canvas ref={canvasRef} width={800} height={300} className="w-full h-full object-contain pointer-events-none" />
+
                 <div className="absolute top-4 right-4 flex gap-4 text-mono font-bold font-mono">
                     <div className="text-slate-400">HI <span className="text-white">{highScore.toString().padStart(5, '0')}</span></div>
                     <div className="text-slate-400">SCORE <span className="text-cyan-400">{score.toString().padStart(5, '0')}</span></div>
@@ -335,7 +347,7 @@ const EasterEgg = ({ isDark }) => {
                 {!gameActive && !gameOver && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
                         <h1 className="text-4xl font-black text-white mb-2 tracking-tighter">PRISM RUNNER</h1>
-                        <p className="text-cyan-400 mb-6 font-mono text-sm">CLICK or SPACE TO JUMP</p>
+                        <p className="text-cyan-400 mb-6 font-mono text-sm">TAP or SPACE to JUMP</p>
                         <button onClick={startGame} className="flex items-center gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-8 py-3 rounded-full font-bold transition-all hover:scale-105 active:scale-95">
                             <Play fill="white" size={18}/> START GAME
                         </button>
@@ -355,7 +367,7 @@ const EasterEgg = ({ isDark }) => {
             </div>
             
             <div className="text-center mt-2 text-[10px] text-slate-500 uppercase tracking-widest">
-                Konami Code Accepted
+                Konami Code Accepted • God Mode Disabled
             </div>
         </div>
     </div>

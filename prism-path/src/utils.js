@@ -70,103 +70,99 @@ export const GeminiService = {
     if (!key || !result) return;
     localStorage.setItem(key, result);
   },
-  // ------------------------------------
+
+  // --- MINIMALIST FALLBACK LOGIC ---
+  fetchWithFallback: async (payload) => {
+      // 1. Try the one that worked in your logs (2.0-exp)
+      // 2. Fallback to standard (1.5-flash) only if needed
+      const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
+      
+      for (const model of models) {
+          try {
+              const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+              });
+
+              if (response.ok) {
+                  return await response.json(); // Success on first try = 1 token used
+              }
+              // If 429, we stop immediately to save quota
+              if (response.status === 429) throw new Error("Rate Limit");
+          } catch (e) {
+              if (e.message === "Rate Limit") throw e;
+          }
+      }
+      throw new Error("Models unavailable");
+  },
 
   generate: async (data, type) => {
-    if (!GOOGLE_API_KEY) {
-      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY settings.";
-    }
+    if (!GOOGLE_API_KEY) return "Error: API Key Missing.";
 
+    // 1. Check Cache (Zero Cost)
     const cacheKey = GeminiService.getCacheKey(data, type);
     const cachedResult = GeminiService.getCache(cacheKey);
-    if (cachedResult) { return cachedResult; } // Cache Hit!
+    if (cachedResult) return cachedResult; 
 
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts
+    // 2. Define Prompts (Strict No-Intro)
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert SPED Designer. Constraint: Do NOT introduce yourself. Start directly with the strategies. Use **bold** headers.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
-        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). Constraint: Do NOT use introductory phrases. Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
+        systemInstruction = `You are an expert BCBA. Constraint: No intro. Start response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
         userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Just list the steps.";
+        systemInstruction = "Helpful assistant. Break task into 5-7 simple, direct steps. List ONLY. No intro text.";
         userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {
-        systemInstruction = "You are a professional Special Education Teacher. Write a polite email to a parent. No markdown.";
-        userPrompt = data.feedbackAreas 
-            ? `Email for student ${data.student} preparing for IEP. Ask for feedback on: ${data.feedbackAreas.join(', ')}.`
-            : `Positive update for ${data.student} regarding ${data.topic}.`;
+        systemInstruction = "Professional Special Education Teacher. Write a polite email. No markdown.";
+        userPrompt = data.feedbackAreas ? `Email for student ${data.student}. Ask feedback on: ${data.feedbackAreas.join(', ')}.` : `Update for ${data.student} regarding ${data.topic}.`;
     } 
     else if (type === 'goal') {
-        systemInstruction = "Write a SMART IEP goal. Specific, Measurable, Achievable, Relevant, Time-bound. No markdown.";
+        systemInstruction = "Write a SMART IEP goal. No markdown.";
         userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition}. Behavior: ${data.behavior}.`;
     } 
     else if (type === 'plaafp') {
-        systemInstruction = "Write a PLAAFP statement connecting strengths, needs, and impact. No markdown.";
+        systemInstruction = "Write a PLAAFP statement. No markdown.";
         userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
     }
     else if (type === 'resume') {
-        systemInstruction = "You are an expert Resume Writer. Rewrite the input text to be professional, action-oriented, and concise. Do NOT use markdown. Just return the clean, polished paragraph.";
-        userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
+        systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown.";
+        userPrompt = `Rewrite this ${data.section}: "${data.text}"`;
     }
 
-    // Safety check for empty prompt fields (prevents 400s)
-    if (!userPrompt.trim()) return "Error: Prompt content cannot be empty. Please fill in the input fields.";
+    if (!userPrompt.trim()) return "Error: Prompt content cannot be empty.";
 
-    // --- 2. SINGLE API CALL (Efficiency) ---
+    // 3. API Call
     try {
-        const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
-        
-        // Using the most stable alias which consistently works across projects
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            if (response.status === 429 || response.status === 403) throw new Error("Key/Quota Blocked");
-            // If 404/400 persists, the key/model setup is incorrect
-            throw new Error(`AI Status ${response.status} (Model Access Issue)`);
-        }
-
-        const resultData = await response.json();
-        const finalResult = formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
-        
-        // Cache the good result
-        GeminiService.setCache(cacheKey, finalResult); 
-
-        return finalResult;
-        
+      const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
+      const resultData = await GeminiService.fetchWithFallback(payload);
+      
+      const finalResult = formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
+      GeminiService.setCache(cacheKey, finalResult); 
+      return finalResult;
+      
     } catch (error) { 
-        return "Error: AI System Busy (Rate Limit or Restricted Key). Please try regenerating your key and trying again in 30 seconds."; 
+        return "Error: AI System Busy (Rate Limit). Please try again in 30 seconds."; 
     }
   }
 };
 
-
-// --- AUDIO UTILS (Exported for NeuroDriver) ---
+// --- AUDIO UTILS ---
 export const AudioEngine = { 
     ctx: null,
-    
     init: () => {
-        // Fix: Ensure AudioContext is initialized before use
         if (!AudioEngine.ctx) AudioEngine.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
     },
-
-    toggleBrownNoise: (play) => {
-        AudioEngine.init();
-        console.log(`Toggling Brown Noise: ${play}`);
-        // NOTE: Full toggle logic (creating nodes) is assumed to be in NeuroDriver.
-    },
-
+    toggleBrownNoise: (play) => { AudioEngine.init(); console.log(`Brown Noise: ${play}`); },
     playVictory: () => {
         AudioEngine.init();
         const now = AudioEngine.ctx.currentTime;
@@ -184,7 +180,6 @@ export const AudioEngine = {
             osc.stop(now + i*0.1 + 0.7);
         });
     },
-    
     playChime: () => {
         AudioEngine.init();
         const osc = AudioEngine.ctx.createOscillator();
@@ -196,7 +191,6 @@ export const AudioEngine = {
         gain.gain.setValueAtTime(0.1, AudioEngine.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, AudioEngine.ctx.currentTime + 1.0);
         osc.start();
-        // Fix: Use AudioContext time for stopping the sound
-        osc.stop(AudioEngine.ctx.currentTime + 1.0); 
+        osc.stop(AudioEngine.ctx.currentTime + 1.0);
     }
 };

@@ -118,7 +118,7 @@ export const GeminiService = {
         userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "Helpful assistant. Break task into 5-7 simple, direct steps. List ONLY. No intro text.";
+        systemInstruction = "You are a helpful buddy for a student. Break the task into 5-7 tiny, easy steps. Use simple words. No intro. No outro. Just the list.";
         userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {

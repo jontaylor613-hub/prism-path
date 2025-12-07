@@ -55,13 +55,17 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
-  // The "Model Hunter" - Tries models in order until one works
+  // SUPER MODEL HUNTER: Tries every known alias until one works
   fetchWithFallback: async (payload) => {
       const models = [
-          'gemini-1.5-flash', 
-          'gemini-2.0-flash-exp', 
-          'gemini-pro'
+          'gemini-1.5-flash-latest', // Alias often works when specific version fails
+          'gemini-1.5-flash',        // Standard
+          'gemini-1.5-flash-001',    // Specific version
+          'gemini-1.5-pro',          // Higher tier fallback
+          'gemini-2.0-flash-exp'     // Experimental (last resort)
       ];
+
+      let lastError = "";
 
       for (const model of models) {
           try {
@@ -73,39 +77,45 @@ export const GeminiService = {
 
               if (response.ok) {
                   const data = await response.json();
-                  return data; // Success!
+                  return data; 
               }
-              // If 404, loop to next model. If 400/403, key is likely bad.
-              if (response.status !== 404) {
-                  console.error(`Model ${model} failed with status ${response.status}`);
+              
+              // Log specific failure but keep trying
+              console.warn(`Model ${model} failed: ${response.status}`);
+              
+              // If we hit a Rate Limit (429), waiting 1s might help the next model
+              if (response.status === 429) {
+                  await new Promise(r => setTimeout(r, 1000));
               }
+              
+              lastError = `Status ${response.status}`;
+
           } catch (e) {
               console.error(`Connection failed for ${model}`);
           }
       }
-      throw new Error("All AI models failed. Check API Key.");
+      throw new Error(`All AI models failed. Last error: ${lastError}. Check API Key Quota.`);
   },
 
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
-      console.error("GeminiService Error: No API Key found.");
-      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY.";
+      return "Error: API Key Missing. Please check VITE_GOOGLE_API_KEY settings.";
     }
 
     let systemInstruction = "";
     let userPrompt = "";
 
-    // 1. Define Prompts
+    // 1. Define Prompts (Updated for Persona)
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student based on the challenge and subject provided. Format: Use bullet points. Be specific and actionable.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
-        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). Constraint: Do NOT use introductory phrases like "As an expert BCBA". Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]" (if name is unknown use 'Student'). Task: Analyze the antecedents and consequences in the log. Suggest 3 specific interventions.`;
+        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). Constraint: Do NOT use introductory phrases. Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
         userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Do NOT use introductory phrases. Just list the steps. Example: 1. Get a pencil. 2. Open notebook.";
+        systemInstruction = "You are a helpful assistant for students. Break the requested task into 5-7 simple, direct steps. Use very plain language. Just list the steps.";
         userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {
@@ -123,33 +133,29 @@ export const GeminiService = {
         userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
     }
     else if (type === 'resume') {
-        systemInstruction = "You are an expert Resume Writer. Rewrite the input text to be professional, action-oriented, and concise. Use strong verbs. Do NOT use markdown, bolding, or bullet points. Just return the clean, polished paragraph.";
+        systemInstruction = "You are an expert Resume Writer. Rewrite the input text to be professional, action-oriented, and concise. Do NOT use markdown. Just return the clean, polished paragraph.";
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch with Fallback Logic
+    // 2. Perform Fetch with Super Hunter
     try {
       const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
       const resultData = await GeminiService.fetchWithFallback(payload);
       return formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
     } catch (error) { 
         console.error("AI Service Error:", error);
-        return "Error: AI Service Unavailable. Please check your API Key settings."; 
+        return "Error: AI System Busy (Rate Limit). Please try again in 30 seconds."; 
     }
   }
 };
 
 // --- AUDIO UTILS ---
 export const AudioEngine = {
-    // Note: The EmotionalCockpit now has its own internal synth,
-    // but we keep this here for NeuroDriver or other tools.
     ctx: null,
-    
     init: () => {
         if (!AudioEngine.ctx) AudioEngine.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
     },
-
     playVictory: () => {
         AudioEngine.init();
         const now = AudioEngine.ctx.currentTime;
@@ -167,7 +173,6 @@ export const AudioEngine = {
             osc.stop(now + i*0.1 + 0.7);
         });
     },
-    
     playChime: () => {
         AudioEngine.init();
         const osc = AudioEngine.ctx.createOscillator();

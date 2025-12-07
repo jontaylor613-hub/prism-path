@@ -34,7 +34,6 @@ export const formatAIResponse = (text) => {
   if (!text) return "";
   let clean = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/#/g, "");
   clean = clean.replace(/\.([A-Z])/g, ". $1");
-  // Remove conversational filler
   clean = clean.replace(/^(Here are|Sure|Here's|As an expert).*?:/gim, "");
   return clean.trim();
 };
@@ -56,10 +55,41 @@ export const ComplianceService = {
 };
 
 export const GeminiService = {
+  // The "Model Hunter" - Tries models in order until one works
+  fetchWithFallback: async (payload) => {
+      const models = [
+          'gemini-1.5-flash', 
+          'gemini-2.0-flash-exp', 
+          'gemini-pro'
+      ];
+
+      for (const model of models) {
+          try {
+              const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+              });
+
+              if (response.ok) {
+                  const data = await response.json();
+                  return data; // Success!
+              }
+              // If 404, loop to next model. If 400/403, key is likely bad.
+              if (response.status !== 404) {
+                  console.error(`Model ${model} failed with status ${response.status}`);
+              }
+          } catch (e) {
+              console.error(`Connection failed for ${model}`);
+          }
+      }
+      throw new Error("All AI models failed. Check API Key.");
+  },
+
   generate: async (data, type) => {
     if (!GOOGLE_API_KEY) {
       console.error("GeminiService Error: No API Key found.");
-      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY settings.";
+      return "Error: API Key Missing. Check VITE_GOOGLE_API_KEY.";
     }
 
     let systemInstruction = "";
@@ -67,18 +97,11 @@ export const GeminiService = {
 
     // 1. Define Prompts
     if (type === 'accommodation') {
-        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. 
-        Framework: Universal Design for Learning (UDL).
-        Constraint: Do NOT introduce yourself. Start directly with the strategies.
-        Task: Provide specific accommodations for the student based on the challenge and subject provided.
-        Format: Use bullet points. Be specific and actionable.`;
+        systemInstruction = `Role: "The Accessible Learning Companion," an expert Special Education Instructional Designer. Framework: Universal Design for Learning (UDL). Constraint: Do NOT introduce yourself. Start directly with the strategies. Task: Provide specific accommodations for the student based on the challenge and subject provided. Format: Use bullet points. Be specific and actionable.`;
         userPrompt = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}. Provide 3-5 specific accommodations.`;
     }
     else if (type === 'behavior') {
-        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). 
-        Constraint: Do NOT use introductory phrases like "As an expert BCBA". 
-        Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]" (if name is unknown use 'Student').
-        Task: Analyze the antecedents and consequences in the log. Suggest 3 specific interventions.`;
+        systemInstruction = `You are an expert Board Certified Behavior Analyst (BCBA). Constraint: Do NOT use introductory phrases like "As an expert BCBA". Constraint: Start your response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]" (if name is unknown use 'Student'). Task: Analyze the antecedents and consequences in the log. Suggest 3 specific interventions.`;
         userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
@@ -104,33 +127,19 @@ export const GeminiService = {
         userPrompt = `Rewrite this ${data.section} to sound more professional: "${data.text}"`;
     }
 
-    // 2. Perform Fetch (Using GEMINI-1.5-FLASH)
-    // This is the most stable current model.
+    // 2. Perform Fetch with Fallback Logic
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] 
-        })
-      });
-
-      if (!response.ok) {
-          console.error("Gemini API Error:", response.status, response.statusText);
-          return "Error: AI Service Unavailable (Status " + response.status + ")";
-      }
-
-      const result = await response.json();
-      return formatAIResponse(result.candidates?.[0]?.content?.parts?.[0]?.text);
-      
+      const payload = { contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }] };
+      const resultData = await GeminiService.fetchWithFallback(payload);
+      return formatAIResponse(resultData.candidates?.[0]?.content?.parts?.[0]?.text);
     } catch (error) { 
-        console.error("Network/Fetch Error:", error);
-        return "Error: Connection Failed."; 
+        console.error("AI Service Error:", error);
+        return "Error: AI Service Unavailable. Please check your API Key settings."; 
     }
   }
 };
 
-// --- AUDIO UTILS (Simplified for external use if needed) ---
+// --- AUDIO UTILS ---
 export const AudioEngine = {
     // Note: The EmotionalCockpit now has its own internal synth,
     // but we keep this here for NeuroDriver or other tools.

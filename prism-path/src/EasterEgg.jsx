@@ -20,17 +20,17 @@ const EasterEgg = ({ isDark }) => {
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
   
-  // GAME STATE REF (This fixes the controls!)
+  // GAME STATE REF
   // We use a ref so the event listener always sees the current position/grounded state
   const gameState = useRef({
       player: {
           x: 50,
-          y: 200,
+          y: 220, // Start ON THE GROUND (250 - 30 height) to fix jump bug
           width: 30,
           height: 30,
           dy: 0,
           jumpForce: 12,
-          grounded: false,
+          grounded: true, // Start grounded
           color: '#22d3ee' // Cyan
       },
       obstacles: [],
@@ -39,9 +39,12 @@ const EasterEgg = ({ isDark }) => {
       scoreCount: 0
   });
 
-  // --- 1. KONAMI LISTENER ---
+  // --- 1. KONAMI LISTENER (With Safety Check) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // SAFETY CHECK: Ignore input fields so users don't trigger it accidentally
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
       // If game is open, prevent scrolling but don't handle game logic here
       if (isOpen) {
           if (e.code === 'Space' || e.key === 'ArrowUp') {
@@ -68,7 +71,28 @@ const EasterEgg = ({ isDark }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // --- 2. GAME ENGINE ---
+  // --- 2. GAME INPUT HANDLER (Separate Effect) ---
+  useEffect(() => {
+      if (!isOpen || !gameActive) return;
+
+      const handleGameInput = (e) => {
+          if (e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') {
+              e.preventDefault(); // Stop scrolling
+              const p = gameState.current.player;
+              
+              // Only jump if strictly grounded
+              if (p.grounded) {
+                  p.dy = -p.jumpForce;
+                  p.grounded = false;
+              }
+          }
+      };
+
+      window.addEventListener('keydown', handleGameInput);
+      return () => window.removeEventListener('keydown', handleGameInput);
+  }, [isOpen, gameActive]);
+
+  // --- 3. GAME LOOP ENGINE ---
   useEffect(() => {
     if (!isOpen || !gameActive) return;
 
@@ -79,7 +103,16 @@ const EasterEgg = ({ isDark }) => {
 
     // Reset State on Start
     gameState.current = {
-        player: { x: 50, y: 200, width: 30, height: 30, dy: 0, jumpForce: 12, grounded: false, color: '#22d3ee' },
+        player: { 
+            x: 50, 
+            y: 220, // 250 (ground) - 30 (height)
+            width: 30, 
+            height: 30, 
+            dy: 0, 
+            jumpForce: 12, 
+            grounded: true, 
+            color: '#22d3ee' 
+        },
         obstacles: [],
         frames: 0,
         gameSpeed: 5,
@@ -107,15 +140,17 @@ const EasterEgg = ({ isDark }) => {
         ctx.stroke();
 
         // --- PLAYER PHYSICS ---
-        // Gravity
+        // Apply Gravity
         if (state.player.y < groundHeight - state.player.height) {
             state.player.dy += gravity;
             state.player.grounded = false;
         } else {
+            // Hit Ground
             state.player.dy = 0;
             state.player.grounded = true;
             state.player.y = groundHeight - state.player.height;
         }
+        
         state.player.y += state.player.dy;
 
         // Draw Player
@@ -168,21 +203,9 @@ const EasterEgg = ({ isDark }) => {
         requestRef.current = requestAnimationFrame(loop);
     };
 
-    // --- INPUT HANDLER ---
-    const handleJump = (e) => {
-        // Accessing the REF ensures we get the live grounded state
-        const p = gameState.current.player;
-        if ((e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') && p.grounded) {
-            p.dy = -p.jumpForce;
-            p.grounded = false; // Immediately set false to prevent double jumps
-        }
-    };
-
-    window.addEventListener('keydown', handleJump);
     requestRef.current = requestAnimationFrame(loop);
 
     return () => {
-        window.removeEventListener('keydown', handleJump);
         cancelAnimationFrame(requestRef.current);
     };
   }, [isOpen, gameActive, isDark]);

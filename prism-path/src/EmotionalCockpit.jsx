@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Wind, Activity, ArrowLeft, X, Volume2, VolumeX, 
-  Trash2, Eye, Hand, Ear, Sparkles, CloudRain, Trees, Coffee,
-  Timer, RotateCcw, CheckCircle2, Move
+  Wind, Activity, ArrowLeft, Volume2, VolumeX, 
+  Trash2, Eye, Hand, Ear, CloudRain, Trees, Coffee,
+  Move, Music, Zap, Speaker
 } from 'lucide-react';
 
 // --- INTERNAL AUDIO SYNTHESIZER ---
-// (Generates sounds mathematically so no assets are needed)
 const CockpitAudio = {
     ctx: null,
-    oscillators: [],
+    ambienceNodes: [], // Tracks loops (rain, noise)
+    musicNodes: [],    // Tracks musical oscillators
     
     init: () => {
         if (!CockpitAudio.ctx) CockpitAudio.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -21,64 +21,114 @@ const CockpitAudio = {
         const t = CockpitAudio.ctx.currentTime;
         const osc = CockpitAudio.ctx.createOscillator();
         const gain = CockpitAudio.ctx.createGain();
-        const filter = CockpitAudio.ctx.createBiquadFilter();
-
-        osc.connect(filter);
-        filter.connect(gain);
+        
+        osc.connect(gain);
         gain.connect(CockpitAudio.ctx.destination);
 
-        // "Pop" Physics: Short burst, pitch drop, high filter
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, t);
-        osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+        // "Pop" Physics: Quick frequency drop + volume decay
+        osc.frequency.setValueAtTime(600, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
         
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(3000, t);
-
-        gain.gain.setValueAtTime(0.5, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
 
         osc.start(t);
-        osc.stop(t + 0.1);
+        osc.stop(t + 0.15);
     },
 
-    // Soundscape Generator (Rain, Brown Noise, etc.)
-    noiseNode: null,
+    stopAll: () => {
+        // Stop Ambience
+        CockpitAudio.ambienceNodes.forEach(node => {
+            try { node.stop(); node.disconnect(); } catch(e){}
+        });
+        CockpitAudio.ambienceNodes = [];
+
+        // Stop Music
+        CockpitAudio.musicNodes.forEach(node => {
+            try { node.stop(); node.disconnect(); } catch(e){}
+        });
+        CockpitAudio.musicNodes = [];
+    },
+
     playAmbience: (type) => {
+        CockpitAudio.stopAll(); // Clear previous sounds
         CockpitAudio.init();
-        if (CockpitAudio.noiseNode) { 
-            CockpitAudio.noiseNode.stop(); 
-            CockpitAudio.noiseNode.disconnect(); 
-        }
         if (!type) return;
 
-        const bufferSize = CockpitAudio.ctx.sampleRate * 2;
-        const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        
-        for (let i = 0; i < bufferSize; i++) {
-            const white = Math.random() * 2 - 1;
-            // Simple Brown Noise Filter
-            data[i] = (lastOut + (0.02 * white)) / 1.02;
-            lastOut = data[i];
-            data[i] *= 3.5; 
+        // 1. GENERATE NOISE (Rain/Forest/Library)
+        if (['rain', 'brown', 'forest'].includes(type)) {
+            const bufferSize = CockpitAudio.ctx.sampleRate * 2;
+            const buffer = CockpitAudio.ctx.createBuffer(1, bufferSize, CockpitAudio.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            let lastOut = 0;
+            
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                data[i] = (lastOut + (0.02 * white)) / 1.02; // Brown noise filter
+                lastOut = data[i];
+                data[i] *= 3.5; 
+            }
+
+            const noise = CockpitAudio.ctx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+            const gain = CockpitAudio.ctx.createGain();
+            
+            // Adjust tone/volume
+            gain.gain.value = type === 'rain' ? 0.15 : 0.25;
+            
+            noise.connect(gain);
+            gain.connect(CockpitAudio.ctx.destination);
+            noise.start();
+            CockpitAudio.ambienceNodes.push(noise);
         }
 
-        const noise = CockpitAudio.ctx.createBufferSource();
-        noise.buffer = buffer;
-        noise.loop = true;
-        
-        const gain = CockpitAudio.ctx.createGain();
-        // Adjust volume based on type
-        gain.gain.value = type === 'rain' ? 0.15 : 0.25; 
-        
-        noise.connect(gain);
-        gain.connect(CockpitAudio.ctx.destination);
-        noise.start();
-        CockpitAudio.noiseNode = noise;
+        // 2. GENERATE LOFI MUSIC (Ambient Chords)
+        if (type === 'lofi') {
+            const now = CockpitAudio.ctx.currentTime;
+            
+            // Simple Lofi Chord Progression Generator (Cmaj7 -> Fmaj7)
+            const playChord = (notes, time) => {
+                notes.forEach(freq => {
+                    const osc = CockpitAudio.ctx.createOscillator();
+                    const gain = CockpitAudio.ctx.createGain();
+                    
+                    osc.type = 'triangle'; // Soft "electric piano" tone
+                    osc.frequency.value = freq;
+                    
+                    // Lofi Wobble (Detune)
+                    osc.detune.setValueAtTime(0, time);
+                    osc.detune.linearRampToValueAtTime(10, time + 2); // Slight pitch drift
+                    
+                    osc.connect(gain);
+                    gain.connect(CockpitAudio.ctx.destination);
+                    
+                    // Envelope (Slow attack, long sustain)
+                    gain.gain.setValueAtTime(0, time);
+                    gain.gain.linearRampToValueAtTime(0.08, time + 1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + 6);
+                    
+                    osc.start(time);
+                    osc.stop(time + 6);
+                    CockpitAudio.musicNodes.push(osc);
+                });
+            };
+
+            // Loop Chords every 5 seconds
+            const loopChords = () => {
+                const t = CockpitAudio.ctx.currentTime;
+                // Chord 1: C Major 7 (C, E, G, B)
+                playChord([261.63, 329.63, 392.00, 493.88], t);
+                // Chord 2: F Major 7 (F, A, C, E) - Plays after 4s
+                setTimeout(() => playChord([174.61, 220.00, 261.63, 329.63], CockpitAudio.ctx.currentTime), 4000);
+            };
+
+            loopChords();
+            // Store interval ID in a way we can clear it (using a hacky interval for the synth loop)
+            CockpitAudio.musicInterval = setInterval(loopChords, 8000);
+        }
     }
 };
-let lastOut = 0;
 
 // --- SUB-COMPONENT: WORRY SHREDDER ---
 const WorryShredder = () => {
@@ -120,7 +170,7 @@ const WorryShredder = () => {
             <div className="mt-20">
                 {shredded ? (
                     <div className="flex items-center gap-2 text-emerald-400 font-bold animate-in zoom-in">
-                        <CheckCircle2 /> Gone!
+                        <Zap /> Gone!
                     </div>
                 ) : (
                     <button 
@@ -138,8 +188,8 @@ const WorryShredder = () => {
 
 // --- SUB-COMPONENT: 5-4-3-2-1 GROUNDING ---
 const GroundingTool = () => {
-    const [step, setStep] = useState(5); // 5 to 1
-    const [count, setCount] = useState(0); // Clicks per step
+    const [step, setStep] = useState(5); 
+    const [count, setCount] = useState(0); 
 
     const steps = {
         5: { icon: Eye, label: "Things you SEE", color: "text-cyan-400", bg: "bg-cyan-500/20" },
@@ -152,7 +202,6 @@ const GroundingTool = () => {
     const handleClick = () => {
         if (count + 1 >= step) {
             if (step === 1) {
-                // Done
                 setStep(0);
             } else {
                 setStep(step - 1);
@@ -184,68 +233,74 @@ const GroundingTool = () => {
             </div>
 
             <p className="mt-8 text-slate-500 text-center animate-pulse">Look around. Find {step - count} more.</p>
-            <p className="text-slate-600 text-xs mt-2">(Click the circle when you find one)</p>
         </div>
     );
 };
 
-// --- SUB-COMPONENT: SOUNDSCAPES ---
+// --- SUB-COMPONENT: SOUNDSCAPES (Fixed) ---
 const Soundscapes = () => {
     const [active, setActive] = useState(null);
 
     const toggle = (type) => {
         if (active === type) {
             setActive(null);
-            CockpitAudio.playAmbience(null); // Stop
+            CockpitAudio.stopAll();
+            clearInterval(CockpitAudio.musicInterval);
         } else {
             setActive(type);
-            CockpitAudio.playAmbience(type); // Play
+            CockpitAudio.playAmbience(type);
         }
     };
 
-    // Cleanup on unmount
-    useEffect(() => () => CockpitAudio.playAmbience(null), []);
+    useEffect(() => {
+        return () => {
+            CockpitAudio.stopAll();
+            clearInterval(CockpitAudio.musicInterval);
+        };
+    }, []);
 
     return (
         <div className="h-full flex flex-col relative overflow-hidden rounded-3xl">
-            {/* Lofi Visual Layer */}
+            {/* VISUALS */}
             <div className={`absolute inset-0 transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
                 {active === 'rain' && <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-blue-900/40"><div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/diagonal-striped-brick.png')]"></div></div>}
                 {active === 'brown' && <div className="absolute inset-0 bg-gradient-to-b from-amber-950/50 to-slate-900"><div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div></div>}
                 {active === 'forest' && <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/50 to-slate-900"><div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/leaf.png')]"></div></div>}
+                {active === 'lofi' && <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-slate-900"><div className="absolute inset-0 flex items-center justify-center opacity-10"><Music size={300} /></div></div>}
             </div>
 
             <div className="relative z-10 flex flex-col items-center justify-center h-full p-8">
                 <h2 className="text-3xl font-bold text-white mb-8 drop-shadow-md">Sonic Sanctuary</h2>
-                <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
-                    <button onClick={() => toggle('rain')} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${active === 'rain' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
-                        <CloudRain size={24} /> 
-                        <span className="font-bold flex-1 text-left">Rainy Window</span>
-                        {active === 'rain' && <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+                    {/* BUTTONS */}
+                    <button onClick={() => toggle('rain')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'rain' ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                        <CloudRain size={24} /> <span className="font-bold">Rainy Window</span>
                     </button>
 
-                    <button onClick={() => toggle('brown')} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${active === 'brown' ? 'bg-amber-500/20 border-amber-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
-                        <Coffee size={24} /> 
-                        <span className="font-bold flex-1 text-left">Cozy Library (Brown Noise)</span>
-                        {active === 'brown' && <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>}
+                    <button onClick={() => toggle('brown')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'brown' ? 'bg-amber-500/20 border-amber-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                        <Coffee size={24} /> <span className="font-bold">Cozy Library</span>
                     </button>
 
-                    <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
-                        <Trees size={24} /> 
-                        <span className="font-bold flex-1 text-left">Deep Forest</span>
-                        {active === 'forest' && <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>}
+                    <button onClick={() => toggle('forest')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'forest' ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                        <Trees size={24} /> <span className="font-bold">Deep Forest</span>
+                    </button>
+
+                    <button onClick={() => toggle('lofi')} className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all ${active === 'lofi' ? 'bg-indigo-500/20 border-indigo-400 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'}`}>
+                        <Music size={24} /> <span className="font-bold">Lofi Lounge (Music)</span>
                     </button>
                 </div>
+                {active && <button onClick={() => toggle(active)} className="mt-8 px-6 py-2 bg-slate-900/50 rounded-full border border-slate-600 text-slate-400 text-sm hover:text-white">Stop Audio</button>}
             </div>
         </div>
     );
 };
 
-// --- SUB-COMPONENT: BUBBLE WRAP FIDGET (TIMED) ---
+// --- SUB-COMPONENT: BUBBLE WRAP (Mute Added) ---
 const BubbleWrap = () => {
   const [bubbles, setBubbles] = useState(Array(20).fill(false));
-  const [timeLeft, setTimeLeft] = useState(120); // 2 Minutes
+  const [timeLeft, setTimeLeft] = useState(120); 
   const [isActive, setIsActive] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // NEW STATE
 
   useEffect(() => {
       if (!isActive || timeLeft <= 0) return;
@@ -256,10 +311,9 @@ const BubbleWrap = () => {
   const pop = (index) => {
     if (!isActive || timeLeft <= 0) return;
     
-    // Play Math-generated Pop Sound
-    CockpitAudio.playPop(); 
+    // Play Sound only if not muted
+    if (!isMuted) CockpitAudio.playPop(); 
     
-    // Haptic
     if (navigator.vibrate) navigator.vibrate(50);
     
     const newBubbles = [...bubbles];
@@ -274,11 +328,17 @@ const BubbleWrap = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-300">
+    <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-300 relative">
+      {/* HEADER WITH CONTROLS */}
       <div className="flex justify-between items-center w-full max-w-sm mb-6">
           <h2 className="text-xl font-bold text-cyan-300">Pop the bubbles</h2>
-          <div className={`font-mono text-xl font-bold ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
-              {formatTime(timeLeft)}
+          <div className="flex items-center gap-4">
+              <button onClick={() => setIsMuted(!isMuted)} className="text-slate-400 hover:text-white transition-colors">
+                  {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
+              </button>
+              <div className={`font-mono text-xl font-bold ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
+                  {formatTime(timeLeft)}
+              </div>
           </div>
       </div>
 
@@ -305,31 +365,19 @@ const BubbleWrap = () => {
               <button onClick={() => {setTimeLeft(120); setBubbles(Array(20).fill(false));}} className="px-4 py-2 bg-slate-700 rounded-full text-white hover:bg-slate-600">Restart Timer</button>
           </div>
       ) : (
-          <button 
-            onClick={() => setBubbles(Array(20).fill(false))} 
-            className="mt-8 text-slate-400 hover:text-white underline text-sm"
-          >
-            Reset Board
-          </button>
+          <button onClick={() => setBubbles(Array(20).fill(false))} className="mt-8 text-slate-400 hover:text-white underline text-sm">Reset Board</button>
       )}
     </div>
   );
 };
 
-// --- SUB-COMPONENT: BOX BREATHING (CLEANER) ---
+// --- SUB-COMPONENT: BOX BREATHING (Fixed Animation) ---
 const BreathingOrb = () => {
-  const [phase, setPhase] = useState('Inhale'); // Inhale, Hold, Exhale, Hold
-  const [seconds, setSeconds] = useState(4);
+  const [phase, setPhase] = useState('Inhale'); // Text State
+  // We use CSS classes to drive the Orb animation independently from React state renders
+  // This ensures "Inhale" (4s) -> "Hold" (4s) -> "Exhale" (4s) -> "Hold" (4s)
 
   useEffect(() => {
-    let s = 4;
-    const tick = setInterval(() => {
-        setSeconds(prev => {
-            if (prev === 1) return 4;
-            return prev - 1;
-        });
-    }, 1000);
-
     const cycle = () => {
       setPhase('Inhale');
       setTimeout(() => {
@@ -337,53 +385,61 @@ const BreathingOrb = () => {
         setTimeout(() => {
           setPhase('Exhale');
           setTimeout(() => {
-              setPhase('Hold '); // Space added to diff from first hold
+              setPhase('Hold');
           }, 4000);
         }, 4000);
       }, 4000);
     };
-
     cycle();
-    const interval = setInterval(cycle, 16000); // 4-4-4-4 = 16s cycle
-    return () => { clearInterval(interval); clearInterval(tick); };
+    const interval = setInterval(cycle, 16000); 
+    return () => clearInterval(interval);
   }, []);
-
-  const getInstructions = () => {
-      if (phase === 'Inhale') return "Breathe In...";
-      if (phase === 'Exhale') return "Breathe Out...";
-      return "Hold...";
-  };
 
   return (
     <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
-      <div className="mb-12 text-center">
-          <h2 className="text-4xl font-bold text-white mb-2">{getInstructions()}</h2>
-          <div className="text-slate-500 font-mono text-xl">{seconds}</div>
+      {/* STATIC TEXT CONTAINER (Doesn't move) */}
+      <div className="absolute top-[15%] z-20 text-center">
+          <h2 className="text-4xl font-bold text-white mb-2 tracking-widest uppercase transition-all duration-500">
+              {phase === 'Inhale' ? 'Breathe In' : phase === 'Exhale' ? 'Breathe Out' : 'Hold'}
+          </h2>
       </div>
 
-      <div className="relative flex items-center justify-center">
-        {/* Guiding Ring */}
+      <div className="relative flex items-center justify-center h-[400px] w-[400px]">
+        {/* Guiding Ring (Static) */}
         <div className="absolute w-[300px] h-[300px] border-2 border-slate-800 rounded-full"></div>
         
-        {/* The Orb */}
-        <div 
-            className={`rounded-full blur-xl transition-all duration-[4000ms] ease-in-out ${
-                phase === 'Inhale' ? 'bg-cyan-500 w-[300px] h-[300px] opacity-80' : 
-                phase.includes('Hold') ? 'bg-white w-[300px] h-[300px] opacity-40' :
-                'bg-fuchsia-500 w-[100px] h-[100px] opacity-60'
-            }`}
-        />
-        <div className="absolute z-10">
-            <Wind size={48} className="text-white opacity-80" />
+        {/* The Animated Orb */}
+        {/* Note: We use CSS animation classes defined below for smoothness */}
+        <div className="breathing-orb bg-cyan-500 rounded-full shadow-[0_0_50px_rgba(6,182,212,0.5)]"></div>
+        
+        {/* Center Icon (Static) */}
+        <div className="absolute z-10 pointer-events-none">
+            <Wind size={48} className="text-white/80" />
         </div>
       </div>
       
-      <p className="mt-12 text-slate-500 text-xs tracking-widest uppercase">Box Breathing Technique</p>
+      <p className="mt-12 text-slate-500 text-xs tracking-widest uppercase">Box Breathing (4-4-4-4)</p>
+
+      {/* CSS Animation embedded locally */}
+      <style>{`
+        .breathing-orb {
+            width: 100px;
+            height: 100px;
+            animation: breathe 16s infinite ease-in-out;
+        }
+        @keyframes breathe {
+            0% { transform: scale(1); opacity: 0.5; }       /* Start Inhale */
+            25% { transform: scale(3); opacity: 1; }        /* End Inhale (Hold) */
+            50% { transform: scale(3); opacity: 1; }        /* End Hold (Start Exhale) */
+            75% { transform: scale(1); opacity: 0.5; }      /* End Exhale (Hold) */
+            100% { transform: scale(1); opacity: 0.5; }     /* End Hold */
+        }
+      `}</style>
     </div>
   );
 };
 
-// --- SUB-COMPONENT: NOISE METER (Unchanged but included) ---
+// --- SUB-COMPONENT: NOISE METER ---
 const NoiseMeter = () => {
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState(null);
@@ -444,7 +500,10 @@ export default function EmotionalCockpit({ onBack }) {
 
   // Stop any lingering audio when switching tools or exiting
   useEffect(() => {
-      return () => CockpitAudio.playAmbience(null);
+      return () => {
+          CockpitAudio.stopAll();
+          clearInterval(CockpitAudio.musicInterval);
+      };
   }, [tool]);
 
   return (

@@ -14,8 +14,6 @@ import SocialMap from './SocialMap';
 import EmotionalCockpit from './EmotionalCockpit';
 import TeacherDashboard from './TeacherDashboard';
 import NeuroDriver from './NeuroDriver';
-
-// FIX: Importing services from the correctly exported utility file
 import { getTheme, GeminiService } from './utils';
 
 // --- SHARED UI COMPONENTS ---
@@ -188,12 +186,14 @@ const Home = ({ isDark, setIsDark }) => {
                     {generatedPlan ? 
                         <ReactMarkdown components={{
                             p: ({node, ...props}) => <p className={`mb-4 leading-relaxed ${theme.text}`} {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-bold text-cyan-500" {...props} />,
+                            // FIX: Styling <strong> tags (strategy headings) dynamically
+                            strong: ({node, ...props}) => <strong className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} {...props} />,
                             ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-4 marker:text-fuchsia-500" {...props} />,
                             li: ({node, ...props}) => <li className={`pl-1 ${theme.text}`} {...props} />
                         }}>{generatedPlan}</ReactMarkdown> 
                         : <div className="text-center opacity-50 pt-20"><MessageSquare size={48} className={`mx-auto mb-4 ${theme.textMuted}`}/><p className={theme.textMuted}>Ready for input...</p></div>
                     }
+                    {error && <div className="text-red-500 mt-4 font-medium">{error}</div>}
                 </div>
             </div>
           </div>
@@ -213,8 +213,6 @@ const Home = ({ isDark, setIsDark }) => {
 export default function App() {
   const [isDark, setIsDark] = useState(true);
   const navigate = useNavigate();
-
-  // Handle "Exit" button logic - Send user back to Home (/)
   const handleExit = () => navigate('/');
 
   // All components now receive the handleExit function as onBack

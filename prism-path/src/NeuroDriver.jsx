@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Brain, CheckCircle, Clock, RotateCcw, Zap, 
   CloudRain, Trees, Coffee, Music, VolumeX, 
-  Play, Pause, Plus, Trash2, ArrowLeft, Star, Settings, Layout
+  Play, Pause, Plus, Trash2, ArrowLeft, Star, Settings, Layout, Pointer
 } from 'lucide-react';
 import { getTheme, GeminiService } from './utils';
 
@@ -10,6 +10,8 @@ import { getTheme, GeminiService } from './utils';
 const DriverAudio = {
     ctx: null,
     ambienceNodes: [], 
+    musicNodes: [],
+    musicInterval: null,
     
     init: () => {
         if (!DriverAudio.ctx) DriverAudio.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -17,8 +19,14 @@ const DriverAudio = {
     },
 
     stopAll: () => {
+        if (DriverAudio.musicInterval) {
+            clearInterval(DriverAudio.musicInterval);
+            DriverAudio.musicInterval = null;
+        }
         DriverAudio.ambienceNodes.forEach(node => { try { node.stop(); node.disconnect(); } catch(e){} });
         DriverAudio.ambienceNodes = [];
+        DriverAudio.musicNodes.forEach(node => { try { node.stop(); node.disconnect(); } catch(e){} });
+        DriverAudio.musicNodes = [];
     },
 
     playAlarm: () => {
@@ -28,31 +36,34 @@ const DriverAudio = {
         const gain = DriverAudio.ctx.createGain();
         osc.connect(gain);
         gain.connect(DriverAudio.ctx.destination);
-        osc.type = 'square';
+        osc.type = 'triangle'; // Softer alarm
         osc.frequency.setValueAtTime(440, t);
-        osc.frequency.setValueAtTime(880, t + 0.2);
+        osc.frequency.linearRampToValueAtTime(880, t + 0.1);
         gain.gain.setValueAtTime(0.1, t);
-        gain.gain.linearRampToValueAtTime(0, t + 0.6);
+        gain.gain.linearRampToValueAtTime(0, t + 1.5); // Long fade out
         osc.start(t);
-        osc.stop(t + 0.6);
+        osc.stop(t + 1.5);
     },
 
     playVictory: () => {
         DriverAudio.init();
         const t = DriverAudio.ctx.currentTime;
-        // Simple Major Arpeggio
+        // Clean Sine Wave Arpeggio (Mario-style coin sound vibe but slower)
         [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
             const osc = DriverAudio.ctx.createOscillator();
             const gain = DriverAudio.ctx.createGain();
             osc.connect(gain);
             gain.connect(DriverAudio.ctx.destination);
             osc.frequency.value = freq;
-            osc.type = 'triangle';
+            osc.type = 'sine'; // CLEANEST SOUND
+            
+            // Envelope
             gain.gain.setValueAtTime(0, t + i*0.1);
-            gain.gain.linearRampToValueAtTime(0.2, t + i*0.1 + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.1 + 0.5);
+            gain.gain.linearRampToValueAtTime(0.1, t + i*0.1 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.1 + 0.8);
+            
             osc.start(t + i*0.1);
-            osc.stop(t + i*0.1 + 0.6);
+            osc.stop(t + i*0.1 + 0.9);
         });
     },
 
@@ -101,32 +112,46 @@ const DriverAudio = {
             DriverAudio.ambienceNodes.push(noise);
         }
 
+        // --- FIXED LOFI: CHORDS ARE BACK ---
         if (type === 'lofi') {
-            // Simulated Lofi Drone
-            const osc = DriverAudio.ctx.createOscillator();
-            const gain = DriverAudio.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 150; 
-            const lfo = DriverAudio.ctx.createOscillator();
-            lfo.frequency.value = 0.5; // Slow modulation
-            const lfoGain = DriverAudio.ctx.createGain();
-            lfoGain.gain.value = 50;
-            lfo.connect(lfoGain);
-            lfoGain.connect(osc.frequency);
-            
-            osc.connect(gain);
-            gain.connect(DriverAudio.ctx.destination);
-            gain.gain.value = 0.1;
-            
-            osc.start();
-            lfo.start();
-            DriverAudio.ambienceNodes.push(osc);
-            DriverAudio.ambienceNodes.push(lfo);
+            const playChord = (notes, time) => {
+                notes.forEach(freq => {
+                    const osc = DriverAudio.ctx.createOscillator();
+                    const gain = DriverAudio.ctx.createGain();
+                    osc.type = 'triangle'; 
+                    osc.frequency.value = freq;
+                    // Detune for lofi vibe
+                    osc.detune.setValueAtTime(0, time);
+                    osc.detune.linearRampToValueAtTime(15, time + 4); 
+                    
+                    osc.connect(gain);
+                    gain.connect(DriverAudio.ctx.destination);
+                    
+                    // Soft envelope
+                    gain.gain.setValueAtTime(0, time);
+                    gain.gain.linearRampToValueAtTime(0.05, time + 0.5); // Quieter
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + 6);
+                    
+                    osc.start(time);
+                    osc.stop(time + 6);
+                    DriverAudio.musicNodes.push(osc);
+                });
+            };
+            const loopChords = () => {
+                const t = DriverAudio.ctx.currentTime;
+                // C Maj7 -> F Maj7 (Simple, happy loop)
+                playChord([261.63, 329.63, 392.00, 493.88], t);
+                setTimeout(() => {
+                    if (DriverAudio.musicInterval) playChord([174.61, 220.00, 261.63, 329.63], DriverAudio.ctx.currentTime);
+                }, 4000);
+            };
+            loopChords();
+            DriverAudio.musicInterval = setInterval(loopChords, 8000);
         }
     }
 };
 
-const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
+const NeuroDriver = ({ onBack, isDark }) => { 
   const theme = getTheme(isDark);
   
   // App State
@@ -135,13 +160,15 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeSound, setActiveSound] = useState(null);
   const [showVictory, setShowVictory] = useState(false);
+  const [highlightedStep, setHighlightedStep] = useState(null); // For Indecisive Mode
   
   // Timer State
   const [totalTime, setTotalTime] = useState(25 * 60); 
   const [timeLeft, setTimeLeft] = useState(25 * 60);   
   const [timerActive, setTimerActive] = useState(false);
-  const [timerView, setTimerView] = useState('bar'); // 'circle' or 'bar'
-  const [inputTime, setInputTime] = useState(25); // User input in minutes
+  const [timerView, setTimerView] = useState('bar'); 
+  const [inputTime, setInputTime] = useState(25);
+  const [showFinishTime, setShowFinishTime] = useState(false); // Toggle "Time Until"
 
   // Audio Toggle
   const toggleSound = (soundType) => {
@@ -163,12 +190,11 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
       interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     } else if (timeLeft === 0 && timerActive) {
       setTimerActive(false);
-      DriverAudio.playAlarm(); // Distinct End Sound
+      DriverAudio.playAlarm();
     }
     return () => clearInterval(interval);
   }, [timerActive, timeLeft]);
 
-  // Handle Manual Time Input
   const handleTimeInput = (e) => {
       const val = parseInt(e.target.value) || 0;
       setInputTime(val);
@@ -183,17 +209,25 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
       setInputTime(prev => prev + 5);
   };
 
-  // Check for Victory (All steps done)
+  // Check for Victory
   useEffect(() => {
       if (steps.length > 0 && steps.every(s => s.done)) {
           if (!showVictory) {
               setShowVictory(true);
               DriverAudio.playVictory();
-              // Auto-hide celebration after 3s
               setTimeout(() => setShowVictory(false), 4000);
           }
       }
   }, [steps]);
+
+  // "Pick for Me" Logic
+  const pickFirstStep = () => {
+      const firstIncomplete = steps.findIndex(s => !s.done);
+      if (firstIncomplete !== -1) {
+          setHighlightedStep(firstIncomplete);
+          setTimeout(() => setHighlightedStep(null), 2000); // Highlight for 2s
+      }
+  };
 
   // Calculations
   const formatTime = (seconds) => {
@@ -202,8 +236,13 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const getFinishTime = () => {
+      const date = new Date();
+      date.setSeconds(date.getSeconds() + timeLeft);
+      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+
   const progressPct = (timeLeft / totalTime) * 100;
-  // Color Logic: Blue -> Pink
   const barColor = progressPct > 50 ? 'bg-cyan-500' : 'bg-fuchsia-500';
 
   const handleSlice = async () => {
@@ -237,8 +276,8 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
               <div className={`${theme.cardBg} p-8 rounded-3xl shadow-2xl flex flex-col items-center animate-in zoom-in spin-in-3`}>
                   <Star size={120} className="text-yellow-400 fill-yellow-400 mb-4 animate-bounce" />
-                  <h2 className="text-4xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">Excellent!</h2>
-                  <p className={`mt-2 ${theme.text} text-xl font-bold`}>You crushed it.</p>
+                  <h2 className="text-4xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">You did it!</h2>
+                  <p className={`mt-2 ${theme.text} text-xl font-bold`}>Gold Star for you.</p>
               </div>
           </div>
       )}
@@ -259,50 +298,67 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
         {/* --- TIMER SECTION --- */}
         <div className={`${theme.cardBg} border ${theme.cardBorder} p-6 md:p-8 rounded-3xl shadow-xl mb-8 transition-all`}>
             
-            {/* Timer Header + Controls */}
             <div className="flex justify-between items-center mb-6">
-                <h2 className={`font-bold text-lg ${theme.textMuted}`}>Focus Timer</h2>
+                <div className="flex items-center gap-3">
+                     <h2 className={`font-bold text-lg ${theme.textMuted}`}>Focus Timer</h2>
+                     {/* TOGGLE: Time Remaining vs Finish Time */}
+                     <button 
+                        onClick={() => setShowFinishTime(!showFinishTime)}
+                        className={`text-xs px-2 py-1 rounded bg-slate-500/10 hover:bg-slate-500/20 ${theme.text} transition-colors`}
+                     >
+                        {showFinishTime ? "Show Countdown" : "Show Finish Time"}
+                     </button>
+                </div>
                 <button onClick={() => setTimerView(timerView === 'bar' ? 'circle' : 'bar')} className={`p-2 rounded-lg ${theme.inputBg} hover:bg-slate-500/10 transition-colors`} title="Toggle View">
                     <Layout size={20} className={theme.text}/>
                 </button>
             </div>
 
-            {/* VISUAL DISPLAY (Toggleable) */}
+            {/* VISUAL DISPLAY */}
             <div className="flex flex-col items-center justify-center mb-8">
-                {timerView === 'circle' ? (
-                     // CIRCLE MODE
-                     <div className="relative w-64 h-64 flex items-center justify-center">
-                        <svg className="absolute w-full h-full transform -rotate-90">
-                            <circle cx="128" cy="128" r="110" stroke={isDark ? "#1e293b" : "#e2e8f0"} strokeWidth="12" fill="transparent" />
-                            <circle 
-                                cx="128" cy="128" r="110" 
-                                stroke={progressPct > 50 ? '#06b6d4' : '#d946ef'} 
-                                strokeWidth="12" 
-                                fill="transparent" 
-                                strokeDasharray={2 * Math.PI * 110}
-                                strokeDashoffset={(2 * Math.PI * 110) * (1 - (timeLeft / totalTime))}
-                                strokeLinecap="round"
-                                className="transition-all duration-1000 ease-linear"
-                            />
-                        </svg>
-                        <div className={`text-6xl font-mono font-bold ${timerActive ? 'text-amber-500' : theme.text} z-10`}>
-                            {formatTime(timeLeft)}
-                        </div>
-                     </div>
-                ) : (
-                    // PROGRESS BAR MODE
-                    <div className="w-full">
-                        <div className={`text-8xl font-mono font-bold text-center mb-6 ${timerActive ? 'text-amber-500' : theme.text}`}>
-                            {formatTime(timeLeft)}
-                        </div>
-                        <div className={`w-full h-6 ${theme.inputBg} rounded-full overflow-hidden`}>
-                            <div className={`h-full ${barColor} transition-all duration-1000 ease-linear`} style={{ width: `${progressPct}%` }}></div>
+                {showFinishTime ? (
+                    <div className="text-center animate-in fade-in">
+                        <span className={`text-sm uppercase tracking-widest ${theme.textMuted}`}>Finish By</span>
+                        <div className={`text-6xl font-mono font-bold ${theme.text} mt-2`}>
+                            {getFinishTime()}
                         </div>
                     </div>
+                ) : (
+                    <>
+                        {timerView === 'circle' ? (
+                             <div className="relative w-64 h-64 flex items-center justify-center">
+                                <svg className="absolute w-full h-full transform -rotate-90">
+                                    <circle cx="128" cy="128" r="110" stroke={isDark ? "#1e293b" : "#e2e8f0"} strokeWidth="12" fill="transparent" />
+                                    <circle 
+                                        cx="128" cy="128" r="110" 
+                                        stroke={progressPct > 50 ? '#06b6d4' : '#d946ef'} 
+                                        strokeWidth="12" 
+                                        fill="transparent" 
+                                        strokeDasharray={2 * Math.PI * 110}
+                                        strokeDashoffset={(2 * Math.PI * 110) * (1 - (timeLeft / totalTime))}
+                                        strokeLinecap="round"
+                                        className="transition-all duration-1000 ease-linear"
+                                    />
+                                </svg>
+                                <div className={`text-6xl font-mono font-bold ${timerActive ? 'text-amber-500' : theme.text} z-10`}>
+                                    {formatTime(timeLeft)}
+                                </div>
+                             </div>
+                        ) : (
+                            <div className="w-full">
+                                <div className={`text-8xl font-mono font-bold text-center mb-6 ${timerActive ? 'text-amber-500' : theme.text}`}>
+                                    {formatTime(timeLeft)}
+                                </div>
+                                <div className={`w-full h-6 ${theme.inputBg} rounded-full overflow-hidden`}>
+                                    <div className={`h-full ${barColor} transition-all duration-1000 ease-linear`} style={{ width: `${progressPct}%` }}></div>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
-            {/* TIMER INPUTS & CONTROLS */}
+            {/* CONTROLS */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-center bg-slate-500/5 p-4 rounded-xl">
                  <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold ${theme.textMuted}`}>Set Minutes:</span>
@@ -359,7 +415,7 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
                 type="text" 
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
-                placeholder="What task should we break down?"
+                placeholder="What task is overwhelming you?"
                 className={`w-full p-5 pr-36 rounded-2xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none shadow-xl text-lg transition-colors placeholder:text-slate-400`}
                 onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
             />
@@ -374,15 +430,27 @@ const NeuroDriver = ({ onBack, isDark }) => { // isDark passed correctly here
         </div>
 
         {/* STEPS LIST */}
-        <div className="space-y-3">
+        <div className="space-y-3 relative">
+            
+            {/* Indecisive Button (Only shows if steps exist and not all done) */}
+            {steps.length > 0 && !steps.every(s => s.done) && (
+                <div className="flex justify-end mb-2">
+                     <button onClick={pickFirstStep} className="text-xs font-bold text-fuchsia-500 hover:text-fuchsia-400 flex items-center gap-1 animate-pulse">
+                        <Pointer size={14}/> Where do I start?
+                     </button>
+                </div>
+            )}
+
             {steps.map((step, index) => (
                 <div 
                     key={index}
                     onClick={() => toggleStep(index)}
-                    className={`group flex items-center p-4 rounded-xl border cursor-pointer transition-all duration-200 select-none ${
+                    className={`group flex items-center p-4 rounded-xl border cursor-pointer transition-all duration-300 select-none ${
                         step.done 
                         ? `${theme.inputBg} border-emerald-500/20 opacity-60` 
-                        : `${theme.cardBg} ${theme.cardBorder} hover:border-cyan-400 shadow-sm hover:shadow-md hover:scale-[1.01]`
+                        : highlightedStep === index 
+                            ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] scale-105'
+                            : `${theme.cardBg} ${theme.cardBorder} hover:border-cyan-400 shadow-sm hover:shadow-md hover:scale-[1.01]`
                     }`}
                 >
                     <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mr-4 transition-colors shrink-0 ${

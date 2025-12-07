@@ -14,7 +14,8 @@ import SocialMap from './SocialMap';
 import EmotionalCockpit from './EmotionalCockpit';
 import TeacherDashboard from './TeacherDashboard';
 import NeuroDriver from './NeuroDriver';
-import VisualSchedule from './VisualSchedule'; // <--- ADDED IMPORT
+import VisualSchedule from './VisualSchedule';
+import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
 import { getTheme, GeminiService } from './utils';
 
 // --- SHARED UI COMPONENTS ---
@@ -171,7 +172,7 @@ const Home = ({ isDark, setIsDark }) => {
       <section id="features" className="relative z-10 py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <FeatureCard to="/neuro" icon={Brain} title="Cognitive Support" description="Neuro-divergent friendly task slicer and focus tools." delay={0} isDark={isDark} />
-          {/* UPDATED: Visual Schedules now links directly to the tool */}
+          {/* UPDATED: Links to /schedule */}
           <FeatureCard to="/schedule" icon={Calendar} title="Visual Schedules" description="Generate clear structured visual timelines." delay={100} isDark={isDark} />
           <FeatureCard to="/cockpit" icon={Heart} title="Emotional Regulation" description="Tips for sensory breaks and emotional check-ins." delay={200} isDark={isDark} />
           <FeatureCard to="/" icon={ShieldCheck} title="Distraction Free" description="Clean, text-based plans without clutter." delay={300} isDark={isDark} />
@@ -226,9 +227,12 @@ export default function App() {
   const navigate = useNavigate();
   const handleExit = () => navigate('/');
 
-  // All components now receive the handleExit function as onBack
   return (
     <div className={`min-h-screen ${getTheme(isDark).bg} ${getTheme(isDark).text} font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200 transition-colors duration-500`}>
+      
+      {/* THE SECRET LISTENER LIVES HERE */}
+      <EasterEgg isDark={isDark} /> 
+
       <div className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${isDark ? 'opacity-100' : 'opacity-30'}`}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
       </div>

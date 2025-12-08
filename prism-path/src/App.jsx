@@ -91,7 +91,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
     
     setLoading(true); setError(''); setGeneratedPlan(null); setShowTrialLimit(false);
     try {
-        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject }, 'accommodation'); 
+        // Use the same backend as Gem but with skipWelcomeMessage flag
+        const response = await GeminiService.generate({ 
+          message: `Student Challenge: ${challenge}. Subject: ${subject}. Please provide differentiation techniques and accommodations.`,
+          prompt: `Student Challenge: ${challenge}. Subject: ${subject}. Please provide differentiation techniques and accommodations.`,
+          isFirstMessage: false, // Never show welcome message
+          hasExistingMessages: false,
+          skipWelcomeMessage: true // Explicit flag to skip welcome
+        }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
         
         // Record the use (skip if dev mode)

@@ -197,36 +197,19 @@ If the user asks for a "file," "document," "worksheet," or "download," format fo
 * **/dyslexia:** Apply the Dyslexia formatting rules (spacing + bionic bolding).
 * **/tts-prep:** Clean text for Text-to-Speech readers (remove sidebars/captions).
 
-# THE FIRST MESSAGE
+# CRITICAL: NEVER SHOW WELCOME MESSAGE
 
-If this is the first interaction, output this welcome message:
+**IMPORTANT:** The welcome message is displayed in the user interface BEFORE the user sends their first message. You should NEVER output the welcome message in your responses. 
 
-Welcome to your Accessible Learning Companion! 🍎
-
-I am here to take the stress out of adapting curriculum for your learner. To give you the best support, I need to understand your child's unique learning profile.
-
-**Please start by choosing one of the options below:**
-
-**Option A: Paste an IEP/504 Summary**
-
-You can paste the "Accommodations" or "Present Levels" section of their IEP here.
-
-*(Privacy Tip: Please remove the child's real name and address before pasting! You can refer to them as "The Student" or use a nickname.)*
-
-**Option B: Tell me about them manually**
-
-If you don't have paperwork handy, just tell me:
-
-1. **Current Grade/Age:**
-2. **Actual Reading Level:** (e.g., "Reads at a 2nd-grade level")
-3. **Specific Challenges:** (e.g., Dyslexia, ADHD, poor working memory, gets overwhelmed by text walls)
-4. **What helps them?** (e.g., Bullet points, bold text, definitions provided first)
-
-Once you provide this, I will lock it in and adapt all future requests to fit these needs!
+If the user has sent you a message, they have already seen the welcome message in the UI. Your job is to:
+1. If they provide student profile information (IEP, grade level, challenges, etc.), acknowledge it ONCE by saying something like: "Thank you! I've saved this profile. I'll use this information to adapt all future content. How can I help you today?" Then wait for their next request.
+2. If they ask for accommodations or help, provide it immediately based on their profile
+3. NEVER repeat the welcome message or ask them to choose between options - they've already seen that
+4. NEVER say "Please start by choosing one of the options below" - that's already been shown in the UI
 
 # CRITICAL: NO REPEATED INTRODUCTIONS
 
-After the first message, NEVER introduce yourself again. Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
+NEVER introduce yourself. Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
 
 # STUDENT PROFILE ACKNOWLEDGMENT
 
@@ -275,11 +258,21 @@ When a student profile is established, you should acknowledge it by saying: "Oka
             }
         }
         
-        // If this is the first message and no profile exists, trigger welcome message
-        // BUT only if there are no existing messages AND no profile exists (to prevent looping)
-        // If a profile exists, never show the welcome message again
-        if (data.isFirstMessage && !data.studentProfile && !data.hasExistingMessages) {
-            userPrompt = 'This is the first message. Please provide the welcome message and ask for student profile information.';
+        // CRITICAL: NEVER show welcome message if user has already sent a message
+        // The welcome message should ONLY be shown in the UI, never by the AI after user interaction
+        // If isFirstMessage is true here, it means the user hasn't sent a message yet (shouldn't happen in normal flow)
+        // But if it does, we still don't want the AI to return the welcome message - it's already shown in the UI
+        
+        // Check if this looks like profile information (first user message)
+        const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'accommodation', 'present levels'];
+        const looksLikeProfile = profileKeywords.some(keyword => userPrompt.toLowerCase().includes(keyword));
+        
+        // If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly
+        if (data.skipWelcomeMessage) {
+          // For Instant AI Accommodations - just process the request directly without any profile/welcome logic
+          // The user prompt already contains the challenge and subject, so we can use it as-is
+          // Add instruction to provide differentiation techniques immediately
+          userPrompt = `The user is requesting differentiation techniques and accommodations. Provide immediate, actionable suggestions based on the challenge and subject provided. Do NOT show any welcome message or ask for profile information - just provide the accommodations.\n\n${userPrompt}`;
         } else if (data.studentProfile) {
             // If student profile exists, include it in the context with name
             const profileText = typeof data.studentProfile === 'object' 
@@ -291,6 +284,10 @@ When a student profile is established, you should acknowledge it by saying: "Oka
             } else {
                 userPrompt = `Student Profile:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
             }
+        } else if (looksLikeProfile && !data.hasExistingMessages) {
+            // This appears to be the first message with profile information
+            // Add explicit instruction to process it as profile data
+            userPrompt = `The user is providing student profile information for the first time. Please process this information and acknowledge that you've saved their profile. Then ask how you can help them with accommodations.\n\nUser's profile information: ${userPrompt}`;
         } else if (studentName) {
             // If we have a student name but no profile yet, mention it in the prompt
             userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;

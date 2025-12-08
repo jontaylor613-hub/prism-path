@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, Mic, Camera, X, Sparkles, FileText, Image as ImageIcon, 
   Loader2, Send, Trash2, Wand2, FileUp, Volume2, VolumeX, Plus, 
-  MessageSquare, User, Clock
+  MessageSquare, User, Clock, Printer, Download, ExternalLink
 } from 'lucide-react';
 import { GeminiService, getTheme } from './utils';
 import { ChatHistoryService } from './chatHistory';
@@ -317,22 +317,28 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles([]);
     setLoading(true);
 
+    // CRITICAL: Set isFirstMessage to false IMMEDIATELY when user sends their first message
+    // This prevents the AI from returning the welcome message in a loop
+    const wasFirstMessage = isFirstMessage;
+    if (isFirstMessage) {
+      setIsFirstMessage(false);
+    }
+
     try {
       // Check if this looks like profile information (first message or contains profile keywords)
       const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
-      const isProfileInfo = isFirstMessage || profileKeywords.some(keyword => 
+      const isProfileInfo = wasFirstMessage || profileKeywords.some(keyword => 
         currentInput.toLowerCase().includes(keyword)
       );
 
-      if (isProfileInfo && isFirstMessage) {
+      if (isProfileInfo && wasFirstMessage) {
         // Store profile information
         setStudentProfile(currentInput);
-        setIsFirstMessage(false);
       }
 
       // Build prompt with full context
-      // Only treat as first message if there are no messages AND no profile exists
-      const isActuallyFirstMessage = messages.length === 0 && !studentProfile;
+      // NEVER treat as first message if user has already sent a message (messages.length > 0 after adding user message)
+      const isActuallyFirstMessage = false; // User has already sent a message, so this is NOT the first message
       
       let promptData = {
         message: currentInput,
@@ -354,10 +360,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      // Only set isFirstMessage to false if it was actually the first message
-      if (isActuallyFirstMessage) {
-        setIsFirstMessage(false);
-      }
+      // isFirstMessage is already set to false above when user sends their first message
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
@@ -373,6 +376,112 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
 
   const removeFile = (id) => {
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Get the last assistant message (differentiated work)
+  const getLastDifferentiatedWork = () => {
+    const assistantMessages = messages.filter(msg => msg.role === 'assistant');
+    return assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1] : null;
+  };
+
+  // Export functions
+  const handlePrint = () => {
+    const lastWork = getLastDifferentiatedWork();
+    if (!lastWork) return;
+    
+    // Create a new window with printable content
+    const printWindow = window.open('', '_blank');
+    const content = lastWork.content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
+      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>')
+      .replace(/\n/g, '<br>');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Differentiated Work - Print</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+            h1 { color: #06b6d4; margin-top: 30px; }
+            h2 { color: #06b6d4; margin-top: 25px; }
+            h3 { color: #06b6d4; margin-top: 20px; }
+            strong { color: #06b6d4; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <h1>Differentiated Work</h1>
+          <div>${content}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
+
+  const handleSavePDF = () => {
+    // Use print functionality - browser will handle PDF save
+    handlePrint();
+  };
+
+  const handleExportToGoogleDocs = () => {
+    const lastWork = getLastDifferentiatedWork();
+    if (!lastWork) return;
+    
+    // Format content as HTML for better Google Docs import
+    const htmlContent = lastWork.content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
+      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+    
+    const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Differentiated Work</title>
+</head>
+<body>
+  <h1>Differentiated Work</h1>
+  <div>${htmlContent}</div>
+</body>
+</html>`;
+    
+    // Create HTML blob
+    const blob = new Blob([fullHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link to download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'differentiated-work.html';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    // Open Google Docs
+    const googleDocsUrl = 'https://docs.google.com/document/create';
+    window.open(googleDocsUrl, '_blank');
+    
+    // Show instructions
+    setTimeout(() => {
+      alert('Instructions:\n\n1. A file "differentiated-work.html" has been downloaded\n2. Google Docs has been opened in a new tab\n3. In Google Docs: File → Open → Upload → Select the downloaded HTML file\n4. The content will be imported into your Google Doc');
+    }, 500);
   };
 
   return (
@@ -551,6 +660,42 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
               <p className={`${theme.text} mt-6 font-medium`}>
                 Once you provide this, I will lock it in and adapt all future requests to fit these needs!
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Export buttons - show when there's differentiated work */}
+        {getLastDifferentiatedWork() && (
+          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
+            <div className="flex items-center gap-2">
+              <Sparkles className="text-cyan-400" size={18} />
+              <span className={`text-sm font-medium ${theme.text}`}>Export Differentiated Work</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePrint}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                title="Print"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              <button
+                onClick={handleSavePDF}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                title="Save as PDF"
+              >
+                <Download size={16} />
+                PDF
+              </button>
+              <button
+                onClick={handleExportToGoogleDocs}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                title="Export to Google Docs"
+              >
+                <ExternalLink size={16} />
+                Google Docs
+              </button>
             </div>
           </div>
         )}

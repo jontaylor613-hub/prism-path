@@ -329,7 +329,9 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         prompt: currentInput,
         files: currentFiles,
         studentProfile: studentProfile,
-        isFirstMessage: isFirstMessage && messages.length === 0
+        isFirstMessage: isFirstMessage && messages.length === 0,
+        hasExistingMessages: messages.length > 0,
+        selectedStudent: selectedStudent // Pass selected student info for name extraction
       };
 
       // Generate accommodation response using the full Gem prompt

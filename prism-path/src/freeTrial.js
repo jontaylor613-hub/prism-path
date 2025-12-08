@@ -1,6 +1,8 @@
 // Free Trial Management for Accommodations
 // Tracks usage in localStorage (can be upgraded to Firebase later)
 
+import { DevModeService } from './devMode';
+
 const FREE_TRIAL_KEY = 'prismpath_free_trial_uses';
 const FREE_TRIAL_LIMIT = 2; // Number of free accommodations
 
@@ -8,6 +10,11 @@ export const FreeTrialService = {
   // Get remaining free uses
   getRemainingUses: () => {
     try {
+      // Check for developer mode - unlimited access
+      if (DevModeService.isActive()) {
+        return 999999; // Unlimited in dev mode
+      }
+      
       const used = parseInt(localStorage.getItem(FREE_TRIAL_KEY) || '0');
       return Math.max(0, FREE_TRIAL_LIMIT - used);
     } catch {
@@ -17,6 +24,14 @@ export const FreeTrialService = {
 
   // Check if user has free uses remaining
   hasFreeUses: () => {
+    try {
+      // Check for developer mode - unlimited access
+      if (DevModeService.isActive()) {
+        return true;
+      }
+    } catch {
+      // DevModeService might not be available, continue with normal check
+    }
     return FreeTrialService.getRemainingUses() > 0;
   },
 

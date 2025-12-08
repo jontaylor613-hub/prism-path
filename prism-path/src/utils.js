@@ -224,7 +224,11 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
 
 # CRITICAL: NO REPEATED INTRODUCTIONS
 
-After the first message, NEVER introduce yourself again. Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.`;
+After the first message, NEVER introduce yourself again. Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
+
+# STUDENT PROFILE ACKNOWLEDGMENT
+
+When a student profile is established, you should acknowledge it by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.`;
 
         // Build user prompt with context
         let promptText = '';
@@ -252,9 +256,41 @@ After the first message, NEVER introduce yourself again. Do NOT say "I am the Ac
         
         userPrompt = promptText;
         
+        // Extract student name from selectedStudent if available
+        let studentName = null;
+        if (data.selectedStudent && data.selectedStudent.name) {
+            studentName = data.selectedStudent.name;
+        } else if (data.studentProfile) {
+            // Try to extract name from profile
+            if (typeof data.studentProfile === 'object' && data.studentProfile.name) {
+                studentName = data.studentProfile.name;
+            } else if (typeof data.studentProfile === 'string') {
+                const nameMatch = data.studentProfile.match(/Student:\s*([^\n]+)/i) || 
+                                 data.studentProfile.match(/Name:\s*([^\n]+)/i);
+                if (nameMatch) {
+                    studentName = nameMatch[1].trim();
+                }
+            }
+        }
+        
         // If this is the first message and no profile exists, trigger welcome message
-        if (data.isFirstMessage && !data.studentProfile) {
+        // BUT only if there are no existing messages (to prevent looping)
+        if (data.isFirstMessage && !data.studentProfile && !data.hasExistingMessages) {
             userPrompt = 'This is the first message. Please provide the welcome message and ask for student profile information.';
+        } else if (data.studentProfile) {
+            // If student profile exists, include it in the context with name
+            const profileText = typeof data.studentProfile === 'object' 
+                ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                : data.studentProfile;
+            
+            if (studentName) {
+                userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
+            } else {
+                userPrompt = `Student Profile:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
+            }
+        } else if (studentName) {
+            // If we have a student name but no profile yet, mention it in the prompt
+            userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;
         }
     }
     else if (type === 'behavior') {

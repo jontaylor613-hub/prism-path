@@ -333,7 +333,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [chatHistories, setChatHistories] = useState([]);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editStudentData, setEditStudentData] = useState({});
-  const [sortBy, setSortBy] = useState('name'); // 'name', 'iep', '504'
+  const [sortBy, setSortBy] = useState('iep'); // Default to sorting by IEP due date
   
   // Track demo mode student additions (localStorage, not saved)
   const getDemoStudentCount = () => {
@@ -457,7 +457,10 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     : null;
   const activeGoal = goals.find(g => g.id === activeGoalId);
 
-  // Load goals when student changes
+  // State for student summary
+  const [studentSummary, setStudentSummary] = useState('');
+
+  // Load goals and summary when student changes
   useEffect(() => {
     const loadStudentData = async () => {
       if (!activeStudent || !user?.uid) return;
@@ -467,15 +470,28 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         if (activeStudent.id && typeof activeStudent.id === 'string') {
           const studentGoals = await getStudentGoals(activeStudent.id, user.uid);
           setGoals(studentGoals);
+          
+          // Load IEP summary for student summary display
+          const iepSummary = await getIepSummary(activeStudent.id, user.uid);
+          if (iepSummary) {
+            setStudentSummary(iepSummary);
+          } else {
+            // If no IEP summary, check if there's a summary in activeStudent
+            setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
+          }
+        } else {
+          // For demo/local students, use their summary if available
+          setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
         }
       } catch (error) {
         console.error('Error loading student data:', error);
+        setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
       }
     };
     
     loadStudentData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStudent?.id, user?.uid]);
+  }, [activeStudent?.id, user?.uid, activeStudent]);
 
   // Load chat histories
   useEffect(() => {
@@ -743,7 +759,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
   const handleGenerateEmail = async () => {
     setIsGenerating(true);
-    let prompt = { student: activeStudent?.name, topic: emailTopic };
+    // Clear previous email to allow regeneration
+    setGeneratedEmail('');
+    
+    // Ensure student name is included - use activeStudent name or fallback
+    const studentName = activeStudent?.name || 'the student';
+    let prompt = { student: studentName, topic: emailTopic };
     if (emailTopic === 'Solicit Feedback') {
         const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
         prompt = { ...prompt, feedbackAreas: areas };
@@ -929,7 +950,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                    <BarChart3 className="text-cyan-400"/> Student Summary
                  </h3>
                  <p className={`${theme.textMuted} leading-relaxed text-sm whitespace-pre-wrap`}>
-                   {activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.'}
+                   {studentSummary || activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.'}
                  </p>
                </Card>
                
@@ -1011,9 +1032,30 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                    {emailTopic === 'Solicit Feedback' && (
                        <div className={`${theme.inputBg} p-3 rounded border ${theme.cardBorder} space-y-2`}><p className={`text-xs font-bold ${theme.textMuted} uppercase`}>Ask about:</p>{['behavior', 'social', 'academic', 'independence'].map(area => (<label key={area} className={`flex items-center gap-2 text-sm ${theme.textMuted} cursor-pointer hover:${theme.text}`}><input type="checkbox" checked={feedbackAreas[area]} onChange={e => setFeedbackAreas({...feedbackAreas, [area]: e.target.checked})} className="accent-cyan-500"/>{area.charAt(0).toUpperCase() + area.slice(1)} at Home</label>))}</div>
                    )}
-                   <Button onClick={handleGenerateEmail} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Drafting..." : "Generate Email Draft"}</Button>
+                   <Button onClick={handleGenerateEmail} disabled={isGenerating} className="w-full" icon={isGenerating ? Loader2 : Wand2} theme={theme}>
+                     {isGenerating ? (
+                       <span className="flex items-center gap-2">
+                         <Loader2 className="animate-spin" size={16} />
+                         Drafting...
+                       </span>
+                     ) : "Generate Email Draft"}
+                   </Button>
                 </div>
-                {generatedEmail && (<div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}><div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div><Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="w-full" icon={Copy} theme={theme}>Copy to Clipboard</Button></div>)}
+                {isGenerating && (
+                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder} flex items-center justify-center py-4`}>
+                    <Loader2 className="animate-spin text-cyan-400" size={24} />
+                    <span className={`ml-2 ${theme.textMuted}`}>Generating email...</span>
+                  </div>
+                )}
+                {generatedEmail && !isGenerating && (
+                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
+                    <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div>
+                    <div className="flex gap-2">
+                      <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy to Clipboard</Button>
+                      <Button onClick={handleGenerateEmail} variant="secondary" className="flex-1" icon={Wand2} theme={theme}>Regenerate</Button>
+                    </div>
+                  </div>
+                )}
               </Card>
             </div>
           </div>

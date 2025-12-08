@@ -19,6 +19,11 @@ export const ROLES = {
 // Create new user account with role assignment
 export const signUp = async (email, password, userData) => {
   try {
+    // Validate Firebase auth is properly configured
+    if (!auth) {
+      throw new Error('Firebase Authentication is not properly configured. Please check your Firebase settings.');
+    }
+    
     // Create auth account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -44,13 +49,33 @@ export const signUp = async (email, password, userData) => {
 
     return { user, userDoc };
   } catch (error) {
-    throw new Error(error.message);
+    // Provide more helpful error messages for common Firebase errors
+    let errorMessage = error.message;
+    
+    if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
+      errorMessage = 'Firebase configuration error. Please ensure all Firebase environment variables are set correctly.';
+    } else if (error.code === 'auth/email-already-in-use') {
+      errorMessage = 'This email is already registered. Please sign in instead.';
+    } else if (error.code === 'auth/weak-password') {
+      errorMessage = 'Password is too weak. Please use at least 6 characters.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'Invalid email address. Please check your email format.';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMessage = 'Network error. Please check your internet connection.';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 
 // Sign in existing user
 export const signIn = async (email, password) => {
   try {
+    // Validate Firebase auth is properly configured
+    if (!auth) {
+      throw new Error('Firebase Authentication is not properly configured. Please check your Firebase settings.');
+    }
+    
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
@@ -61,7 +86,24 @@ export const signIn = async (email, password) => {
 
     return userCredential;
   } catch (error) {
-    throw new Error(error.message);
+    // Provide more helpful error messages for common Firebase errors
+    let errorMessage = error.message;
+    
+    if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
+      errorMessage = 'Firebase configuration error. Please ensure all Firebase environment variables are set correctly.';
+    } else if (error.code === 'auth/user-not-found') {
+      errorMessage = 'No account found with this email. Please sign up first.';
+    } else if (error.code === 'auth/wrong-password') {
+      errorMessage = 'Incorrect password. Please try again.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'Invalid email address. Please check your email format.';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMessage = 'Network error. Please check your internet connection.';
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMessage = 'Too many failed attempts. Please try again later.';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 

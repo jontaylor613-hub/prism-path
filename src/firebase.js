@@ -1,5 +1,5 @@
 // Firebase Configuration and FERPA-Compliant Setup
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
@@ -15,8 +15,41 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "your-app-id"
 };
 
+// Validate Firebase configuration
+const isConfigValid = () => {
+  const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+  const placeholderValues = ['your-api-key', 'your-project.firebaseapp.com', 'your-project-id', 'your-project.appspot.com', '123456789', 'your-app-id'];
+  
+  for (const field of requiredFields) {
+    const value = firebaseConfig[field];
+    if (!value || placeholderValues.includes(value)) {
+      console.error(`Firebase configuration error: ${field} is missing or using placeholder value`);
+      return false;
+    }
+  }
+  return true;
+};
+
+// Check if we're in development and should show config errors
+if (import.meta.env.DEV && !isConfigValid()) {
+  console.warn('⚠️ Firebase configuration appears incomplete. Please check your environment variables.');
+  console.warn('Required variables: VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID');
+}
+
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app;
+try {
+  // Check if Firebase app already exists
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    app = existingApps[0];
+  } else {
+    app = initializeApp(firebaseConfig);
+  }
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  throw new Error(`Firebase initialization failed: ${error.message}. Please check your Firebase configuration.`);
+}
 
 // Initialize services
 export const auth = getAuth(app);

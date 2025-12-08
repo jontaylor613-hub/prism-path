@@ -9,7 +9,7 @@ import {
 import { GeminiService, getTheme } from './utils';
 import { ChatHistoryService } from './chatHistory';
 
-export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null }) {
+export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, onFirstUse = null }) {
   const theme = getTheme(isDark);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -23,12 +23,45 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const [deletedChats, setDeletedChats] = useState([]);
   const [showRecovery, setShowRecovery] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [gapiLoaded, setGapiLoaded] = useState(false);
   
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recognitionRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Load Google Drive Picker API
+  useEffect(() => {
+    const loadGoogleDrivePicker = () => {
+      if (window.gapi && window.gapi.load) {
+        window.gapi.load('picker', () => {
+          setGapiLoaded(true);
+        });
+      } else {
+        // Wait for script to load from index.html
+        const checkGapi = setInterval(() => {
+          if (window.gapi && window.gapi.load) {
+            clearInterval(checkGapi);
+            window.gapi.load('picker', () => {
+              setGapiLoaded(true);
+            });
+          }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkGapi);
+          if (!gapiLoaded) {
+            console.warn('Google Picker API failed to load');
+          }
+        }, 5000);
+      }
+    };
+    
+    // Small delay to ensure script is loaded
+    setTimeout(loadGoogleDrivePicker, 500);
+  }, []);
 
   // Load chat histories on mount
   useEffect(() => {
@@ -38,47 +71,25 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setDeletedChats(deleted);
   }, []);
 
-  // Auto-load selected student data when provided
-  useEffect(() => {
-    if (selectedStudent && selectedStudent.profileText) {
-      setStudentProfile(selectedStudent.profileText);
-      setIsFirstMessage(false);
-      // Generate chat ID from student name
-      const chatId = ChatHistoryService.generateChatId(selectedStudent.name || selectedStudent.profileText);
-      setCurrentChatId(chatId);
-      
-      // Load existing chat if available
-      const existingChat = ChatHistoryService.get(chatId);
-      if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
-        setMessages(existingChat.messages);
-      }
-    }
-  }, [selectedStudent]);
-
   // Save messages when they change
   useEffect(() => {
-    if (messages.length > 0 && studentProfile) {
-      // Use student name for chat ID if available
+    if (messages.length > 0) {
+      // Generate chat ID from profile or use generic one
       let chatId = currentChatId;
       if (!chatId) {
-        if (selectedStudent && selectedStudent.name) {
-          chatId = ChatHistoryService.generateChatId(selectedStudent.name);
-        } else {
+        if (studentProfile) {
           chatId = ChatHistoryService.generateChatId(studentProfile);
+        } else {
+          chatId = ChatHistoryService.generateChatId('accommodation-chat-' + Date.now());
         }
       }
       setCurrentChatId(chatId);
       
-      // Create profile object with name for better labeling
-      const profileForSave = selectedStudent && selectedStudent.name 
-        ? { name: selectedStudent.name, profileText: studentProfile }
-        : studentProfile;
-      
-      ChatHistoryService.save(chatId, profileForSave, messages);
+      ChatHistoryService.save(chatId, studentProfile || 'Accommodation Chat', messages);
       // Refresh histories
       setChatHistories(ChatHistoryService.getAll());
     }
-  }, [messages, studentProfile, selectedStudent]);
+  }, [messages, studentProfile]);
 
   // Load a chat history
   const loadChat = (chatId) => {
@@ -105,7 +116,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   // Delete a chat
   const deleteChat = (chatId, e) => {
     e.stopPropagation();
-    if (confirm('Delete this learner profile and chat history?')) {
+    if (confirm('Delete this chat history?')) {
       ChatHistoryService.delete(chatId);
       setChatHistories(ChatHistoryService.getAll());
       setDeletedChats(ChatHistoryService.getDeletedChats());
@@ -130,26 +141,21 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const getProfileSummary = (profile) => {
     if (!profile) return 'New Chat';
     
-    // If profile is an object with name, use the name
-    if (typeof profile === 'object' && profile.name) {
-      return profile.name;
-    }
-    
     if (typeof profile === 'string') {
-      // Try to extract student name first (format: "Student: Name")
-      const nameMatch = profile.match(/Student:\s*([^\n]+)/i);
-      if (nameMatch) {
-        return nameMatch[1].trim();
-      }
-      
-      // Extract key info from profile text
+      // Try to extract key info from profile text
       const gradeMatch = profile.match(/(\d+)(?:st|nd|rd|th)?\s*grade/i);
       const challengeMatch = profile.match(/(dyslexia|adhd|autism|dysgraphia|processing)/i);
       const grade = gradeMatch ? gradeMatch[0] : '';
       const challenge = challengeMatch ? challengeMatch[0] : '';
-      return grade && challenge ? `${grade} - ${challenge}` : profile.substring(0, 30);
+      if (grade && challenge) {
+        return `${grade} - ${challenge}`;
+      }
+      if (profile.length > 30) {
+        return profile.substring(0, 30) + '...';
+      }
+      return profile;
     }
-    return 'Learner Profile';
+    return 'Accommodation Chat';
   };
 
   // Initialize speech recognition
@@ -389,12 +395,18 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       }
 
       // Build prompt with full context including conversation history
+      // CRITICAL: Set isFirstMessage to false when user sends a message to prevent welcome message loops
+      const wasFirstMessage = isFirstMessage;
+      if (isFirstMessage) {
+        setIsFirstMessage(false);
+      }
+
       let promptData = {
         message: currentInput,
         prompt: currentInput,
         files: currentFiles,
         studentProfile: studentProfile,
-        isFirstMessage: isFirstMessage && messages.length === 0,
+        isFirstMessage: false, // Always false when user sends a message - prevents welcome loops
         conversationHistory: messages, // Pass existing conversation history so AI knows what was said before
         isFileAnalysisRequest: isFileAnalysisRequest // Flag to indicate this is a document analysis request
       };
@@ -409,7 +421,6 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      setIsFirstMessage(false);
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
@@ -427,7 +438,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  // Export to Google Docs using Google Docs API
+  // Export to Google Docs using clipboard and direct link
   const handleExportToGoogleDocs = async () => {
     // Get the last AI message (accommodations)
     const lastAIMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
@@ -436,76 +447,98 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       return;
     }
 
-    // Format content - convert markdown to HTML for better Google Docs import
-    let content = lastAIMessage.content;
-    
-    // Convert markdown to HTML
-    let htmlContent = content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>') // Italic
-      .replace(/^### (.*$)/gm, '<h3>$1</h3>') // H3
-      .replace(/^## (.*$)/gm, '<h2>$1</h2>') // H2
-      .replace(/^# (.*$)/gm, '<h1>$1</h1>') // H1
-      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>') // Numbered lists
-      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>') // Bullet points
-      .replace(/\n\n/g, '</p><p>') // Paragraphs
-      .replace(/\n/g, '<br>'); // Line breaks
-
-    const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Accommodations</title>
-</head>
-<body>
-  <h1>Accommodations</h1>
-  <div>${htmlContent}</div>
-</body>
-</html>`;
-
     try {
-      // Create HTML blob
-      const blob = new Blob([fullHtml], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
+      // Copy content to clipboard
+      const content = lastAIMessage.content;
+      await navigator.clipboard.writeText(content);
       
-      // Create a temporary link to download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'accommodations.html';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      // Open Google Docs
+      // Open Google Docs in a new tab
       const googleDocsUrl = 'https://docs.google.com/document/create';
-      window.open(googleDocsUrl, '_blank');
+      const docsWindow = window.open(googleDocsUrl, '_blank');
       
       // Show instructions
       setTimeout(() => {
-        alert('Instructions:\n\n1. A file "accommodations.html" has been downloaded\n2. Google Docs has been opened in a new tab\n3. In Google Docs: File → Open → Upload → Select the downloaded HTML file\n4. The content will be imported into your Google Doc');
+        alert('Content copied to clipboard!\n\n1. Google Docs has been opened in a new tab\n2. Paste the content (Ctrl+V or Cmd+V) into the new document\n3. The accommodations are ready to use!');
       }, 500);
     } catch (error) {
       console.error('Export error:', error);
-      // Fallback: copy to clipboard
-      navigator.clipboard.writeText(content).then(() => {
-        window.open('https://docs.google.com/document/create', '_blank');
-        alert('Content copied to clipboard! Paste it into the new Google Doc that just opened.');
-      });
+      // Fallback: just open Google Docs
+      window.open('https://docs.google.com/document/create', '_blank');
+      alert('Please copy the accommodations text above and paste it into the new Google Doc.');
     }
   };
 
-  // Import from Google Drive
-  const handleImportFromGoogleDrive = () => {
-    // Open Google Drive in a new window with instructions
-    const driveUrl = 'https://drive.google.com/drive/my-drive';
-    const driveWindow = window.open(driveUrl, '_blank', 'width=1000,height=700');
-    
-    // Show helpful instructions
-    setTimeout(() => {
-      const instructions = `To import a file from Google Drive:\n\n1. In the Google Drive window that just opened, find and select your file\n2. Click the three dots menu (⋮) on the file\n3. Select "Download" to download the file\n4. Come back here and use the "Upload Document" button (📄) to upload the downloaded file\n\nAlternatively, you can drag and drop the downloaded file directly into this chat area.`;
-      alert(instructions);
-    }, 1000);
+  // Import from Google Drive using Picker API
+  const handleImportFromGoogleDrive = async () => {
+    try {
+      if (!gapiLoaded || !window.gapi || !window.google) {
+        // Fallback: open Google Drive and provide instructions
+        const driveUrl = 'https://drive.google.com/drive/my-drive';
+        window.open(driveUrl, '_blank');
+        alert('To import from Google Drive:\n\n1. In the Google Drive window, find your file\n2. Right-click the file → Download\n3. Come back here and use the Upload Document button (📄) to upload the downloaded file\n\nAlternatively, you can drag and drop the downloaded file directly into this chat area.');
+        return;
+      }
+
+      // Create and show a picker dialog for Google Drive
+      const picker = new window.google.picker.PickerBuilder()
+        .addView(window.google.picker.ViewId.DOCS)
+        .addView(window.google.picker.ViewId.DOCUMENTS)
+        .addView(window.google.picker.ViewId.PRESENTATIONS)
+        .addView(window.google.picker.ViewId.SPREADSHEETS)
+        .addView(window.google.picker.ViewId.PDFS)
+        .setCallback((data) => {
+          if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.PICKED) {
+            const file = data[window.google.picker.Response.DOCUMENTS][0];
+            const fileId = file.id;
+            const fileName = file.name;
+            
+            // Download file from Google Drive
+            if (fileId) {
+              // Determine file type and export URL
+              let exportUrl;
+              if (file.mimeType && file.mimeType.includes('document')) {
+                exportUrl = `https://docs.google.com/document/d/${fileId}/export?format=pdf`;
+              } else if (file.mimeType && file.mimeType.includes('spreadsheet')) {
+                exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=pdf`;
+              } else if (file.mimeType && file.mimeType.includes('presentation')) {
+                exportUrl = `https://docs.google.com/presentation/d/${fileId}/export?format=pdf`;
+              } else {
+                // For PDFs and other files, try direct download
+                exportUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+              }
+              
+              // Try to fetch the file
+              fetch(exportUrl)
+                .then(response => {
+                  if (!response.ok) throw new Error('Download failed');
+                  return response.blob();
+                })
+                .then(blob => {
+                  const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'pdf';
+                  const mimeType = blob.type || 'application/pdf';
+                  const file = new File([blob], fileName || `drive-file.${fileExtension}`, { type: mimeType });
+                  const fakeEvent = { target: { files: [file] } };
+                  handleFileUpload(fakeEvent, 'document');
+                })
+                .catch(error => {
+                  console.error('Error downloading from Drive:', error);
+                  // Fallback: open the file in a new tab and let user download manually
+                  window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+                  alert('Please download the file from Google Drive and upload it here using the Upload Document button.');
+                });
+            }
+          }
+        })
+        .build();
+      
+      picker.setVisible(true);
+    } catch (error) {
+      console.error('Google Drive Picker error:', error);
+      // Fallback to manual method
+      const driveUrl = 'https://drive.google.com/drive/my-drive';
+      window.open(driveUrl, '_blank');
+      alert('Please download the file from Google Drive and upload it here using the Upload Document button.');
+    }
   };
 
   return (
@@ -515,7 +548,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         <div className={`p-4 border-b ${theme.cardBorder} flex items-center justify-between`}>
           <h3 className={`font-bold ${theme.text} flex items-center gap-2`}>
             <MessageSquare size={18} className="text-cyan-400" />
-            Learner Profiles
+            Chat History
           </h3>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -530,7 +563,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
             className={`w-full mb-2 px-3 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium ${theme.text}`}
           >
             <Plus size={16} className="text-cyan-400" />
-            New Profile
+            New Chat
           </button>
           {chatHistories.map((chat) => (
             <div
@@ -570,7 +603,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
             <div className={`text-center py-8 ${theme.textMuted} text-sm`}>
               <User size={32} className="mx-auto mb-2 opacity-50" />
               <p>No profiles yet</p>
-              <p className="text-xs mt-1">Create your first learner profile</p>
+              <p className="text-xs mt-1">Start a new conversation</p>
             </div>
           )}
           

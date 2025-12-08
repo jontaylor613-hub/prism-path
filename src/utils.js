@@ -300,38 +300,47 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
 
 3. **After the first message, NEVER introduce yourself again.** Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
 
-4. **When a student profile is established**, acknowledge it ONCE by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.
+4. **CRITICAL: NEVER say "I've logged the student profile" or similar logging messages.** The user interface handles profile storage. Your job is to provide accommodations, not to confirm logging.
 
-5. **CRITICAL: Document Analysis Requests** - When a user uploads a document (PDF, image, etc.) and asks you to analyze it, your task is to:
-   - Analyze the document content
+5. **CRITICAL: Document Analysis Requests** - When a user uploads a document (PDF, image, etc.) and asks you to analyze it:
+   - IMMEDIATELY analyze the document content
    - Provide specific accommodations and differentiation techniques based on the document
    - Do NOT treat document uploads as profile setup requests
-   - Do NOT respond with "Okay, I've logged the student profile" when analyzing documents
+   - Do NOT say "I've logged" or "I've saved" anything - just provide the accommodations
    - Start immediately with your analysis and accommodation recommendations
-   - If a student profile exists, use it to inform your accommodations, but don't re-log the profile
+   - If a student profile exists, use it to inform your accommodations silently (don't mention it)
+   - Focus on: content differentiation, process differentiation, and product differentiation
 
 6. **CRITICAL: Demo Requests** - When you see "skipWelcomeMessage" flag or "This is a demo request" in the user prompt:
    - Do NOT log this as a learner profile
    - Do NOT show welcome messages
    - Do NOT ask for profile information
+   - Do NOT say "I've logged" anything
    - Provide accommodations immediately based on the challenge and subject provided
-   - This is a one-time demo, not a profile setup`;
+   - Start directly with specific accommodation strategies
+   - This is a one-time demo, not a profile setup
+
+7. **NO LOOPS**: If you see the same request repeated, provide a different angle or ask a clarifying question. Never repeat the exact same response.
+
+8. **QUALITY RESPONSES**: Always provide specific, actionable accommodations. Use the If/Then Strategy Matrix. Apply UDL principles. Give concrete examples, not vague suggestions.`;
 
         // Build user prompt with context and conversation history
         let promptText = '';
         
-        // Add conversation history if available
+        // Add conversation history if available (limit to last 10 messages to prevent token bloat)
         if (data.conversationHistory && data.conversationHistory.length > 0) {
-            promptText += '---\nCONVERSATION HISTORY:\n';
-            data.conversationHistory.forEach(msg => {
-                promptText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n\n`;
+            const recentHistory = data.conversationHistory.slice(-10);
+            promptText += '---\nRECENT CONVERSATION HISTORY:\n';
+            recentHistory.forEach(msg => {
+                const content = msg.content.length > 500 ? msg.content.substring(0, 500) + '...' : msg.content;
+                promptText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${content}\n\n`;
             });
             promptText += '---\nCURRENT REQUEST:\n';
         }
         
-        // Add student profile context if it exists
+        // Add student profile context if it exists (silently, don't make AI mention it)
         if (data.studentProfile) {
-            promptText += `\n---\nESTABLISHED STUDENT PROFILE:\n${data.studentProfile}\n---\n\n`;
+            promptText += `\n[Background context - use this to inform accommodations but DO NOT mention logging or saving]: ${data.studentProfile}\n\n`;
         }
         
         // Build the actual user request
@@ -343,56 +352,72 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
             promptText += data.message || '';
         }
         
-        // Add file context if provided
+        // Add file context if provided - THIS IS CRITICAL FOR DOCUMENT ANALYSIS
         if (data.files && data.files.length > 0) {
-            promptText += '\n\n---\nUPLOADED DOCUMENT(S) TO ANALYZE:\n';
+            promptText += '\n\n---\nUPLOADED DOCUMENT(S) TO ANALYZE AND DIFFERENTIATE:\n';
             data.files.forEach(file => {
                 if (file.type === 'text' && file.content) {
-                    promptText += `\n${file.name}:\n${file.content.substring(0, 5000)}`;
+                    const textContent = file.content.length > 10000 ? file.content.substring(0, 10000) + '\n[Content truncated - showing first 10k chars]' : file.content;
+                    promptText += `\n\n${file.name} (Text Document):\n${textContent}`;
                 } else if (file.type === 'image') {
-                    promptText += `\n${file.name} (image of student work - analyze and provide accommodations)`;
+                    promptText += `\n\n${file.name} (Image - analyze visual content and provide accommodations)`;
                 } else if (file.type === 'pdf') {
-                    // For PDFs, if content was extracted, include it (up to 50k chars for better analysis)
+                    // For PDFs, if content was extracted, include it (up to 100k chars for comprehensive analysis)
                     if (file.content) {
-                        const pdfContent = file.content.length > 50000 ? file.content.substring(0, 50000) + '\n[Content truncated - document is very long]' : file.content;
-                        promptText += `\n${file.name} (PDF document):\n${pdfContent}`;
+                        const pdfContent = file.content.length > 100000 ? file.content.substring(0, 100000) + '\n[Content truncated - document is very long, showing first 100k chars]' : file.content;
+                        promptText += `\n\n${file.name} (PDF Document):\n${pdfContent}`;
                     } else {
-                        promptText += `\n${file.name} (PDF document - analyze this document and provide accommodations)`;
+                        promptText += `\n\n${file.name} (PDF document - analyze this document and provide accommodations)`;
+                    }
+                } else if (file.type === 'word') {
+                    if (file.content) {
+                        const wordContent = file.content.length > 10000 ? file.content.substring(0, 10000) + '\n[Content truncated]' : file.content;
+                        promptText += `\n\n${file.name} (Word Document):\n${wordContent}`;
+                    } else {
+                        promptText += `\n\n${file.name} (Word document - analyze and provide accommodations)`;
                     }
                 } else {
-                    promptText += `\n${file.name} (${file.type} file - analyze and provide accommodations)`;
+                    promptText += `\n\n${file.name} (${file.type} file - analyze and provide accommodations)`;
                 }
             });
-            promptText += '\n---\n\nCRITICAL: The user has uploaded a document for analysis. Your task is to:\n1. Analyze the document content\n2. Provide specific accommodations and differentiation techniques\n3. Do NOT treat this as profile setup - this is a document analysis request\n4. If a student profile exists, use it to inform your accommodations\n5. Start immediately with the analysis and accommodations - no profile logging or confirmations';
+            promptText += '\n\n---\n\nCRITICAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:\n';
+            promptText += '1. IMMEDIATELY analyze the document content above\n';
+            promptText += '2. Provide specific accommodations using the If/Then Strategy Matrix\n';
+            promptText += '3. Apply Presentation, Process, and Product differentiation\n';
+            promptText += '4. Give concrete examples from the document\n';
+            promptText += '5. Do NOT say "I\'ve logged" or "I\'ve saved" anything\n';
+            promptText += '6. Do NOT ask for profile information - just provide accommodations\n';
+            promptText += '7. Start immediately with: "Here are accommodations for this document:"\n';
+            promptText += '8. If a student profile exists in context, use it silently to inform your accommodations\n';
         }
         
         userPrompt = promptText;
         
-        // If this is a file analysis request, ensure the prompt emphasizes analysis, not profile logging
+        // If this is a file analysis request, add extra emphasis
         if (data.isFileAnalysisRequest) {
-          userPrompt = `The user has uploaded a document for analysis. Analyze the document content and provide specific accommodations and differentiation techniques. Do NOT log this as a profile or ask for additional information. Start immediately with your analysis and accommodation recommendations.
+          userPrompt = `DOCUMENT ANALYSIS REQUEST - START IMMEDIATELY WITH ACCOMMODATIONS:
 
-${userPrompt}`;
+${userPrompt}
+
+Remember: No profile logging, no confirmations, just immediate accommodation strategies based on the document content.`;
         }
         // If skipWelcomeMessage flag is set (for front page Instant AI Accommodations)
-        // Skip all profile/welcome logic and provide accommodations immediately
         else if (data.skipWelcomeMessage) {
-          userPrompt = `CRITICAL: This is a demo request from the home page. Do NOT log this as a learner profile. Do NOT show any welcome message, profile logging, or ask for additional information. 
-
-Provide immediate, actionable differentiation techniques and accommodations. Start directly with specific accommodation strategies based on the challenge and subject provided.
+          userPrompt = `IMMEDIATE ACCOMMODATION REQUEST - NO PROFILE LOGGING:
 
 Challenge: ${data.targetBehavior || 'Not specified'}
 Subject: ${data.condition || 'Not specified'}
 
-Provide:
-1. Specific differentiation techniques
-2. Accommodation strategies  
-3. Implementation suggestions
+Provide immediate, actionable differentiation techniques and accommodations. Start directly with specific accommodation strategies. Do NOT mention logging, saving, or profile creation. Just provide the accommodations.
 
-Start immediately with the accommodations - no introductions, confirmations, or profile logging. This is a demo request and should NOT create or log a learner profile.`;
+Structure your response:
+1. **Presentation Accommodations** (how to present the content)
+2. **Process Accommodations** (how to structure the learning process)
+3. **Product Accommodations** (alternative ways to demonstrate learning)
+
+Be specific and actionable. Use the If/Then Strategy Matrix.`;
         }
-        // If this is the first message and no profile exists, explicitly request welcome
-        // Only if user hasn't already provided profile information
+        // If this is the first message and no profile exists, check if user provided info
         else if (data.isFirstMessage && !data.studentProfile) {
             const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia'];
             const hasProfileInfo = data.message && profileKeywords.some(keyword => 
@@ -406,28 +431,33 @@ Start immediately with the accommodations - no introductions, confirmations, or 
         }
     }
     else if (type === 'behavior') {
-        systemInstruction = `You are an expert BCBA. Constraint: No intro. Start response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
-        userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
+        systemInstruction = `You are an expert BCBA. Constraint: No intro. No outro. Start response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]". Provide specific, actionable recommendations based on the behavior log data.`;
+        const studentName = data.student || data.targetBehavior || 'Student';
+        userPrompt = `Analyze these behavior logs: ${JSON.stringify(data.logs || [])}. Target Behavior: ${data.targetBehavior || 'General'}. Student: ${studentName}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are a helpful buddy for a student. Break the task into 5-7 tiny, easy steps. Use simple words. No intro. No outro. Just the list.";
-        userPrompt = `Task: ${data.task}`;
+        systemInstruction = "You are a helpful buddy for a student. Break the task into 5-7 tiny, easy steps. Use simple words. No intro. No outro. Just the numbered list. Each step should be actionable and clear.";
+        userPrompt = `Task: ${data.task || ''}`;
     }
     else if (type === 'email') {
-        systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown.";
-        userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${data.student} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${data.student} regarding ${data.topic}.`;
+        systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown. No intro. Just the email.";
+        const studentName = data.student || 'the student';
+        userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${studentName} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${studentName} regarding ${data.topic || 'their child'}.`;
     } 
     else if (type === 'goal') {
-        systemInstruction = "Write a SMART IEP goal. No markdown.";
-        userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition}. Behavior: ${data.behavior}.`;
+        systemInstruction = "Write a SMART IEP goal. No markdown. No intro. Just the goal statement.";
+        const studentName = data.student || 'Student';
+        const grade = data.grade || 'Not specified';
+        userPrompt = `Student: ${studentName}, Grade: ${grade}. Condition: ${data.condition || 'Not specified'}. Behavior: ${data.behavior || 'Not specified'}.`;
     } 
     else if (type === 'plaafp') {
-        systemInstruction = "Write a PLAAFP statement. No markdown.";
-        userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
+        systemInstruction = "Write a PLAAFP (Present Levels of Academic Achievement and Functional Performance) statement. No markdown. No intro. Just the PLAAFP statement.";
+        const studentName = data.student || 'Student';
+        userPrompt = `Student: ${studentName}. Strengths: ${data.strengths || 'Not specified'}. Needs: ${data.needs || 'Not specified'}. Impact: ${data.impact || 'Not specified'}.`;
     }
     else if (type === 'resume') {
-        systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown.";
-        userPrompt = `Rewrite this ${data.section}: "${data.text}"`;
+        systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown. No intro. Just the improved text.";
+        userPrompt = `Rewrite this ${data.section || 'section'}: "${data.text || data.textToImprove || ''}"`;
     }
 
     if (!userPrompt.trim()) return "Error: Prompt content cannot be empty.";

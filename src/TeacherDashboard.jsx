@@ -1102,7 +1102,6 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                   user={user} 
                   onBack={() => setActiveTab('profile')} 
                   isEmbedded={true}
-                  selectedStudent={selectedStudentForGem}
                 />
             </div>
         )}

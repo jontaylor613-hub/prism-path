@@ -18,9 +18,11 @@ export default async function handler(req, res) {
 
   // 3. Parse Input
   let prompt = "";
+  let files = [];
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     prompt = body.prompt;
+    files = body.files || [];
     
     // Validate prompt exists and is not empty
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
@@ -35,6 +37,41 @@ export default async function handler(req, res) {
     // Try models in order: 2.0-exp (newest), then 1.5-flash (reliable fallback)
     const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
     
+    // Build parts array - start with text prompt
+    const parts = [{ text: prompt }];
+    
+    // Add file parts if provided (for multimodal support)
+    if (files && files.length > 0) {
+      for (const file of files) {
+        if (file.type === 'image' && file.data) {
+          // Handle base64 image data
+          // Remove data URL prefix if present
+          let imageData = file.data;
+          let mimeType = 'image/jpeg';
+          
+          if (imageData.startsWith('data:')) {
+            const parts = imageData.split(',');
+            const header = parts[0];
+            imageData = parts[1];
+            
+            // Extract mime type from data URL
+            const mimeMatch = header.match(/data:([^;]+)/);
+            if (mimeMatch) {
+              mimeType = mimeMatch[1];
+            }
+          }
+          
+          parts.push({
+            inline_data: {
+              mime_type: mimeType,
+              data: imageData
+            }
+          });
+        }
+        // PDF and other text content is already included in the prompt text
+      }
+    }
+    
     for (const model of models) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -43,7 +80,7 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
+            contents: [{ parts: parts }]
           })
         });
 

@@ -21,6 +21,7 @@ import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
+import { onAuthChange } from './auth';
 
 // --- SHARED UI COMPONENTS ---
 const Disclaimer = ({ isDark }) => (
@@ -91,7 +92,13 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
     
     setLoading(true); setError(''); setGeneratedPlan(null); setShowTrialLimit(false);
     try {
-        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject, skipWelcomeMessage: true }, 'accommodation'); 
+        // CRITICAL: skipWelcomeMessage flag ensures no profile logging, just immediate accommodations
+        const response = await GeminiService.generate({ 
+          targetBehavior: challenge, 
+          condition: subject, 
+          skipWelcomeMessage: true,
+          isFirstMessage: false // Prevent welcome message
+        }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
         
         // Record the use (skip if dev mode)
@@ -279,13 +286,21 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 };
 
 // --- GEM ROUTE COMPONENT (with IP tracking) ---
-function GemRoute({ isDark, devModeActive, onExit }) {
+// This handles both: logged-in users (from TeacherDashboard) and trial users (from home page)
+function GemRoute({ isDark, devModeActive, onExit, user = null }) {
   const [canUse, setCanUse] = useState(null); // null = checking, true/false = result
   const [hasUsed, setHasUsed] = useState(false);
   const theme = getTheme(isDark);
+  const location = useLocation();
 
   useEffect(() => {
     const checkUsage = async () => {
+      // If user is logged in (from TeacherDashboard), they have full access
+      if (currentUser && currentUser.uid) {
+        setCanUse(true);
+        return;
+      }
+
       // Dev mode bypasses all restrictions
       if (devModeActive) {
         setCanUse(true);
@@ -304,16 +319,19 @@ function GemRoute({ isDark, devModeActive, onExit }) {
     };
     
     checkUsage();
-  }, [devModeActive]);
+  }, [devModeActive, currentUser]);
 
   // Track usage when GEM is actually used (when user sends first message)
   const handleGemUse = async () => {
+    // Don't track if user is logged in (they have unlimited access)
+    if (currentUser && currentUser.uid) {
+      return;
+    }
+    
     if (!devModeActive && canUse) {
       await GemUsageTracker.recordUsage();
       setCanUse(false); // Prevent further use on future visits
       setHasUsed(true);
-      // Note: User can complete their current session (profile + differentiated work)
-      // but will be blocked on subsequent visits due to IP tracking
     }
   };
 
@@ -329,13 +347,13 @@ function GemRoute({ isDark, devModeActive, onExit }) {
     );
   }
 
-  if (devModeActive) {
-    // Dev mode - full access
+  // Logged-in users and dev mode get full access
+  if ((currentUser && currentUser.uid) || devModeActive) {
     return (
       <div className="relative z-[150] min-h-screen">
         <AccommodationGem 
           isDark={isDark} 
-          user={{ uid: 'dev', name: 'Dev User', role: 'admin' }}
+          user={currentUser || { uid: 'dev', name: 'Dev User', role: 'admin' }}
           onBack={onExit} 
         />
       </div>
@@ -466,7 +484,7 @@ export default function App() {
         } />
 
         <Route path="/gem" element={
-          <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} />
+          <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} user={null} />
         } />
       </Routes>
     </div>

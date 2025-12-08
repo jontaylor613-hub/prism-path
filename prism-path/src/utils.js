@@ -225,16 +225,39 @@ When a student profile is established, you should acknowledge it by saying: "Oka
             promptText = data.message || 'Please help me with accommodations.';
         }
         
-        // Add file context if provided
-        if (data.files && data.files.length > 0) {
-            promptText += '\n\nUploaded files:';
+        // CRITICAL: Check for file uploads FIRST - files mean content analysis, NOT profile creation
+        const hasFiles = data.files && data.files.length > 0;
+        const isFileAnalysisRequest = hasFiles || 
+            promptText.toLowerCase().includes('uploaded') ||
+            promptText.toLowerCase().includes('analyze') ||
+            promptText.toLowerCase().includes('document');
+        
+        // Add file context if provided - THIS IS FOR CONTENT ANALYSIS
+        if (hasFiles) {
+            promptText += '\n\n---\nUPLOADED DOCUMENT(S) TO ANALYZE AND DIFFERENTIATE:\n';
             data.files.forEach(file => {
                 if (file.type === 'text' && file.content) {
-                    promptText += `\n- ${file.name}: ${file.content.substring(0, 2000)}`;
+                    const textContent = file.content.length > 10000 ? file.content.substring(0, 10000) + '\n[Content truncated - showing first 10k chars]' : file.content;
+                    promptText += `\n\n${file.name} (Text Document):\n${textContent}`;
                 } else if (file.type === 'image') {
-                    promptText += `\n- ${file.name} (image of student work)`;
+                    promptText += `\n\n${file.name} (Image - analyze visual content and provide accommodations)`;
+                } else if (file.type === 'pdf') {
+                    // For PDFs, if content was extracted, include it (up to 100k chars for comprehensive analysis)
+                    if (file.content) {
+                        const pdfContent = file.content.length > 100000 ? file.content.substring(0, 100000) + '\n[Content truncated - document is very long, showing first 100k chars]' : file.content;
+                        promptText += `\n\n${file.name} (PDF Document):\n${pdfContent}`;
+                    } else {
+                        promptText += `\n\n${file.name} (PDF document - analyze this document and provide accommodations)`;
+                    }
+                } else if (file.type === 'word') {
+                    if (file.content) {
+                        const wordContent = file.content.length > 10000 ? file.content.substring(0, 10000) + '\n[Content truncated]' : file.content;
+                        promptText += `\n\n${file.name} (Word Document):\n${wordContent}`;
+                    } else {
+                        promptText += `\n\n${file.name} (Word document - analyze this document and provide accommodations)`;
+                    }
                 } else {
-                    promptText += `\n- ${file.name} (${file.type} file)`;
+                    promptText += `\n\n${file.name} (${file.type} file - analyze and provide accommodations)`;
                 }
             });
         }
@@ -263,17 +286,34 @@ When a student profile is established, you should acknowledge it by saying: "Oka
         // If isFirstMessage is true here, it means the user hasn't sent a message yet (shouldn't happen in normal flow)
         // But if it does, we still don't want the AI to return the welcome message - it's already shown in the UI
         
-        // Check if this looks like profile information (first user message)
-        const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'accommodation', 'present levels'];
-        const looksLikeProfile = profileKeywords.some(keyword => userPrompt.toLowerCase().includes(keyword));
-        
-        // If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly
-        if (data.skipWelcomeMessage) {
+        // PRIORITY 1: If files are present, this is a CONTENT ANALYSIS request, NOT a profile request
+        if (isFileAnalysisRequest) {
+            // This is a content analysis request - analyze the uploaded content and provide accommodations
+            // If a profile exists, use it for context, but the primary task is analyzing the content
+            if (data.studentProfile) {
+                const profileText = typeof data.studentProfile === 'object' 
+                    ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                    : data.studentProfile;
+                
+                if (studentName) {
+                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations based on the student's profile.\n\n${userPrompt}`;
+                } else {
+                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations based on the student's profile.\n\n${userPrompt}`;
+                }
+            } else {
+                // No profile yet, but user wants to analyze content - analyze it and provide general accommodations
+                userPrompt = `CONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations. If you need student profile information to provide better accommodations, you can ask for it after providing initial analysis.\n\n${userPrompt}`;
+            }
+        }
+        // PRIORITY 2: If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly
+        else if (data.skipWelcomeMessage) {
           // For Instant AI Accommodations - just process the request directly without any profile/welcome logic
           // The user prompt already contains the challenge and subject, so we can use it as-is
           // Add instruction to provide differentiation techniques immediately
           userPrompt = `The user is requesting differentiation techniques and accommodations. Provide immediate, actionable suggestions based on the challenge and subject provided. Do NOT show any welcome message or ask for profile information - just provide the accommodations.\n\n${userPrompt}`;
-        } else if (data.studentProfile) {
+        } 
+        // PRIORITY 3: If student profile exists, include it in context
+        else if (data.studentProfile) {
             // If student profile exists, include it in the context with name
             const profileText = typeof data.studentProfile === 'object' 
                 ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
@@ -284,10 +324,20 @@ When a student profile is established, you should acknowledge it by saying: "Oka
             } else {
                 userPrompt = `Student Profile:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
             }
-        } else if (looksLikeProfile && !data.hasExistingMessages) {
-            // This appears to be the first message with profile information
-            // Add explicit instruction to process it as profile data
-            userPrompt = `The user is providing student profile information for the first time. Please process this information and acknowledge that you've saved their profile. Then ask how you can help them with accommodations.\n\nUser's profile information: ${userPrompt}`;
+        } 
+        // PRIORITY 4: Check if this looks like profile information (only if no files and no existing messages)
+        else if (!data.hasExistingMessages) {
+            const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'accommodation', 'present levels'];
+            const looksLikeProfile = profileKeywords.some(keyword => userPrompt.toLowerCase().includes(keyword));
+            
+            if (looksLikeProfile) {
+                // This appears to be the first message with profile information
+                // Add explicit instruction to process it as profile data
+                userPrompt = `The user is providing student profile information for the first time. Please process this information and acknowledge that you've saved their profile. Then ask how you can help them with accommodations.\n\nUser's profile information: ${userPrompt}`;
+            } else if (studentName) {
+                // If we have a student name but no profile yet, mention it in the prompt
+                userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;
+            }
         } else if (studentName) {
             // If we have a student name but no profile yet, mention it in the prompt
             userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;

@@ -23,12 +23,44 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const [deletedChats, setDeletedChats] = useState([]);
   const [showRecovery, setShowRecovery] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [googleToken, setGoogleToken] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [gapiLoaded, setGapiLoaded] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recognitionRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Load Google APIs
+  useEffect(() => {
+    const loadGoogleAPIs = () => {
+      // Load Google Picker API
+      if (window.gapi && window.gapi.load) {
+        window.gapi.load('picker', () => {
+          setGapiLoaded(true);
+        });
+      } else {
+        // Wait for script to load
+        const checkGapi = setInterval(() => {
+          if (window.gapi && window.gapi.load) {
+            clearInterval(checkGapi);
+            window.gapi.load('picker', () => {
+              setGapiLoaded(true);
+            });
+          }
+        }, 100);
+        
+        setTimeout(() => {
+          clearInterval(checkGapi);
+        }, 5000);
+      }
+    };
+    
+    setTimeout(loadGoogleAPIs, 500);
+  }, []);
 
   // Load chat histories on mount
   useEffect(() => {
@@ -325,15 +357,26 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     }
 
     try {
-      // Check if this looks like profile information (first message or contains profile keywords)
-      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
-      const isProfileInfo = wasFirstMessage || profileKeywords.some(keyword => 
-        currentInput.toLowerCase().includes(keyword)
-      );
+      // CRITICAL: Check if this is a file upload/analysis request FIRST
+      // Files mean content analysis, NOT profile creation
+      const hasFileUpload = currentFiles.length > 0;
+      const isFileAnalysisRequest = hasFileUpload || 
+        currentInput.toLowerCase().includes('uploaded') || 
+        currentInput.toLowerCase().includes('analyze') ||
+        currentInput.toLowerCase().includes('document') ||
+        currentInput.toLowerCase().includes('pdf');
+      
+      // Only check for profile info if this is NOT a file analysis request
+      if (!isFileAnalysisRequest) {
+        const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
+        const isProfileInfo = wasFirstMessage && profileKeywords.some(keyword => 
+          currentInput.toLowerCase().includes(keyword)
+        );
 
-      if (isProfileInfo && wasFirstMessage) {
-        // Store profile information
-        setStudentProfile(currentInput);
+        if (isProfileInfo && wasFirstMessage && !studentProfile) {
+          // Store profile information
+          setStudentProfile(currentInput);
+        }
       }
 
       // Build prompt with full context
@@ -433,55 +476,196 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     handlePrint();
   };
 
-  const handleExportToGoogleDocs = () => {
+  // Google OAuth2 authentication
+  const authenticateGoogle = async () => {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.accounts) {
+        reject(new Error('Google API not loaded. Please refresh the page.'));
+        return;
+      }
+
+      window.google.accounts.oauth2.initTokenClient({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+        scope: 'https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file',
+        callback: (response) => {
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            setGoogleToken(response.access_token);
+            resolve(response.access_token);
+          }
+        },
+      }).requestAccessToken();
+    });
+  };
+
+  // Export to Google Docs using proper API
+  const handleExportToGoogleDocs = async () => {
     const lastWork = getLastDifferentiatedWork();
-    if (!lastWork) return;
+    if (!lastWork) {
+      alert('No differentiated work to export. Please generate accommodations first.');
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      // Get or request Google OAuth token
+      let token = googleToken;
+      if (!token) {
+        try {
+          token = await authenticateGoogle();
+        } catch (authError) {
+          console.error('Authentication error:', authError);
+          // Fallback: Use clipboard method if OAuth fails
+          await navigator.clipboard.writeText(lastWork.content);
+          window.open('https://docs.google.com/document/create', '_blank');
+          alert('Content copied to clipboard! Google Docs opened. Paste (Ctrl+V) to create your document.\n\nNote: For automatic document creation, please allow Google authentication when prompted.');
+          setIsExporting(false);
+          return;
+        }
+      }
+
+      // Call backend API to create Google Doc
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiUrl}/google-docs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: lastWork.content,
+          title: `Differentiated Work - ${new Date().toLocaleDateString()}`,
+          accessToken: token
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create Google Doc');
+      }
+
+      // Open the created document
+      if (data.documentUrl) {
+        window.open(data.documentUrl, '_blank');
+        alert('✅ Google Doc created successfully! Opening in new tab...');
+      } else {
+        throw new Error('Document URL not returned');
+      }
+
+    } catch (error) {
+      console.error('Export error:', error);
+      
+      // Fallback: Copy to clipboard and open Google Docs
+      try {
+        await navigator.clipboard.writeText(lastWork.content);
+        window.open('https://docs.google.com/document/create', '_blank');
+        alert('Content copied to clipboard! Google Docs opened. Paste (Ctrl+V) to create your document.\n\nError: ' + error.message);
+      } catch (clipboardError) {
+        alert('Failed to export. Error: ' + error.message + '\n\nPlease copy the content manually and paste it into Google Docs.');
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Import from Google Drive using Picker API
+  const handleImportFromGoogleDrive = async () => {
+    setIsImporting(true);
     
-    // Format content as HTML for better Google Docs import
-    const htmlContent = lastWork.content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
-      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
-      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>');
-    
-    const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Differentiated Work</title>
-</head>
-<body>
-  <h1>Differentiated Work</h1>
-  <div>${htmlContent}</div>
-</body>
-</html>`;
-    
-    // Create HTML blob
-    const blob = new Blob([fullHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    
-    // Create a temporary link to download
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'differentiated-work.html';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    // Open Google Docs
-    const googleDocsUrl = 'https://docs.google.com/document/create';
-    window.open(googleDocsUrl, '_blank');
-    
-    // Show instructions
-    setTimeout(() => {
-      alert('Instructions:\n\n1. A file "differentiated-work.html" has been downloaded\n2. Google Docs has been opened in a new tab\n3. In Google Docs: File → Open → Upload → Select the downloaded HTML file\n4. The content will be imported into your Google Doc');
-    }, 500);
+    try {
+      // Get or request Google OAuth token for Drive access
+      let token = googleToken;
+      if (!token) {
+        try {
+          token = await authenticateGoogle();
+        } catch (authError) {
+          console.error('Authentication error:', authError);
+          // Fallback: open Google Drive
+          window.open('https://drive.google.com/drive/my-drive', '_blank');
+          alert('Please authenticate with Google to import files directly.\n\nAlternatively, you can:\n1. Download the file from Google Drive\n2. Use the Upload Document button (📄) to upload it here');
+          setIsImporting(false);
+          return;
+        }
+      }
+
+      if (!gapiLoaded || !window.gapi || !window.google) {
+        // Fallback: open Google Drive
+        window.open('https://drive.google.com/drive/my-drive', '_blank');
+        alert('Google Picker API not loaded. Please refresh the page.\n\nAlternatively, you can:\n1. Download the file from Google Drive\n2. Use the Upload Document button (📄) to upload it here');
+        setIsImporting(false);
+        return;
+      }
+
+      // Create and show a picker dialog for Google Drive
+      const picker = new window.google.picker.PickerBuilder()
+        .addView(window.google.picker.ViewId.DOCS)
+        .addView(window.google.picker.ViewId.DOCUMENTS)
+        .addView(window.google.picker.ViewId.PRESENTATIONS)
+        .addView(window.google.picker.ViewId.SPREADSHEETS)
+        .addView(window.google.picker.ViewId.PDFS)
+        .setOAuthToken(token)
+        .setCallback((data) => {
+          setIsImporting(false);
+          
+          if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.PICKED) {
+            const file = data[window.google.picker.Response.DOCUMENTS][0];
+            const fileId = file.id;
+            const fileName = file.name;
+            
+            if (fileId) {
+              // Determine file type and export URL
+              let exportUrl;
+              if (file.mimeType && file.mimeType.includes('document')) {
+                exportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
+              } else if (file.mimeType && file.mimeType.includes('spreadsheet')) {
+                exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
+              } else if (file.mimeType && file.mimeType.includes('presentation')) {
+                exportUrl = `https://docs.google.com/presentation/d/${fileId}/export?format=txt`;
+              } else {
+                // For PDFs and other files, try direct download
+                exportUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+              }
+              
+              // Try to fetch the file
+              fetch(exportUrl, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              })
+                .then(response => {
+                  if (!response.ok) throw new Error('Download failed');
+                  return response.blob();
+                })
+                .then(blob => {
+                  const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'txt';
+                  const mimeType = blob.type || 'text/plain';
+                  const file = new File([blob], fileName || `drive-file.${fileExtension}`, { type: mimeType });
+                  const fakeEvent = { target: { files: [file] } };
+                  handleFileUpload(fakeEvent, 'document');
+                })
+                .catch(error => {
+                  console.error('Error downloading from Drive:', error);
+                  // Fallback: open the file in a new tab
+                  window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+                  alert('Please download the file from Google Drive and upload it here using the Upload Document button.');
+                });
+            }
+          } else if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.CANCEL) {
+            setIsImporting(false);
+          }
+        })
+        .build();
+      
+      picker.setVisible(true);
+    } catch (error) {
+      console.error('Google Drive Picker error:', error);
+      setIsImporting(false);
+      // Fallback to manual method
+      window.open('https://drive.google.com/drive/my-drive', '_blank');
+      alert('Error accessing Google Drive. Please download the file manually and upload it here using the Upload Document button.');
+    }
   };
 
   return (
@@ -664,14 +848,35 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           </div>
         )}
 
-        {/* Export buttons - show when there's differentiated work */}
-        {getLastDifferentiatedWork() && (
-          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
-            <div className="flex items-center gap-2">
-              <Sparkles className="text-cyan-400" size={18} />
-              <span className={`text-sm font-medium ${theme.text}`}>Export Differentiated Work</span>
-            </div>
-            <div className="flex gap-2">
+        {/* Import/Export buttons */}
+        <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-cyan-400" size={18} />
+            <span className={`text-sm font-medium ${theme.text}`}>
+              {getLastDifferentiatedWork() ? 'Export Differentiated Work' : 'Import from Google Drive'}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleImportFromGoogleDrive}
+              disabled={isImporting}
+              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-green-500/10 hover:border-green-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+              title="Import from Google Drive"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <FileUp size={16} />
+                  Import from Drive
+                </>
+              )}
+            </button>
+            {getLastDifferentiatedWork() && (
+              <>
               <button
                 onClick={handlePrint}
                 className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
@@ -688,17 +893,44 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                 <Download size={16} />
                 PDF
               </button>
-              <button
-                onClick={handleExportToGoogleDocs}
-                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
-                title="Export to Google Docs"
-              >
-                <ExternalLink size={16} />
-                Google Docs
-              </button>
-            </div>
+                <button
+                  onClick={handlePrint}
+                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                  title="Print"
+                >
+                  <Printer size={16} />
+                  Print
+                </button>
+                <button
+                  onClick={handleSavePDF}
+                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                  title="Save as PDF"
+                >
+                  <Download size={16} />
+                  PDF
+                </button>
+                <button
+                  onClick={handleExportToGoogleDocs}
+                  disabled={isExporting}
+                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title="Export to Google Docs"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink size={16} />
+                      Google Docs
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Messages */}
         <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6 mb-6 min-h-[400px] max-h-[600px] overflow-y-auto`}>

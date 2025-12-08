@@ -274,7 +274,8 @@ When a student profile is established, you should acknowledge it by saying: "Oka
         }
         
         // If this is the first message and no profile exists, trigger welcome message
-        // BUT only if there are no existing messages (to prevent looping)
+        // BUT only if there are no existing messages AND no profile exists (to prevent looping)
+        // If a profile exists, never show the welcome message again
         if (data.isFirstMessage && !data.studentProfile && !data.hasExistingMessages) {
             userPrompt = 'This is the first message. Please provide the welcome message and ask for student profile information.';
         } else if (data.studentProfile) {
@@ -312,6 +313,10 @@ When a student profile is established, you should acknowledge it by saying: "Oka
     else if (type === 'plaafp') {
         systemInstruction = "Write a PLAAFP statement. No markdown.";
         userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
+    }
+    else if (type === 'impact') {
+        systemInstruction = "You are a Special Education expert. Write a clear, concise statement describing the impact of the student's disability on their educational performance. Focus on how the identified needs affect their ability to access the curriculum. No markdown.";
+        userPrompt = `Student: ${data.student}. Strengths: ${data.strengths || 'Not specified'}. Needs: ${data.needs || 'Not specified'}. Generate the impact of disability statement based on these strengths and needs.`;
     }
     else if (type === 'resume') {
         systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown.";

@@ -24,6 +24,7 @@ import {
   updateStudent
 } from './studentData';
 import { ChatHistoryService } from './chatHistory';
+import { DevModeService } from './devMode';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -539,9 +540,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       
       // If no user or demo mode, add to local state (demo mode - limit 1)
+      // BUT allow unlimited in developer mode
       if (!user?.uid || user?.isDemo) {
-        // Check demo limit
-        if (user?.isDemo && getDemoStudentCount() >= 1) {
+        // Check demo limit (skip if developer mode is active)
+        const isDevMode = DevModeService.isActive();
+        if (user?.isDemo && !isDevMode && getDemoStudentCount() >= 1) {
           alert('Demo mode limit reached. You can only add 1 student in demo mode. Please create an account for full access.');
           return;
         }
@@ -750,28 +753,63 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     setTimeout(() => { setIsUploading(false); alert(`Successfully processed ${file.name}.`); }, 2000);
   };
   
+  const handleGenerateImpact = async () => {
+    if (!plaafpInputs.strengths && !plaafpInputs.needs) {
+      alert('Please enter strengths and/or needs before generating impact.');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const result = await GeminiService.generate({ 
+        strengths: plaafpInputs.strengths, 
+        needs: plaafpInputs.needs,
+        student: activeStudent?.name || 'Student'
+      }, 'impact');
+      setPlaafpInputs({ ...plaafpInputs, impact: result });
+    } catch (error) {
+      console.error('Error generating impact:', error);
+      alert('Error generating impact. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGeneratePlaafp = async () => {
     setIsGenerating(true);
-    const result = await GeminiService.generate({ ...plaafpInputs, student: activeStudent?.name || 'Student' }, 'plaafp');
-    setPlaafpResult(result);
-    setIsGenerating(false);
+    try {
+      const result = await GeminiService.generate({ ...plaafpInputs, student: activeStudent?.name || 'Student' }, 'plaafp');
+      setPlaafpResult(result);
+    } catch (error) {
+      console.error('Error generating PLAAFP:', error);
+      setPlaafpResult('Error generating PLAAFP. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   const handleGenerateEmail = async () => {
+    if (isGenerating) return; // Prevent multiple simultaneous generations
+    
     setIsGenerating(true);
     // Clear previous email to allow regeneration
     setGeneratedEmail('');
     
-    // Ensure student name is included - use activeStudent name or fallback
-    const studentName = activeStudent?.name || 'the student';
-    let prompt = { student: studentName, topic: emailTopic };
-    if (emailTopic === 'Solicit Feedback') {
-        const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
-        prompt = { ...prompt, feedbackAreas: areas };
+    try {
+      // Ensure student name is included - use activeStudent name or fallback
+      const studentName = activeStudent?.name || 'the student';
+      let prompt = { student: studentName, topic: emailTopic };
+      if (emailTopic === 'Solicit Feedback') {
+          const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+          prompt = { ...prompt, feedbackAreas: areas };
+      }
+      const result = await GeminiService.generate(prompt, 'email');
+      setGeneratedEmail(result);
+    } catch (error) {
+      console.error('Error generating email:', error);
+      setGeneratedEmail('Error generating email. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
-    const result = await GeminiService.generate(prompt, 'email');
-    setGeneratedEmail(result);
-    setIsGenerating(false);
   };
 
   const handleGenerateGoal = async () => {
@@ -1052,6 +1090,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                     <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div>
                     <div className="flex gap-2">
                       <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy to Clipboard</Button>
+                      <Button onClick={() => setGeneratedEmail('')} variant="secondary" className="flex-1" icon={X} theme={theme}>Clear</Button>
                       <Button onClick={handleGenerateEmail} variant="secondary" className="flex-1" icon={Wand2} theme={theme}>Regenerate</Button>
                     </div>
                   </div>
@@ -1075,7 +1114,15 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                  <div className="space-y-4">
                    <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Student Strengths</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} /></div>
                    <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Key Needs/Deficits</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Impact of Disability</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} /></div>
+                   <div>
+                     <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Impact of Disability</label>
+                     <div className="flex gap-2">
+                       <textarea className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} />
+                       <Button onClick={handleGenerateImpact} disabled={isGenerating || (!plaafpInputs.strengths && !plaafpInputs.needs)} className="self-start" icon={Wand2} theme={theme} title="Generate impact based on strengths and needs">
+                         {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                       </Button>
+                     </div>
+                   </div>
                    <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Compiling..." : "Generate Narrative"}</Button>
                  </div>
               </Card>
@@ -1283,9 +1330,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             <td className={`p-4 ${theme.textMuted}`}>{student.need || student.primaryNeed || 'N/A'}</td>
                             <td className="p-4">
                               {student.nextIep || student.nextIepDate ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.nextIep || student.nextIepDate}</span>
-                                  <Badge color={getBadgeColor(iepStatus.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.nextIep || student.nextIepDate}</span>
+                                  <Badge color={getBadgeColor(iepStatus.text)} isDark={isDark} className="w-fit">
                                     {iepStatus.text}
                                   </Badge>
                                 </div>
@@ -1295,9 +1342,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             </td>
                             <td className="p-4">
                               {student.next504 || student.next504Date ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.next504 || student.next504Date}</span>
-                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.next504 || student.next504Date}</span>
+                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark} className="w-fit">
                                     {plan504Status.text}
                                   </Badge>
                                 </div>
@@ -1307,9 +1354,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             </td>
                             <td className="p-4">
                               {student.nextEval || student.nextEvalDate ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.nextEval || student.nextEvalDate}</span>
-                                  <Badge color={getBadgeColor(evalStatus.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.nextEval || student.nextEvalDate}</span>
+                                  <Badge color={getBadgeColor(evalStatus.text)} isDark={isDark} className="w-fit">
                                     {evalStatus.text}
                                   </Badge>
                                 </div>

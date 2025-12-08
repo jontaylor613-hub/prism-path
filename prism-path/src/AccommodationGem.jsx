@@ -51,7 +51,14 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       const existingChat = ChatHistoryService.get(chatId);
       if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
         setMessages(existingChat.messages);
+        setIsFirstMessage(false); // Ensure first message flag is off when loading existing chat
+      } else {
+        // If no existing chat, still set isFirstMessage to false since we have a profile
+        setIsFirstMessage(false);
       }
+    } else if (selectedStudent === null) {
+      // Reset when no student is selected
+      setIsFirstMessage(true);
     }
   }, [selectedStudent]);
 
@@ -324,12 +331,15 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       }
 
       // Build prompt with full context
+      // Only treat as first message if there are no messages AND no profile exists
+      const isActuallyFirstMessage = messages.length === 0 && !studentProfile;
+      
       let promptData = {
         message: currentInput,
         prompt: currentInput,
         files: currentFiles,
         studentProfile: studentProfile,
-        isFirstMessage: isFirstMessage && messages.length === 0,
+        isFirstMessage: isActuallyFirstMessage,
         hasExistingMessages: messages.length > 0,
         selectedStudent: selectedStudent // Pass selected student info for name extraction
       };
@@ -344,7 +354,10 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      setIsFirstMessage(false);
+      // Only set isFirstMessage to false if it was actually the first message
+      if (isActuallyFirstMessage) {
+        setIsFirstMessage(false);
+      }
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,

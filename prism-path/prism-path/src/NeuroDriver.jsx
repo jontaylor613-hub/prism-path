@@ -501,7 +501,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 type="text" 
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
-                placeholder="What overwhelming task do you need to do?"
+                placeholder="What task do you need help breaking down?"
                 className={`w-full p-5 pr-36 rounded-2xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none shadow-xl text-lg transition-colors placeholder:text-slate-400`}
                 onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
             />

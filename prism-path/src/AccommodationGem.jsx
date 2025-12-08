@@ -366,15 +366,33 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         currentInput.toLowerCase().includes('document') ||
         currentInput.toLowerCase().includes('pdf');
       
+      // Check if previous messages contain files (user might be providing profile info after file upload)
+      const previousMessagesWithFiles = messages.filter(msg => msg.files && msg.files.length > 0);
+      const hasPreviousFiles = previousMessagesWithFiles.length > 0;
+      const previousFiles = hasPreviousFiles ? previousMessagesWithFiles[previousMessagesWithFiles.length - 1].files : [];
+      
+      // Check if this looks like profile information
+      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
+      const looksLikeProfile = profileKeywords.some(keyword => 
+        currentInput.toLowerCase().includes(keyword)
+      );
+      
+      // If this looks like profile info AND there were files in previous messages, 
+      // this is completing an accommodation request, not starting a new profile
+      const isCompletingAccommodationRequest = looksLikeProfile && hasPreviousFiles && !hasFileUpload;
+      
       // Only check for profile info if this is NOT a file analysis request
-      if (!isFileAnalysisRequest) {
-        const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
-        const isProfileInfo = wasFirstMessage && profileKeywords.some(keyword => 
-          currentInput.toLowerCase().includes(keyword)
-        );
+      if (!isFileAnalysisRequest && !isCompletingAccommodationRequest) {
+        const isProfileInfo = wasFirstMessage && looksLikeProfile;
 
         if (isProfileInfo && wasFirstMessage && !studentProfile) {
           // Store profile information
+          setStudentProfile(currentInput);
+        }
+      } else if (isCompletingAccommodationRequest) {
+        // User is providing profile info to complete an accommodation request
+        // Store the profile and include the files from previous message
+        if (!studentProfile) {
           setStudentProfile(currentInput);
         }
       }
@@ -383,13 +401,19 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       // NEVER treat as first message if user has already sent a message (messages.length > 0 after adding user message)
       const isActuallyFirstMessage = false; // User has already sent a message, so this is NOT the first message
       
+      // If completing accommodation request, merge files from previous message
+      const filesToSend = isCompletingAccommodationRequest && previousFiles.length > 0 
+        ? [...previousFiles, ...currentFiles] 
+        : currentFiles;
+      
       let promptData = {
         message: currentInput,
         prompt: currentInput,
-        files: currentFiles,
-        studentProfile: studentProfile,
+        files: filesToSend,
+        studentProfile: isCompletingAccommodationRequest ? (studentProfile || currentInput) : studentProfile,
         isFirstMessage: isActuallyFirstMessage,
         hasExistingMessages: messages.length > 0,
+        isCompletingAccommodationRequest: isCompletingAccommodationRequest, // Flag to indicate this is completing a request
         selectedStudent: selectedStudent // Pass selected student info for name extraction
       };
 
@@ -848,35 +872,16 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           </div>
         )}
 
-        {/* Import/Export buttons */}
-        <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-cyan-400" size={18} />
-            <span className={`text-sm font-medium ${theme.text}`}>
-              {getLastDifferentiatedWork() ? 'Export Differentiated Work' : 'Import from Google Drive'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleImportFromGoogleDrive}
-              disabled={isImporting}
-              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-green-500/10 hover:border-green-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
-              title="Import from Google Drive"
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <FileUp size={16} />
-                  Import from Drive
-                </>
-              )}
-            </button>
-            {getLastDifferentiatedWork() && (
-              <>
+        {/* Export buttons */}
+        {getLastDifferentiatedWork() && (
+          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
+            <div className="flex items-center gap-2">
+              <Sparkles className="text-cyan-400" size={18} />
+              <span className={`text-sm font-medium ${theme.text}`}>
+                Export Differentiated Work
+              </span>
+            </div>
+            <div className="flex gap-2">
               <button
                 onClick={handlePrint}
                 className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
@@ -893,44 +898,27 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                 <Download size={16} />
                 PDF
               </button>
-                <button
-                  onClick={handlePrint}
-                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
-                  title="Print"
-                >
-                  <Printer size={16} />
-                  Print
-                </button>
-                <button
-                  onClick={handleSavePDF}
-                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
-                  title="Save as PDF"
-                >
-                  <Download size={16} />
-                  PDF
-                </button>
-                <button
-                  onClick={handleExportToGoogleDocs}
-                  disabled={isExporting}
-                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="Export to Google Docs"
-                >
-                  {isExporting ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink size={16} />
-                      Google Docs
-                    </>
-                  )}
-                </button>
-              </>
-            )}
+              <button
+                onClick={handleExportToGoogleDocs}
+                disabled={isExporting}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+                title="Export to Google Docs"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink size={16} />
+                    Google Docs
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Messages */}
         <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6 mb-6 min-h-[400px] max-h-[600px] overflow-y-auto`}>
@@ -1032,6 +1020,18 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
               title="Upload Photo"
             >
               <Camera size={20} />
+            </button>
+            <button
+              onClick={handleImportFromGoogleDrive}
+              disabled={isImporting}
+              className={`p-2 rounded-lg border ${theme.cardBorder} ${isImporting ? 'opacity-50 cursor-not-allowed' : `${theme.textMuted} hover:${theme.text}`} transition-colors`}
+              title="Import from Google Drive"
+            >
+              {isImporting ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <ExternalLink size={20} />
+              )}
             </button>
             <button
               onClick={isRecording ? stopSpeechRecognition : startSpeechRecognition}

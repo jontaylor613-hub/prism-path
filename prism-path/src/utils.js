@@ -213,7 +213,18 @@ NEVER introduce yourself. Do NOT say "I am the Accessible Learning Companion" or
 
 # STUDENT PROFILE ACKNOWLEDGMENT
 
-When a student profile is established, you should acknowledge it by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.`;
+When a student profile is established, you should acknowledge it by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.
+
+# CRITICAL: COMPLETING ACCOMMODATION REQUESTS
+
+**IMPORTANT:** If you previously asked for student profile information to provide better accommodations for an uploaded document, and the user now provides that profile information, you MUST:
+
+1. Acknowledge the profile briefly (one sentence)
+2. IMMEDIATELY provide the differentiated accommodations for the document that was already uploaded
+3. DO NOT ask "How can I help you today?" - the user has already told you what they need (accommodations for the uploaded document)
+4. DO NOT ask for the content again - you already have it from the previous message
+
+The user's request is to get accommodations for the document they uploaded, and providing their profile is completing that request, not starting a new conversation.`;
 
         // Build user prompt with context
         let promptText = '';
@@ -286,15 +297,32 @@ When a student profile is established, you should acknowledge it by saying: "Oka
         // If isFirstMessage is true here, it means the user hasn't sent a message yet (shouldn't happen in normal flow)
         // But if it does, we still don't want the AI to return the welcome message - it's already shown in the UI
         
-        // PRIORITY 1: If files are present, this is a CONTENT ANALYSIS request, NOT a profile request
-        if (isFileAnalysisRequest) {
+        // PRIORITY 1: If files are present OR completing an accommodation request, this is a CONTENT ANALYSIS request
+        if (isFileAnalysisRequest || data.isCompletingAccommodationRequest) {
             // This is a content analysis request - analyze the uploaded content and provide accommodations
             // If a profile exists, use it for context, but the primary task is analyzing the content
-            if (data.studentProfile) {
-                const profileText = typeof data.studentProfile === 'object' 
+            const profileText = data.studentProfile ? (typeof data.studentProfile === 'object' 
+                ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                : data.studentProfile) : null;
+            
+            if (data.isCompletingAccommodationRequest) {
+                // User provided profile info to complete an accommodation request
+                // CRITICAL: Provide accommodations NOW, don't ask "How can I help you today?"
+                const newProfileText = typeof data.studentProfile === 'object' 
                     ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
-                    : data.studentProfile;
+                    : (data.studentProfile || userPrompt);
                 
+                // Build context about what happened before
+                const contextNote = data.hasExistingMessages 
+                    ? "Note: You previously analyzed the uploaded document and asked for student profile information. The user has now provided that information below." 
+                    : "The user previously uploaded content for analysis and has now provided their student profile information.";
+                
+                if (studentName) {
+                    userPrompt = `${contextNote}\n\nStudent Profile for ${studentName}:\n${newProfileText}\n\n---\n\nCOMPLETE ACCOMMODATION REQUEST:\nYou MUST provide differentiated accommodations for the uploaded document(s) based on this profile IMMEDIATELY. Do NOT ask "How can I help you today?" - provide the accommodations now. The document content is included below.\n\n${userPrompt}`;
+                } else {
+                    userPrompt = `${contextNote}\n\nStudent Profile:\n${newProfileText}\n\n---\n\nCOMPLETE ACCOMMODATION REQUEST:\nYou MUST provide differentiated accommodations for the uploaded document(s) based on this profile IMMEDIATELY. Do NOT ask "How can I help you today?" - provide the accommodations now. The document content is included below.\n\n${userPrompt}`;
+                }
+            } else if (profileText) {
                 if (studentName) {
                     userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations based on the student's profile.\n\n${userPrompt}`;
                 } else {

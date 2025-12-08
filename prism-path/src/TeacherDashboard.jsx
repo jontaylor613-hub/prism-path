@@ -527,7 +527,8 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [goalType, setGoalType] = useState('academic'); // 'academic' or 'behavior'
   const [uploadFileType, setUploadFileType] = useState('iep'); // 'iep', 'test', 'baseline', 'benchmark'
   const [checklistItems, setChecklistItems] = useState([]);
-  const [generatedChecklist, setGeneratedChecklist] = useState('');
+  const [generatedChecklist, setGeneratedChecklist] = useState(null); // Will store { goal, classPeriods: [{ name, signed, comment }] }
+  const [checklistGoal, setChecklistGoal] = useState(null);
 
   // Helpers
   const getBadgeColor = (text) => {
@@ -761,90 +762,128 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     setGoalConfig({ frequency: 'Weekly', target: 80 });
   };
 
-  const handleGenerateChecklist = async () => {
+  const handleGenerateChecklist = () => {
     if (!activeStudent || goals.length === 0) {
       alert('Please select a student with goals to generate a checklist.');
       return;
     }
     
-    setIsGenerating(true);
-    try {
-      // Build goal data for checklist generation
-      const goalData = goals.map(goal => ({
-        text: goal.text,
-        type: goal.type || 'academic',
-        skill: goal.skill || '',
-        goal: goal.goal || '',
-        condition: goal.condition || '',
-        behavior: goal.behavior || ''
-      }));
-      
-      const checklistPrompt = `Create a student-friendly checklist for ${activeStudent.name} (Grade ${activeStudent.grade}) based on their goals. 
-The checklist should be:
-- Easy to understand for the student
-- Broken down into small, actionable steps
-- Formatted clearly with checkboxes
-- Organized by goal type (Academic vs Behavior)
+    // Use the active goal if available, otherwise use the first goal
+    const selectedGoal = activeGoal || goals[0];
+    
+    // Create default class periods (can be edited)
+    const defaultPeriods = [
+      { name: 'Period 1', signed: false, comment: '' },
+      { name: 'Period 2', signed: false, comment: '' },
+      { name: 'Period 3', signed: false, comment: '' },
+      { name: 'Period 4', signed: false, comment: '' },
+      { name: 'Period 5', signed: false, comment: '' },
+      { name: 'Period 6', signed: false, comment: '' },
+      { name: 'Period 7', signed: false, comment: '' },
+      { name: 'Period 8', signed: false, comment: '' }
+    ];
+    
+    setChecklistGoal(selectedGoal);
+    setGeneratedChecklist({
+      goal: selectedGoal,
+      classPeriods: defaultPeriods
+    });
+  };
 
-Goals to include:
-${goalData.map((g, i) => `${i + 1}. ${g.type === 'academic' ? 'Academic' : 'Behavior'}: ${g.text}`).join('\n')}
+  const handleAddClassPeriod = () => {
+    if (!generatedChecklist) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: [...generatedChecklist.classPeriods, { name: `Period ${generatedChecklist.classPeriods.length + 1}`, signed: false, comment: '' }]
+    });
+  };
 
-Format the checklist as a printable, student-friendly document with clear sections and checkboxes.`;
-      
-      const result = await GeminiService.generate({
-        student: activeStudent.name,
-        grade: activeStudent.grade,
-        goals: goalData,
-        message: checklistPrompt
-      }, 'accommodation');
-      
-      setGeneratedChecklist(result);
-    } catch (error) {
-      console.error('Error generating checklist:', error);
-      alert('Error generating checklist. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleRemoveClassPeriod = (index) => {
+    if (!generatedChecklist || generatedChecklist.classPeriods.length <= 1) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: generatedChecklist.classPeriods.filter((_, i) => i !== index)
+    });
+  };
+
+  const handleUpdateClassPeriod = (index, field, value) => {
+    if (!generatedChecklist) return;
+    const updatedPeriods = [...generatedChecklist.classPeriods];
+    updatedPeriods[index] = { ...updatedPeriods[index], [field]: value };
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: updatedPeriods
+    });
+  };
+
+  const handleUpdateChecklistGoal = (newGoalText) => {
+    if (!generatedChecklist) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      goal: { ...generatedChecklist.goal, text: newGoalText }
+    });
   };
 
   const handlePrintChecklist = () => {
     if (!generatedChecklist) return;
     
     const printWindow = window.open('', '_blank');
-    const content = generatedChecklist
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
-      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
-      .replace(/^[-•]\s+(.*$)/gm, '<p>☐ $1</p>')
-      .replace(/\n/g, '<br>');
+    const goalText = generatedChecklist.goal?.text || 'Goal';
+    const periods = generatedChecklist.classPeriods || [];
+    
+    const tableRows = periods.map((period, index) => `
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="padding: 12px; font-weight: bold; width: 150px;">${period.name}</td>
+        <td style="padding: 12px; text-align: center; width: 80px;">
+          <div style="width: 30px; height: 30px; border: 2px solid #333; margin: 0 auto; ${period.signed ? 'background-color: #10b981; position: relative;' : ''}">
+            ${period.signed ? '<span style="color: white; font-size: 20px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">✓</span>' : ''}
+          </div>
+        </td>
+        <td style="padding: 12px;">
+          <div style="min-height: 30px; border: 1px solid #ccc; padding: 8px; white-space: pre-wrap;">${period.comment || ''}</div>
+        </td>
+      </tr>
+    `).join('');
     
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Student Checklist - ${activeStudent?.name || 'Student'}</title>
+          <title>Goal Checklist - ${activeStudent?.name || 'Student'}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.8; }
-            h1 { color: #06b6d4; margin-top: 30px; font-size: 24px; }
-            h2 { color: #06b6d4; margin-top: 25px; font-size: 20px; }
-            h3 { color: #06b6d4; margin-top: 20px; font-size: 18px; }
-            strong { color: #06b6d4; }
-            p { margin: 10px 0; }
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
+            h2 { color: #06b6d4; margin-bottom: 10px; font-size: 20px; }
+            .goal-text { background-color: #f0f9ff; border-left: 4px solid #06b6d4; padding: 15px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #06b6d4; color: white; padding: 12px; text-align: left; font-weight: bold; }
+            td { padding: 12px; }
+            .student-info { margin-bottom: 20px; font-size: 14px; }
             @media print { 
-              body { padding: 20px; }
+              body { padding: 15px; }
               @page { margin: 1cm; }
+              .no-print { display: none; }
             }
           </style>
         </head>
         <body>
-          <h1>My Learning Checklist</h1>
-          <p><strong>Student:</strong> ${activeStudent?.name || 'Student'}</p>
-          <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-          <hr style="margin: 20px 0; border: 1px solid #ccc;">
-          <div>${content}</div>
+          <div class="student-info">
+            <strong>Student:</strong> ${activeStudent?.name || 'Student'}<br>
+            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+          </div>
+          <h2>Goal Being Monitored:</h2>
+          <div class="goal-text">${goalText}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Class Period</th>
+                <th style="text-align: center; width: 80px;">Teacher Sign-Off</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
         </body>
       </html>
     `);
@@ -1468,8 +1507,8 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                                 <select className={`flex-1 min-w-[200px] ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={activeGoalId || ''} onChange={(e) => setActiveGoalId(e.target.value)}>{goals.map(g => (<option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>))}</select>
                                 <Button onClick={() => window.print()} variant="secondary" icon={Printer} theme={theme}>Print Graph</Button>
                                 <Button onClick={copyGraphSummary} variant="secondary" icon={Copy} theme={theme}>Copy Summary</Button>
-                                <Button onClick={handleGenerateChecklist} variant="secondary" icon={ClipboardList} theme={theme} disabled={isGenerating}>
-                                  {isGenerating ? 'Generating...' : 'Generate Checklist'}
+                                <Button onClick={handleGenerateChecklist} variant="secondary" icon={ClipboardList} theme={theme}>
+                                  Generate Checklist
                                 </Button>
                             </div>
                             {activeGoal && (
@@ -1501,28 +1540,87 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       )}
                     </div>
                     {generatedChecklist ? (
-                      <div className={`${theme.inputBg} rounded-xl p-6 border ${theme.cardBorder}`}>
-                        <div className={`${theme.text} whitespace-pre-wrap leading-relaxed`} dangerouslySetInnerHTML={{
-                          __html: generatedChecklist
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-400">$1</strong>')
-                            .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
-                            .replace(/^### (.*$)/gm, '<h3 class="text-xl font-bold text-cyan-400 mt-4 mb-2">$1</h3>')
-                            .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-bold text-cyan-500 mt-6 mb-3">$1</h2>')
-                            .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-cyan-500 mt-8 mb-4">$1</h1>')
-                            .replace(/^(\d+)\.\s+(.*$)/gm, '<div class="my-2"><span class="font-bold text-fuchsia-400">$1.</span> <span>$2</span></div>')
-                            .replace(/^[-•]\s+(.*$)/gm, '<div class="my-1 ml-4"><span class="text-cyan-400">☐</span> <span>$1</span></div>')
-                            .replace(/\n/g, '<br>')
-                        }} />
+                      <div className="space-y-4">
+                        {/* Goal Text Editor */}
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal Being Monitored</label>
+                          <textarea
+                            value={generatedChecklist.goal?.text || ''}
+                            onChange={(e) => handleUpdateChecklistGoal(e.target.value)}
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[80px]`}
+                            placeholder="Enter the goal being monitored..."
+                          />
+                        </div>
+                        
+                        {/* Class Periods Table */}
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase`}>Class Periods</label>
+                            <Button onClick={handleAddClassPeriod} icon={Plus} variant="secondary" theme={theme} className="text-sm">Add Period</Button>
+                          </div>
+                          <div className={`${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}>
+                            <table className="w-full">
+                              <thead>
+                                <tr className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} border-b ${theme.cardBorder}`}>
+                                  <th className={`text-left p-3 text-xs font-bold ${theme.textMuted} uppercase`}>Class Period</th>
+                                  <th className={`text-center p-3 text-xs font-bold ${theme.textMuted} uppercase w-24`}>Teacher Sign-Off</th>
+                                  <th className={`text-left p-3 text-xs font-bold ${theme.textMuted} uppercase`}>Comments</th>
+                                  <th className={`text-center p-3 text-xs font-bold ${theme.textMuted} uppercase w-16`}>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {generatedChecklist.classPeriods.map((period, index) => (
+                                  <tr key={index} className={`border-b ${theme.cardBorder} ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                                    <td className="p-3">
+                                      <input
+                                        type="text"
+                                        value={period.name}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'name', e.target.value)}
+                                        className={`w-full ${theme.bg} border ${theme.inputBorder} rounded px-2 py-1 ${theme.text} text-sm outline-none`}
+                                        placeholder="Class name..."
+                                      />
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={period.signed}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'signed', e.target.checked)}
+                                        className="w-5 h-5 cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="p-3">
+                                      <input
+                                        type="text"
+                                        value={period.comment}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'comment', e.target.value)}
+                                        className={`w-full ${theme.bg} border ${theme.inputBorder} rounded px-2 py-1 ${theme.text} text-sm outline-none`}
+                                        placeholder="Teacher comments..."
+                                      />
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      {generatedChecklist.classPeriods.length > 1 && (
+                                        <button
+                                          onClick={() => handleRemoveClassPeriod(index)}
+                                          className={`${theme.textMuted} hover:text-red-400 transition-colors`}
+                                          title="Remove period"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className={`text-center py-8 ${theme.textMuted}`}>
                         <ClipboardList size={48} className="mx-auto mb-4 opacity-50" />
-                        <p className="mb-4">Generate a student-friendly checklist based on this student's goals.</p>
-                        <Button onClick={handleGenerateChecklist} icon={Wand2} theme={theme} disabled={isGenerating}>
-                          {isGenerating ? 'Generating Checklist...' : 'Generate Checklist from Goals'}
+                        <p className="mb-4">Generate an editable schedule-based checklist for tracking goal progress.</p>
+                        <Button onClick={handleGenerateChecklist} icon={ClipboardList} theme={theme}>
+                          Generate Checklist
                         </Button>
                       </div>
                     )}

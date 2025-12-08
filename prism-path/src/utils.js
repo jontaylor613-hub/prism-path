@@ -101,10 +101,12 @@ export const GeminiService = {
   },
 
   generate: async (data, type) => {
-    // 1. Check Cache (Zero Cost)
-    const cacheKey = GeminiService.getCacheKey(data, type);
-    const cachedResult = GeminiService.getCache(cacheKey);
-    if (cachedResult) return cachedResult; 
+    // 1. Check Cache (Zero Cost) - Skip cache for email type to allow regeneration
+    if (type !== 'email') {
+      const cacheKey = GeminiService.getCacheKey(data, type);
+      const cachedResult = GeminiService.getCache(cacheKey);
+      if (cachedResult) return cachedResult;
+    } 
 
     let systemInstruction = "";
     let userPrompt = "";
@@ -303,8 +305,8 @@ When a student profile is established, you should acknowledge it by saying: "Oka
         userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {
-        systemInstruction = "Professional Special Education Teacher. Write a polite email. No markdown.";
-        userPrompt = data.feedbackAreas ? `Email for student ${data.student}. Ask feedback on: ${data.feedbackAreas.join(', ')}.` : `Update for ${data.student} regarding ${data.topic}.`;
+        systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown.";
+        userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${data.student} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${data.student} regarding ${data.topic}.`;
     } 
     else if (type === 'goal') {
         systemInstruction = "Write a SMART IEP goal. No markdown.";
@@ -339,7 +341,12 @@ When a student profile is established, you should acknowledge it by saying: "Oka
       // Don't format AI response for accommodation type - let it use its own formatting
       const rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;
       const finalResult = type === 'accommodation' ? rawResult : formatAIResponse(rawResult);
-      GeminiService.setCache(cacheKey, finalResult); 
+      
+      // Only cache if not email type (emails should regenerate each time)
+      if (type !== 'email') {
+        const cacheKey = GeminiService.getCacheKey(data, type);
+        GeminiService.setCache(cacheKey, finalResult);
+      }
       return finalResult;
       
     } catch (error) { 

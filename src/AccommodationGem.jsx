@@ -312,24 +312,25 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
 
     try {
       // Check if this looks like profile information (first message or contains profile keywords)
-      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
+      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia', 'processing speed'];
       const isProfileInfo = isFirstMessage || profileKeywords.some(keyword => 
         currentInput.toLowerCase().includes(keyword)
       );
 
-      if (isProfileInfo && isFirstMessage) {
-        // Store profile information
+      // Store profile information if detected (will be updated after AI response if AI extracts it)
+      if (isProfileInfo && isFirstMessage && !studentProfile) {
         setStudentProfile(currentInput);
         setIsFirstMessage(false);
       }
 
-      // Build prompt with full context
+      // Build prompt with full context including conversation history
       let promptData = {
         message: currentInput,
         prompt: currentInput,
         files: currentFiles,
         studentProfile: studentProfile,
-        isFirstMessage: isFirstMessage && messages.length === 0
+        isFirstMessage: isFirstMessage && messages.length === 0,
+        conversationHistory: messages // Pass existing conversation history so AI knows what was said before
       };
 
       // Generate accommodation response using the full Gem prompt

@@ -791,13 +791,17 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     if (isGenerating) return; // Prevent multiple simultaneous generations
     
     setIsGenerating(true);
-    // Clear previous email to allow regeneration
+    // Clear previous email to allow new generation
     setGeneratedEmail('');
     
     try {
-      // Ensure student name is included - use activeStudent name or fallback
+      // Add timestamp to ensure unique generation each time
       const studentName = activeStudent?.name || 'the student';
-      let prompt = { student: studentName, topic: emailTopic };
+      let prompt = { 
+        student: studentName, 
+        topic: emailTopic,
+        timestamp: Date.now() // Ensure each generation is unique
+      };
       if (emailTopic === 'Solicit Feedback') {
           const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
           prompt = { ...prompt, feedbackAreas: areas };
@@ -1088,11 +1092,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                 {generatedEmail && !isGenerating && (
                   <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
                     <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div>
-                    <div className="flex gap-2">
-                      <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy to Clipboard</Button>
-                      <Button onClick={() => setGeneratedEmail('')} variant="secondary" className="flex-1" icon={X} theme={theme}>Clear</Button>
-                      <Button onClick={handleGenerateEmail} variant="secondary" className="flex-1" icon={Wand2} theme={theme}>Regenerate</Button>
-                    </div>
+                    <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="w-full" icon={Copy} theme={theme}>Copy to Clipboard</Button>
                   </div>
                 )}
               </Card>

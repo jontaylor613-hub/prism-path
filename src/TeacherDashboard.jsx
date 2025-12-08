@@ -670,15 +670,31 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   }
 
   const handleGenerateEmail = async () => {
+    if (isGenerating) return; // Prevent multiple simultaneous generations
+    
     setIsGenerating(true);
-    let prompt = { student: activeStudent?.name, topic: emailTopic };
-    if (emailTopic === 'Solicit Feedback') {
-        const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
-        prompt = { ...prompt, feedbackAreas: areas };
+    // Clear previous email to allow new generation
+    setGeneratedEmail('');
+    
+    try {
+      // Add timestamp to ensure unique generation each time
+      let prompt = { 
+        student: activeStudent?.name || 'the student', 
+        topic: emailTopic,
+        timestamp: Date.now() // Ensure each generation is unique
+      };
+      if (emailTopic === 'Solicit Feedback') {
+          const areas = Object.keys(feedbackAreas).filter(k => feedbackAreas[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+          prompt = { ...prompt, feedbackAreas: areas };
+      }
+      const result = await GeminiService.generate(prompt, 'email');
+      setGeneratedEmail(result);
+    } catch (error) {
+      console.error('Error generating email:', error);
+      setGeneratedEmail('Error generating email. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
-    const result = await GeminiService.generate(prompt, 'email');
-    setGeneratedEmail(result);
-    setIsGenerating(false);
   };
 
   const handleGenerateGoal = async () => {

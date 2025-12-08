@@ -21,7 +21,8 @@ import {
   getStudentGoals,
   getIepSummary,
   get504Accommodations,
-  updateStudent
+  updateStudent,
+  saveIepSummary
 } from './studentData';
 import { ChatHistoryService } from './chatHistory';
 import { DevModeService } from './devMode';
@@ -326,7 +327,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showSamples, setShowSamples] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '', qualifyingStatus: '' });
   const [goals, setGoals] = useState([]);
   const [activeGoalId, setActiveGoalId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -520,9 +521,13 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [trackerData, setTrackerData] = useState({});
   const [isEditingTracker, setIsEditingTracker] = useState(false);
   const [rewardThreshold, setRewardThreshold] = useState(80);
-  const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '' });
+  const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '', skill: '', goal: '' });
   const [goalText, setGoalText] = useState("");
   const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
+  const [goalType, setGoalType] = useState('academic'); // 'academic' or 'behavior'
+  const [uploadFileType, setUploadFileType] = useState('iep'); // 'iep', 'test', 'baseline', 'benchmark'
+  const [checklistItems, setChecklistItems] = useState([]);
+  const [generatedChecklist, setGeneratedChecklist] = useState('');
 
   // Helpers
   const getBadgeColor = (text) => {
@@ -724,11 +729,130 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
   const handleLockGoal = () => {
       if (!goalText) return;
-      const newGoal = { id: Date.now().toString(), studentId: activeStudent.id, text: goalText, target: goalConfig.target, frequency: goalConfig.frequency, data: [], createdAt: new Date().toISOString() };
+      const newGoal = { 
+        id: Date.now().toString(), 
+        studentId: activeStudent.id, 
+        text: goalText, 
+        type: goalType,
+        target: goalConfig.target, 
+        frequency: goalConfig.frequency, 
+        data: [], 
+        createdAt: new Date().toISOString(),
+        skill: goalInputs.skill || '',
+        goal: goalInputs.goal || '',
+        condition: goalInputs.condition || '',
+        behavior: goalInputs.behavior || ''
+      };
       setGoals([...goals, newGoal]);
       setActiveGoalId(newGoal.id);
       alert("Goal Locked! Go to 'Monitor' tab to track progress.");
       setActiveTab('monitor');
+  };
+
+  const handleAddAnotherGoal = () => {
+    if (!goalText) {
+      alert('Please generate a goal first before adding another.');
+      return;
+    }
+    handleLockGoal();
+    // Reset form for next goal
+    setGoalText('');
+    setGoalInputs({ condition: '', behavior: '', skill: '', goal: '' });
+    setGoalConfig({ frequency: 'Weekly', target: 80 });
+  };
+
+  const handleGenerateChecklist = async () => {
+    if (!activeStudent || goals.length === 0) {
+      alert('Please select a student with goals to generate a checklist.');
+      return;
+    }
+    
+    setIsGenerating(true);
+    try {
+      // Build goal data for checklist generation
+      const goalData = goals.map(goal => ({
+        text: goal.text,
+        type: goal.type || 'academic',
+        skill: goal.skill || '',
+        goal: goal.goal || '',
+        condition: goal.condition || '',
+        behavior: goal.behavior || ''
+      }));
+      
+      const checklistPrompt = `Create a student-friendly checklist for ${activeStudent.name} (Grade ${activeStudent.grade}) based on their goals. 
+The checklist should be:
+- Easy to understand for the student
+- Broken down into small, actionable steps
+- Formatted clearly with checkboxes
+- Organized by goal type (Academic vs Behavior)
+
+Goals to include:
+${goalData.map((g, i) => `${i + 1}. ${g.type === 'academic' ? 'Academic' : 'Behavior'}: ${g.text}`).join('\n')}
+
+Format the checklist as a printable, student-friendly document with clear sections and checkboxes.`;
+      
+      const result = await GeminiService.generate({
+        student: activeStudent.name,
+        grade: activeStudent.grade,
+        goals: goalData,
+        message: checklistPrompt
+      }, 'accommodation');
+      
+      setGeneratedChecklist(result);
+    } catch (error) {
+      console.error('Error generating checklist:', error);
+      alert('Error generating checklist. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handlePrintChecklist = () => {
+    if (!generatedChecklist) return;
+    
+    const printWindow = window.open('', '_blank');
+    const content = generatedChecklist
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
+      .replace(/^[-•]\s+(.*$)/gm, '<p>☐ $1</p>')
+      .replace(/\n/g, '<br>');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Student Checklist - ${activeStudent?.name || 'Student'}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.8; }
+            h1 { color: #06b6d4; margin-top: 30px; font-size: 24px; }
+            h2 { color: #06b6d4; margin-top: 25px; font-size: 20px; }
+            h3 { color: #06b6d4; margin-top: 20px; font-size: 18px; }
+            strong { color: #06b6d4; }
+            p { margin: 10px 0; }
+            @media print { 
+              body { padding: 20px; }
+              @page { margin: 1cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>My Learning Checklist</h1>
+          <p><strong>Student:</strong> ${activeStudent?.name || 'Student'}</p>
+          <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          <hr style="margin: 20px 0; border: 1px solid #ccc;">
+          <div>${content}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   const handleAddDataPoint = () => {
@@ -746,11 +870,91 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       alert("Summary copied to clipboard!");
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !activeStudent) return;
+    
     setIsUploading(true);
-    setTimeout(() => { setIsUploading(false); alert(`Successfully processed ${file.name}.`); }, 2000);
+    
+    try {
+      // Read file content
+      const reader = new FileReader();
+      const fileContent = await new Promise((resolve, reject) => {
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = reject;
+        
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          // For PDFs, we'll need to extract text (simplified - in production, use a PDF library)
+          reader.readAsArrayBuffer(file);
+        } else if (file.type.includes('text') || file.name.toLowerCase().endsWith('.txt')) {
+          reader.readAsText(file);
+        } else if (file.type.includes('word') || file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsText(file);
+        }
+      });
+      
+      // Determine file type from uploadFileType state or file name
+      let fileTypeLabel = uploadFileType;
+      if (fileTypeLabel === 'iep') fileTypeLabel = 'IEP Snapshot';
+      else if (fileTypeLabel === 'test') fileTypeLabel = 'Test Data';
+      else if (fileTypeLabel === 'baseline') fileTypeLabel = 'Baseline Data';
+      else if (fileTypeLabel === 'benchmark') fileTypeLabel = 'Benchmark Data';
+      
+      // Use AI to analyze the file and create a summary
+      const analysisPrompt = `Analyze this ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
+Extract key information including:
+- Present levels of performance
+- Strengths and needs
+- Accommodations mentioned
+- Goals or objectives
+- Test scores or performance data
+- Any other relevant educational information
+
+Create a comprehensive summary that can be added to the student's profile. Format it clearly with sections.`;
+      
+      const fileText = typeof fileContent === 'string' ? fileContent : 'PDF file uploaded - content extraction needed';
+      const analysisResult = await GeminiService.generate({
+        message: analysisPrompt,
+        fileContent: fileText.substring(0, 50000), // Limit content size
+        fileName: file.name,
+        fileType: fileTypeLabel,
+        student: activeStudent.name,
+        grade: activeStudent.grade
+      }, 'accommodation');
+      
+      // Update student summary with the analysis
+      const currentSummary = studentSummary || activeStudent.summary || '';
+      const newSummary = `${currentSummary}\n\n--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${analysisResult}`;
+      
+      setStudentSummary(newSummary);
+      
+      // Save to Firebase if student has an ID
+      if (activeStudent.id && typeof activeStudent.id === 'string' && user?.uid) {
+        try {
+          await saveIepSummary(activeStudent.id, newSummary, user.uid);
+          // Also update the local student object
+          const updatedStudent = { ...activeStudent, summary: newSummary };
+          setStudents(students.map(s => s.id === activeStudent.id ? updatedStudent : s));
+        } catch (error) {
+          console.error('Error saving summary to Firebase:', error);
+        }
+      } else {
+        // For demo students, just update local state
+        const updatedStudent = { ...activeStudent, summary: newSummary };
+        setStudents(students.map(s => s.id === activeStudent.id ? updatedStudent : s));
+      }
+      
+      alert(`Successfully analyzed ${file.name} and added to ${activeStudent.name}'s profile.`);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert(`Error processing file: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (e.target) e.target.value = '';
+    }
   };
   
   const handleGenerateImpact = async () => {
@@ -817,10 +1021,29 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   };
 
   const handleGenerateGoal = async () => {
+    if (goalType === 'academic' && (!goalInputs.skill || !goalInputs.goal)) {
+      alert('Please fill in both Skill and Goal fields for academic goals.');
+      return;
+    }
+    if (goalType === 'behavior' && (!goalInputs.condition || !goalInputs.behavior)) {
+      alert('Please fill in both Condition and Behavior fields for behavior goals.');
+      return;
+    }
+    
     setIsGenerating(true);
-    const result = await GeminiService.generate({ student: activeStudent?.name, grade: activeStudent?.grade, ...goalInputs }, 'goal');
-    setGoalText(result);
-    setIsGenerating(false);
+    try {
+      const goalData = goalType === 'academic' 
+        ? { student: activeStudent?.name, grade: activeStudent?.grade, skill: goalInputs.skill, goal: goalInputs.goal, type: 'academic' }
+        : { student: activeStudent?.name, grade: activeStudent?.grade, condition: goalInputs.condition, behavior: goalInputs.behavior, type: 'behavior' };
+      
+      const result = await GeminiService.generate(goalData, 'goal');
+      setGoalText(result);
+    } catch (error) {
+      console.error('Error generating goal:', error);
+      alert('Error generating goal. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleLogBehavior = () => {
@@ -961,9 +1184,39 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                <Card className="p-6" theme={theme}>
                  <div className="flex justify-between items-start mb-6">
                    <div><h2 className={`text-2xl font-bold ${theme.text}`}>{activeStudent.name}</h2><p className={theme.textMuted}>Grade: {activeStudent.grade} • Primary Need: {activeStudent.need || activeStudent.primaryNeed}</p></div>
-                   <div className="flex gap-2">
+                   <div className="flex gap-2 flex-wrap">
                      <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
-                     <div className="relative"><input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.txt" /><Button variant="secondary" onClick={() => fileInputRef.current.click()} icon={isUploading ? Settings : UploadCloud} disabled={isUploading} theme={theme}>{isUploading ? "Analyzing..." : "Upload Data"}</Button></div>
+                     <div className="flex gap-2">
+                       <select 
+                         value={uploadFileType} 
+                         onChange={(e) => setUploadFileType(e.target.value)}
+                         className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg px-3 py-2 ${theme.text} text-sm outline-none`}
+                         disabled={isUploading}
+                       >
+                         <option value="iep">IEP Snapshot</option>
+                         <option value="test">Test Data</option>
+                         <option value="baseline">Baseline Data</option>
+                         <option value="benchmark">Benchmark</option>
+                       </select>
+                       <div className="relative">
+                         <input 
+                           type="file" 
+                           ref={fileInputRef} 
+                           onChange={handleFileUpload} 
+                           className="hidden" 
+                           accept=".pdf,.doc,.docx,.txt" 
+                         />
+                         <Button 
+                           variant="secondary" 
+                           onClick={() => fileInputRef.current.click()} 
+                           icon={isUploading ? Loader2 : UploadCloud} 
+                           disabled={isUploading} 
+                           theme={theme}
+                         >
+                           {isUploading ? "Analyzing..." : "Upload"}
+                         </Button>
+                       </div>
+                     </div>
                    </div>
                  </div>
                  <div className={`grid gap-4 ${(activeStudent.nextIep || activeStudent.nextIepDate) && (activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-3' : (activeStudent.nextIep || activeStudent.nextIepDate || activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -1142,9 +1395,41 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               <Card className="p-8" glow theme={theme}>
                  <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan" isDark={isDark}>AI Active</Badge></div>
                  <div className="space-y-6">
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Given a grade level text..." /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will decode..." /></div>
-                   <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full" theme={theme}>{isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}</Button>
+                   <div>
+                     <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal Type</label>
+                     <select 
+                       value={goalType} 
+                       onChange={(e) => {
+                         setGoalType(e.target.value);
+                         setGoalText(''); // Clear previous goal when switching types
+                         setGoalInputs({ condition: '', behavior: '', skill: '', goal: '' });
+                       }}
+                       className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`}
+                     >
+                       <option value="academic">Academic Goal</option>
+                       <option value="behavior">Behavior Goal</option>
+                     </select>
+                   </div>
+                   
+                   {goalType === 'academic' ? (
+                     <>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Skill</label><input type="text" value={goalInputs.skill} onChange={(e) => setGoalInputs({...goalInputs, skill: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Reading comprehension, Math computation..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal</label><input type="text" value={goalInputs.goal} onChange={(e) => setGoalInputs({...goalInputs, goal: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will read and comprehend grade-level texts..." /></div>
+                     </>
+                   ) : (
+                     <>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. When given a directive or during transitions..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will follow directions without argument..." /></div>
+                     </>
+                   )}
+                   
+                   <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full" theme={theme}>
+                     {isGenerating ? (
+                       <span className="animate-pulse">Generating...</span>
+                     ) : (
+                       <span><Wand2 size={16} className="inline mr-2"/> Generate {goalType === 'academic' ? 'Academic' : 'Behavior'} Goal</span>
+                     )}
+                   </Button>
                  </div>
               </Card>
               <Card className={`p-8 flex flex-col`} theme={theme}>
@@ -1157,7 +1442,10 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                                 <div className="flex-1"><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Target %</label><input type="number" value={goalConfig.target} onChange={e => setGoalConfig({...goalConfig, target: Number(e.target.value)})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
                                 <div className="flex-1"><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Frequency</label><select value={goalConfig.frequency} onChange={e => setGoalConfig({...goalConfig, frequency: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`}><option>Daily</option><option>Weekly</option><option>Bi-Weekly</option><option>Monthly</option></select></div>
                             </div>
-                            <Button onClick={handleLockGoal} icon={Lock} className="w-full" variant="secondary" theme={theme}>Lock & Track This Goal</Button>
+                            <div className="flex gap-2">
+                              <Button onClick={handleLockGoal} icon={Lock} className="flex-1" variant="secondary" theme={theme}>Lock & Track Goal</Button>
+                              <Button onClick={handleAddAnotherGoal} icon={Plus} className="flex-1" variant="secondary" theme={theme}>Add Another Goal</Button>
+                            </div>
                         </div>
                         <div className="mt-4"><CopyBlock content={goalText} label="Copy Goal Only" theme={theme} /></div>
                     </div>
@@ -1176,10 +1464,13 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                         <div className={`text-center py-12 ${theme.textMuted}`}><p className="mb-4">No locked goals found for this student.</p><Button onClick={() => setActiveTab('develop')} variant="secondary" theme={theme}>Go to Develop Tab to Create Goals</Button></div>
                     ) : (
                         <div>
-                            <div className="flex gap-4 mb-6">
-                                <select className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={activeGoalId || ''} onChange={(e) => setActiveGoalId(e.target.value)}>{goals.map(g => (<option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>))}</select>
+                            <div className="flex gap-4 mb-6 flex-wrap">
+                                <select className={`flex-1 min-w-[200px] ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={activeGoalId || ''} onChange={(e) => setActiveGoalId(e.target.value)}>{goals.map(g => (<option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>))}</select>
                                 <Button onClick={() => window.print()} variant="secondary" icon={Printer} theme={theme}>Print Graph</Button>
                                 <Button onClick={copyGraphSummary} variant="secondary" icon={Copy} theme={theme}>Copy Summary</Button>
+                                <Button onClick={handleGenerateChecklist} variant="secondary" icon={ClipboardList} theme={theme} disabled={isGenerating}>
+                                  {isGenerating ? 'Generating...' : 'Generate Checklist'}
+                                </Button>
                             </div>
                             {activeGoal && (
                                 <div className="grid lg:grid-cols-3 gap-6">
@@ -1197,6 +1488,46 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                         </div>
                     )}
                 </Card>
+                
+                {/* Checklist Generator */}
+                {goals.length > 0 && (
+                  <Card className="p-6" theme={theme}>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}>
+                        <ClipboardList className="text-cyan-400"/> Goal-Based Checklist
+                      </h2>
+                      {generatedChecklist && (
+                        <Button onClick={handlePrintChecklist} icon={Printer} theme={theme}>Print Checklist</Button>
+                      )}
+                    </div>
+                    {generatedChecklist ? (
+                      <div className={`${theme.inputBg} rounded-xl p-6 border ${theme.cardBorder}`}>
+                        <div className={`${theme.text} whitespace-pre-wrap leading-relaxed`} dangerouslySetInnerHTML={{
+                          __html: generatedChecklist
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-400">$1</strong>')
+                            .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
+                            .replace(/^### (.*$)/gm, '<h3 class="text-xl font-bold text-cyan-400 mt-4 mb-2">$1</h3>')
+                            .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-bold text-cyan-500 mt-6 mb-3">$1</h2>')
+                            .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-cyan-500 mt-8 mb-4">$1</h1>')
+                            .replace(/^(\d+)\.\s+(.*$)/gm, '<div class="my-2"><span class="font-bold text-fuchsia-400">$1.</span> <span>$2</span></div>')
+                            .replace(/^[-•]\s+(.*$)/gm, '<div class="my-1 ml-4"><span class="text-cyan-400">☐</span> <span>$1</span></div>')
+                            .replace(/\n/g, '<br>')
+                        }} />
+                      </div>
+                    ) : (
+                      <div className={`text-center py-8 ${theme.textMuted}`}>
+                        <ClipboardList size={48} className="mx-auto mb-4 opacity-50" />
+                        <p className="mb-4">Generate a student-friendly checklist based on this student's goals.</p>
+                        <Button onClick={handleGenerateChecklist} icon={Wand2} theme={theme} disabled={isGenerating}>
+                          {isGenerating ? 'Generating Checklist...' : 'Generate Checklist from Goals'}
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                )}
             </div>
         )}
 
@@ -1530,6 +1861,28 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                     value={newStudent.need} 
                     onChange={e => setNewStudent({...newStudent, need: e.target.value})} 
                   />
+                  <div>
+                    <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Qualifying Status</label>
+                    <select 
+                      value={newStudent.qualifyingStatus} 
+                      onChange={e => setNewStudent({...newStudent, qualifyingStatus: e.target.value})}
+                      className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
+                    >
+                      <option value="">Select Status</option>
+                      <option value="SLD">SLD - Specific Learning Disability</option>
+                      <option value="MMD">MMD - Multiple Disabilities</option>
+                      <option value="OHI">OHI - Other Health Impairment</option>
+                      <option value="EBD">EBD - Emotional Behavioral Disorder</option>
+                      <option value="ASD">ASD - Autism Spectrum Disorder</option>
+                      <option value="ID">ID - Intellectual Disability</option>
+                      <option value="HI">HI - Hearing Impairment</option>
+                      <option value="VI">VI - Visual Impairment</option>
+                      <option value="OI">OI - Orthopedic Impairment</option>
+                      <option value="TBI">TBI - Traumatic Brain Injury</option>
+                      <option value="DB">DB - Deaf-Blindness</option>
+                      <option value="504">504 Plan Only</option>
+                    </select>
+                  </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>

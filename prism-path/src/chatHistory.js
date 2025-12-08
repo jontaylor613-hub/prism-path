@@ -157,9 +157,14 @@ export const ChatHistoryService = {
   generateChatId: (profile) => {
     if (!profile) return 'default';
     
-    // If profile is an object with name, use name for ID
-    if (typeof profile === 'object' && profile.name) {
-      return `student_${profile.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    // If profile is an object, prefer ID over name for uniqueness
+    if (typeof profile === 'object') {
+      if (profile.id) {
+        return `student_${profile.id}`;
+      }
+      if (profile.name) {
+        return `student_${profile.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      }
     }
     
     // If profile is a string, try to extract name

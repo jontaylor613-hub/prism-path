@@ -384,8 +384,15 @@ The user's request is to get accommodations for the document they uploaded, and 
         userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${data.student} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${data.student} regarding ${data.topic}.`;
     } 
     else if (type === 'goal') {
-        systemInstruction = "Write a SMART IEP goal. No markdown.";
-        userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition}. Behavior: ${data.behavior}.`;
+        systemInstruction = "Write a SMART IEP goal. No markdown. Format clearly and professionally.";
+        if (data.type === 'academic') {
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Create an Academic Goal. Skill: ${data.skill}. Goal: ${data.goal}.`;
+        } else if (data.type === 'behavior') {
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Create a Behavior Goal. Condition: ${data.condition}. Behavior: ${data.behavior}.`;
+        } else {
+            // Fallback for legacy format
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition || 'N/A'}. Behavior: ${data.behavior || 'N/A'}.`;
+        }
     } 
     else if (type === 'plaafp') {
         systemInstruction = "Write a PLAAFP statement. No markdown.";

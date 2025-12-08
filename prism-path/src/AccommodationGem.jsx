@@ -75,8 +75,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     if (selectedStudent && selectedStudent.profileText) {
       setStudentProfile(selectedStudent.profileText);
       setIsFirstMessage(false);
-      // Generate chat ID from student name
-      const chatId = ChatHistoryService.generateChatId(selectedStudent.name || selectedStudent.profileText);
+      // Generate chat ID from student (prefer ID, then name)
+      const chatId = ChatHistoryService.generateChatId(selectedStudent);
       setCurrentChatId(chatId);
       
       // Load existing chat if available

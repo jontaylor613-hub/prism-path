@@ -1,0 +1,85 @@
+// FERPA-Compliant Firestore Security Rules
+// Deploy these rules to Firebase Console → Firestore Database → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to get user role
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+    
+    // Helper function to check if user is SPED teacher
+    function isSpedTeacher() {
+      return getUserRole() == 'sped';
+    }
+    
+    // Users collection - users can read/update their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAdmin();
+    }
+    
+    // Students collection - FERPA-compliant access control
+    match /students/{studentId} {
+      // Read: Admin (all), SPED (SPED students only), Regular Ed (assigned only)
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isSpedTeacher() && resource.data.isSpedStudent == true) ||
+        (getUserRole() == 'regular_ed' && request.auth.uid in resource.data.assignedTeachers)
+      );
+      
+      // Create: Only SPED teachers and admins
+      allow create: if isAuthenticated() && (isAdmin() || isSpedTeacher());
+      
+      // Update: Only assigned teachers, SPED teachers (for SPED students), or admins
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isSpedTeacher() && resource.data.isSpedStudent == true) ||
+        (getUserRole() == 'regular_ed' && request.auth.uid in resource.data.assignedTeachers)
+      );
+      
+      // Delete: Only admins (soft delete by setting isActive = false)
+      allow delete: if isAdmin();
+      
+      // Student subcollections (goals, behavior logs)
+      match /goals/{goalId} {
+        allow read, write: if isAuthenticated() && (
+          isAdmin() ||
+          (isSpedTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.isSpedStudent == true) ||
+          (getUserRole() == 'regular_ed' && request.auth.uid in get(/databases/$(database)/documents/students/$(studentId)).data.assignedTeachers)
+        );
+      }
+      
+      match /behaviorLogs/{logId} {
+        allow read, write: if isAuthenticated() && (
+          isAdmin() ||
+          (isSpedTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.isSpedStudent == true) ||
+          (getUserRole() == 'regular_ed' && request.auth.uid in get(/databases/$(database)/documents/students/$(studentId)).data.assignedTeachers)
+        );
+      }
+    }
+    
+    // Audit logs - read-only for admins and SPED teachers
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated() && (isAdmin() || isSpedTeacher());
+      allow create: if isAuthenticated(); // Any authenticated user can create logs
+      allow update, delete: if false; // Never allow updates/deletes to audit logs
+    }
+  }
+}
+
+

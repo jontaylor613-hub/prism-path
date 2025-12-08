@@ -6,17 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // Listen on all addresses, including LAN
-    port: 5173,
-    proxy: {
-      // Proxy API calls to Vercel serverless functions
-      // For local dev: run 'vercel dev' in a separate terminal (runs on port 3000)
-      // On Vercel deployment, API calls go directly to serverless functions
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        secure: false,
-        ws: false
-      }
-    }
+    port: 5173
+    // Note: API calls work automatically on Vercel via serverless functions
+    // For local testing, install Vercel CLI and run 'vercel dev' in a separate terminal
+    // Or test directly on your Vercel deployment
   }
 })

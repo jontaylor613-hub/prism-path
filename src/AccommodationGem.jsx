@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, Mic, Camera, X, Sparkles, FileText, Image as ImageIcon, 
   Loader2, Send, Trash2, Wand2, FileUp, Volume2, VolumeX, Plus, 
-  MessageSquare, User, Clock
+  MessageSquare, User, Clock, ExternalLink
 } from 'lucide-react';
 import { GeminiService, getTheme } from './utils';
 import { ChatHistoryService } from './chatHistory';
@@ -234,14 +234,64 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       const isGoogleDoc = file.type === 'application/vnd.google-apps.document';
       
       if (isPdf) {
-        // PDF handling - store the file for processing
-        setUploadedFiles(prev => [...prev, {
-          id: Date.now(),
-          name: file.name,
-          type: 'pdf',
-          file: file
-        }]);
-        setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
+        // PDF handling - extract text from PDF
+        const extractPDFText = async () => {
+          try {
+            // Try to use pdfjs-dist if available
+            let pdfjsLib;
+            try {
+              const pdfjsModule = await import('pdfjs-dist');
+              pdfjsLib = pdfjsModule.default || pdfjsModule;
+            } catch (importError) {
+              // If import fails, try to use from window (if loaded via CDN)
+              pdfjsLib = window.pdfjsLib;
+            }
+            
+            if (pdfjsLib) {
+              pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+              
+              const arrayBuffer = await file.arrayBuffer();
+              const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              let fullText = '';
+              
+              // Extract text from all pages (limit to first 10 pages for performance)
+              const maxPages = Math.min(pdf.numPages, 10);
+              for (let i = 1; i <= maxPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n\n';
+              }
+              
+              if (pdf.numPages > 10) {
+                fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 10 pages]`;
+              }
+              
+              setUploadedFiles(prev => [...prev, {
+                id: Date.now(),
+                name: file.name,
+                type: 'pdf',
+                file: file,
+                content: fullText.substring(0, 10000) // Limit to 10k chars
+              }]);
+              setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
+            } else {
+              throw new Error('PDF library not available');
+            }
+          } catch (error) {
+            console.warn('PDF text extraction failed, storing file for analysis:', error);
+            // Fallback: store file without extracted text - AI will still analyze it
+            setUploadedFiles(prev => [...prev, {
+              id: Date.now(),
+              name: file.name,
+              type: 'pdf',
+              file: file
+            }]);
+            setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
+          }
+        };
+        
+        extractPDFText();
       } else if (isWordDoc || isGoogleDoc) {
         // Word document handling - attempt to read as text (may need server-side processing for full support)
         const reader = new FileReader();
@@ -311,14 +361,24 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setLoading(true);
 
     try {
+      // Check if this is a document upload request (PDF, image, etc.) - these should be analyzed, not treated as profile
+      const hasFileUpload = currentFiles.length > 0;
+      const isFileAnalysisRequest = hasFileUpload || 
+        currentInput.toLowerCase().includes('uploaded') || 
+        currentInput.toLowerCase().includes('analyze') ||
+        currentInput.toLowerCase().includes('document') ||
+        currentInput.toLowerCase().includes('pdf');
+      
       // Check if this looks like profile information (first message or contains profile keywords)
+      // BUT exclude file upload requests from being treated as profile info
       const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia', 'processing speed'];
-      const isProfileInfo = isFirstMessage || profileKeywords.some(keyword => 
+      const isProfileInfo = !isFileAnalysisRequest && (isFirstMessage || profileKeywords.some(keyword => 
         currentInput.toLowerCase().includes(keyword)
-      );
+      ));
 
       // Store profile information if detected (will be updated after AI response if AI extracts it)
-      if (isProfileInfo && isFirstMessage && !studentProfile) {
+      // But NOT if this is a file upload/analysis request
+      if (isProfileInfo && isFirstMessage && !studentProfile && !isFileAnalysisRequest) {
         setStudentProfile(currentInput);
         setIsFirstMessage(false);
       }
@@ -330,7 +390,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         files: currentFiles,
         studentProfile: studentProfile,
         isFirstMessage: isFirstMessage && messages.length === 0,
-        conversationHistory: messages // Pass existing conversation history so AI knows what was said before
+        conversationHistory: messages, // Pass existing conversation history so AI knows what was said before
+        isFileAnalysisRequest: isFileAnalysisRequest // Flag to indicate this is a document analysis request
       };
 
       // Generate accommodation response using the full Gem prompt
@@ -359,6 +420,43 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
 
   const removeFile = (id) => {
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Export to Google Docs
+  const handleExportToGoogleDocs = () => {
+    // Get the last AI message (accommodations)
+    const lastAIMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
+    if (!lastAIMessage || !lastAIMessage.content) {
+      alert('No accommodations to export. Please generate accommodations first.');
+      return;
+    }
+
+    // Format content - clean up markdown and format for Google Docs
+    let content = lastAIMessage.content;
+    
+    // Convert markdown to plain text with formatting hints
+    content = content
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic markdown
+      .replace(/^### (.*$)/gm, '$1') // Remove h3
+      .replace(/^## (.*$)/gm, '$1') // Remove h2
+      .replace(/^# (.*$)/gm, '$1') // Remove h1
+      .trim();
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(content).then(() => {
+      // Open Google Docs in new tab
+      window.open('https://docs.google.com/document/create', '_blank');
+      
+      // Show notification
+      alert('Content copied to clipboard! Paste it into the new Google Doc that just opened.');
+    }).catch(err => {
+      console.error('Failed to copy to clipboard:', err);
+      // Fallback: open with content in URL (limited length)
+      const encodedContent = encodeURIComponent(content.substring(0, 2000));
+      window.open(`https://docs.google.com/document/create?usp=sharing`, '_blank');
+      alert('Please copy the content manually and paste it into Google Docs.');
+    });
   };
 
   return (
@@ -538,6 +636,20 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                 Once you provide this, I will lock it in and adapt all future requests to fit these needs!
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Export Button - Show when there are AI messages */}
+        {messages.some(msg => msg.role === 'assistant') && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={handleExportToGoogleDocs}
+              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${isDark ? 'bg-blue-900/20 text-blue-400 hover:bg-blue-900/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} transition-colors flex items-center gap-2 text-sm font-medium`}
+              title="Export to Google Docs"
+            >
+              <ExternalLink size={16} />
+              Export to Google Docs
+            </button>
           </div>
         )}
 

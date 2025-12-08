@@ -276,7 +276,15 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
 
 3. **After the first message, NEVER introduce yourself again.** Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
 
-4. **When a student profile is established**, acknowledge it ONCE by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.`;
+4. **When a student profile is established**, acknowledge it ONCE by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.
+
+5. **CRITICAL: Document Analysis Requests** - When a user uploads a document (PDF, image, etc.) and asks you to analyze it, your task is to:
+   - Analyze the document content
+   - Provide specific accommodations and differentiation techniques based on the document
+   - Do NOT treat document uploads as profile setup requests
+   - Do NOT respond with "Okay, I've logged the student profile" when analyzing documents
+   - Start immediately with your analysis and accommodation recommendations
+   - If a student profile exists, use it to inform your accommodations, but don't re-log the profile`;
 
         // Build user prompt with context and conversation history
         let promptText = '';
@@ -306,23 +314,52 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
         
         // Add file context if provided
         if (data.files && data.files.length > 0) {
-            promptText += '\n\nUploaded files:';
+            promptText += '\n\n---\nUPLOADED DOCUMENT(S) TO ANALYZE:\n';
             data.files.forEach(file => {
                 if (file.type === 'text' && file.content) {
-                    promptText += `\n- ${file.name}: ${file.content.substring(0, 2000)}`;
+                    promptText += `\n${file.name}:\n${file.content.substring(0, 5000)}`;
                 } else if (file.type === 'image') {
-                    promptText += `\n- ${file.name} (image of student work)`;
+                    promptText += `\n${file.name} (image of student work - analyze and provide accommodations)`;
+                } else if (file.type === 'pdf') {
+                    // For PDFs, if content was extracted, include it
+                    if (file.content) {
+                        promptText += `\n${file.name} (PDF document):\n${file.content.substring(0, 5000)}`;
+                    } else {
+                        promptText += `\n${file.name} (PDF document - analyze this document and provide accommodations)`;
+                    }
                 } else {
-                    promptText += `\n- ${file.name} (${file.type} file)`;
+                    promptText += `\n${file.name} (${file.type} file - analyze and provide accommodations)`;
                 }
             });
+            promptText += '\n---\n\nCRITICAL: The user has uploaded a document for analysis. Your task is to:\n1. Analyze the document content\n2. Provide specific accommodations and differentiation techniques\n3. Do NOT treat this as profile setup - this is a document analysis request\n4. If a student profile exists, use it to inform your accommodations\n5. Start immediately with the analysis and accommodations - no profile logging or confirmations';
         }
         
         userPrompt = promptText;
         
+        // If this is a file analysis request, ensure the prompt emphasizes analysis, not profile logging
+        if (data.isFileAnalysisRequest) {
+          userPrompt = `The user has uploaded a document for analysis. Analyze the document content and provide specific accommodations and differentiation techniques. Do NOT log this as a profile or ask for additional information. Start immediately with your analysis and accommodation recommendations.
+
+${userPrompt}`;
+        }
+        // If skipWelcomeMessage flag is set (for front page Instant AI Accommodations)
+        // Skip all profile/welcome logic and provide accommodations immediately
+        else if (data.skipWelcomeMessage) {
+          userPrompt = `Provide immediate, actionable differentiation techniques and accommodations. Do NOT show any welcome message, profile logging, or ask for additional information. Start directly with specific accommodation strategies based on the challenge and subject provided.
+
+Challenge: ${data.targetBehavior || 'Not specified'}
+Subject: ${data.condition || 'Not specified'}
+
+Provide:
+1. Specific differentiation techniques
+2. Accommodation strategies  
+3. Implementation suggestions
+
+Start immediately with the accommodations - no introductions, confirmations, or profile logging.`;
+        }
         // If this is the first message and no profile exists, explicitly request welcome
         // Only if user hasn't already provided profile information
-        if (data.isFirstMessage && !data.studentProfile) {
+        else if (data.isFirstMessage && !data.studentProfile) {
             const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia'];
             const hasProfileInfo = data.message && profileKeywords.some(keyword => 
                 data.message.toLowerCase().includes(keyword)

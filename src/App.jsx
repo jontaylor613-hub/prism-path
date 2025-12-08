@@ -91,7 +91,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
     
     setLoading(true); setError(''); setGeneratedPlan(null); setShowTrialLimit(false);
     try {
-        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject }, 'accommodation'); 
+        const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject, skipWelcomeMessage: true }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
         
         // Record the use (skip if dev mode)

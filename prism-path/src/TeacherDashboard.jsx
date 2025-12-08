@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   LineChart, Target, BookOpen, Plus, Save, Trash2, CheckCircle,
   Brain, Layout, FileText, Sparkles, ClipboardList, ArrowRight,
@@ -12,6 +12,17 @@ import {
 
 // --- IMPORTS ---
 import { ComplianceService, GeminiService, getTheme } from './utils';
+import { signUp, signIn, onAuthChange, logout, ROLES, getCurrentUserProfile } from './auth';
+import AccommodationGem from './AccommodationGem';
+import { 
+  getStudentsForUser, 
+  createStudent, 
+  removeStudent, 
+  getStudentGoals,
+  getIepSummary,
+  get504Accommodations
+} from './studentData';
+import { ChatHistoryService } from './chatHistory';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -225,20 +236,32 @@ const SimpleLineChart = ({ data, target, theme }) => {
 
 // --- HELPER COMPONENTS ---
 const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme }) => {
-  const baseStyle = "inline-flex items-center justify-center px-4 py-2 rounded-full font-bold transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide";
+  const baseStyle = "inline-flex items-center justify-center px-4 py-2 rounded-full font-bold transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide relative overflow-hidden";
   
   const variants = {
-    primary: "bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(217,70,239,0.5)] border border-white/10",
+    primary: "text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(217,70,239,0.5)] border border-white/10",
     secondary: `${theme.inputBg} ${theme.primaryText} border ${theme.inputBorder} hover:opacity-80`,
     danger: "bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40",
     ghost: `${theme.textMuted} hover:${theme.text}`,
     copy: "w-full py-3 bg-emerald-900/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/40 font-mono tracking-widest uppercase shadow-lg hover:shadow-emerald-500/20"
   };
   
+  // For primary buttons, use absolute positioned gradient background to ensure full coverage
+  const primaryGradientBg = variant === 'primary' ? (
+    <span className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-fuchsia-500 -z-0"></span>
+  ) : null;
+  
   return (
-    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}>
-      {Icon && <Icon size={18} className={`mr-2 ${Icon === Loader2 ? 'animate-spin' : ''}`} />}
-      {children}
+    <button 
+      onClick={onClick} 
+      disabled={disabled} 
+      className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}
+    >
+      {primaryGradientBg}
+      <span className="relative z-10 flex items-center">
+        {Icon && <Icon size={18} className={`mr-2 ${Icon === Loader2 ? 'animate-spin' : ''}`} />}
+        {children}
+      </span>
     </button>
   );
 };
@@ -297,17 +320,143 @@ const SAMPLE_STUDENTS = [
 const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const theme = getTheme(isDark);
   const [activeTab, setActiveTab] = useState('profile');
-  const [students, setStudents] = useState(SAMPLE_STUDENTS);
-  const [currentStudentId, setCurrentStudentId] = useState(1);
+  const [students, setStudents] = useState([]);
+  const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showSamples, setShowSamples] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
+  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
   const [goals, setGoals] = useState([]);
   const [activeGoalId, setActiveGoalId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedStudentForGem, setSelectedStudentForGem] = useState(null);
+  const [chatHistories, setChatHistories] = useState([]);
   
-  const displayedStudents = showSamples ? students : students.filter(s => s.id > 3);
-  const activeStudent = displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0];
+  // Track demo mode student additions (localStorage, not saved)
+  const getDemoStudentCount = () => {
+    if (!user?.isDemo) return 0;
+    const count = localStorage.getItem('prismpath_demo_students_count');
+    return count ? parseInt(count, 10) : 0;
+  };
+  
+  const incrementDemoStudentCount = () => {
+    if (!user?.isDemo) return;
+    const current = getDemoStudentCount();
+    localStorage.setItem('prismpath_demo_students_count', (current + 1).toString());
+  };
+  
+  // Load students from Firebase on mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadStudents = async () => {
+      // Always set loading to true initially
+      if (isMounted) setLoading(true);
+      
+      // If no user or no uid, show sample students immediately
+      if (!user || !user.uid || user.isDemo) {
+        if (isMounted) {
+          if (showSamples) {
+            setStudents(SAMPLE_STUDENTS);
+            setCurrentStudentId(prev => prev || SAMPLE_STUDENTS[0]?.id || null);
+          } else {
+            setStudents([]);
+            setCurrentStudentId(null);
+          }
+          setLoading(false);
+        }
+        return;
+      }
+      
+      try {
+        // Try to load from Firebase with timeout
+        const firebasePromise = getStudentsForUser(user.uid, user.role);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        );
+        
+        const firebaseStudents = await Promise.race([firebasePromise, timeoutPromise]);
+        
+        if (!isMounted) return;
+        
+        // Merge with sample students if showSamples is true
+        const allStudents = showSamples 
+          ? [...SAMPLE_STUDENTS, ...firebaseStudents]
+          : firebaseStudents;
+        
+        setStudents(allStudents);
+        
+        // Set first student as active if none selected
+        if (allStudents.length > 0) {
+          setCurrentStudentId(prev => prev || allStudents[0].id);
+        } else {
+          setCurrentStudentId(null);
+        }
+      } catch (error) {
+        console.error('Error loading students:', error);
+        if (!isMounted) return;
+        // Fallback to sample students on error
+        if (showSamples) {
+          setStudents(SAMPLE_STUDENTS);
+          setCurrentStudentId(prev => prev || SAMPLE_STUDENTS[0]?.id || null);
+        } else {
+          setStudents([]);
+          setCurrentStudentId(null);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    
+    loadStudents();
+    
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, user?.role, showSamples]);
+
+  // Filter students based on showSamples toggle
+  // This needs to be computed from the current students array
+  const displayedStudents = useMemo(() => {
+    if (showSamples) {
+      return students;
+    }
+    // Filter out sample students
+    return students.filter(s => {
+      return !SAMPLE_STUDENTS.some(sample => sample.id === s.id);
+    });
+  }, [students, showSamples]);
+  
+  const activeStudent = displayedStudents.length > 0 
+    ? (displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0])
+    : null;
   const activeGoal = goals.find(g => g.id === activeGoalId);
+
+  // Load goals when student changes
+  useEffect(() => {
+    const loadStudentData = async () => {
+      if (!activeStudent || !user?.uid) return;
+      
+      try {
+        // Load goals from Firebase
+        if (activeStudent.id && typeof activeStudent.id === 'string') {
+          const studentGoals = await getStudentGoals(activeStudent.id, user.uid);
+          setGoals(studentGoals);
+        }
+      } catch (error) {
+        console.error('Error loading student data:', error);
+      }
+    };
+    
+    loadStudentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStudent?.id, user?.uid]);
+
+  // Load chat histories
+  useEffect(() => {
+    const histories = ChatHistoryService.getAll();
+    setChatHistories(histories);
+  }, [activeStudent]);
 
   // States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -342,13 +491,144 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   };
 
   // Handlers
-  const handleAddStudent = () => {
-      if(!newStudent.name) return;
-      const student = { ...newStudent, id: Date.now(), summary: "New student profile created locally." };
-      setStudents([...students, student]);
-      setIsAddingStudent(false);
-      setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '' });
-      setCurrentStudentId(student.id);
+  const handleAddStudent = async () => {
+      if(!newStudent.name) {
+        alert('Please enter a student name');
+        return;
+      }
+      
+      // If no user or demo mode, add to local state (demo mode - limit 1)
+      if (!user?.uid || user?.isDemo) {
+        // Check demo limit
+        if (user?.isDemo && getDemoStudentCount() >= 1) {
+          alert('Demo mode limit reached. You can only add 1 student in demo mode. Please create an account for full access.');
+          return;
+        }
+        
+        const student = { 
+          ...newStudent, 
+          id: Date.now(), 
+          summary: "New student profile created locally. This data is not saved.",
+          behaviorPlan: false,
+          isDemo: true // Mark as demo student
+        };
+        setStudents([...students, student]);
+        setIsAddingStudent(false);
+        setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+        setCurrentStudentId(student.id);
+        incrementDemoStudentCount();
+        return;
+      }
+      
+      try {
+        const studentData = {
+          name: newStudent.name,
+          grade: newStudent.grade,
+          need: newStudent.need,
+          nextIep: newStudent.nextIep,
+          nextEval: newStudent.nextEval,
+          next504: newStudent.next504
+        };
+        
+        const createdStudent = await createStudent(studentData, user.uid, user.role);
+        // Reload students from Firebase to get the updated list
+        const firebaseStudents = await getStudentsForUser(user.uid, user.role);
+        const allStudents = showSamples 
+          ? [...SAMPLE_STUDENTS, ...firebaseStudents]
+          : firebaseStudents;
+        setStudents(allStudents);
+        setIsAddingStudent(false);
+        setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+        setCurrentStudentId(createdStudent.id);
+      } catch (error) {
+        alert(`Error adding student: ${error.message}`);
+        console.error('Error adding student:', error);
+      }
+  };
+
+  const handleRemoveStudent = async (studentId) => {
+    if (!confirm('Are you sure you want to remove this student from your roster?')) return;
+    
+    // Check if it's a sample student
+    const isSample = SAMPLE_STUDENTS.find(s => s.id === studentId);
+    if (isSample) {
+      // Just remove from display, don't call Firebase
+      setStudents(students.filter(s => s.id !== studentId));
+      if (currentStudentId === studentId) {
+        const remaining = students.filter(s => s.id !== studentId);
+        setCurrentStudentId(remaining[0]?.id || null);
+      }
+      return;
+    }
+    
+    // For Firebase students, actually remove them
+    if (!user?.uid) {
+      alert('You must be logged in to remove students');
+      return;
+    }
+    
+    try {
+      await removeStudent(studentId, user.uid, user.role);
+      // Reload students from Firebase
+      const firebaseStudents = await getStudentsForUser(user.uid, user.role);
+      const allStudents = showSamples 
+        ? [...SAMPLE_STUDENTS, ...firebaseStudents]
+        : firebaseStudents;
+      setStudents(allStudents);
+      if (currentStudentId === studentId) {
+        const remaining = allStudents.filter(s => s.id !== studentId);
+        setCurrentStudentId(remaining[0]?.id || null);
+      }
+    } catch (error) {
+      alert(`Error removing student: ${error.message}`);
+      console.error('Error removing student:', error);
+    }
+  };
+
+  // Open Gem with selected student
+  const handleOpenGemWithStudent = async () => {
+    if (!activeStudent || !user?.uid) return;
+    
+    try {
+      // Load IEP and 504 data
+      let studentProfile = `Student: ${activeStudent.name}\nGrade: ${activeStudent.grade}\nPrimary Need: ${activeStudent.need || 'Not specified'}\n\n`;
+      
+      if (activeStudent.id && typeof activeStudent.id === 'string') {
+        try {
+          const iepSummary = await getIepSummary(activeStudent.id, user.uid);
+          const plan504 = await get504Accommodations(activeStudent.id, user.uid);
+          
+          if (iepSummary) {
+            studentProfile += `IEP Summary:\n${iepSummary}\n\n`;
+          }
+          if (plan504) {
+            studentProfile += `504 Plan Accommodations:\n${plan504}\n\n`;
+          }
+        } catch (err) {
+          console.error('Error loading plan data:', err);
+        }
+      }
+      
+      if (activeStudent.nextIep) {
+        studentProfile += `IEP Due Date: ${activeStudent.nextIep}\n`;
+      }
+      if (activeStudent.next504) {
+        studentProfile += `504 Plan Due Date: ${activeStudent.next504}\n`;
+      }
+      if (activeStudent.nextEval) {
+        studentProfile += `Evaluation Due Date: ${activeStudent.nextEval}\n`;
+      }
+      
+      setSelectedStudentForGem({
+        ...activeStudent,
+        profileText: studentProfile
+      });
+      setActiveTab('gem');
+    } catch (error) {
+      console.error('Error preparing student for gem:', error);
+      setSelectedStudentForGem(activeStudent);
+      setActiveTab('gem');
+    }
   };
 
   const handleLockGoal = () => {
@@ -446,33 +726,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const removeGoal = (index) => setTrackingGoals(trackingGoals.filter((_, i) => i !== index));
   const copyTemplate = () => alert("Configuration Saved!");
 
-  if (!activeStudent && displayedStudents.length === 0) {
-      return (
-          <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.textMuted} p-8`}>
-              <Users size={48} className="mb-4 text-cyan-500" />
-              <h2 className={`text-xl font-bold ${theme.text} mb-2`}>No Students Found</h2>
-              <p className="mb-6 text-center">You have hidden sample students. Add a new student to begin.</p>
-              <div className="flex gap-4">
-                  <Button onClick={() => setShowSamples(true)} icon={ToggleLeft} theme={theme}>Show Samples</Button>
-                  <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>Add Student</Button>
-              </div>
-                {isAddingStudent && (
-                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                        <Card className="p-6 w-full max-w-md" theme={theme}>
-                             <h3 className={`text-xl font-bold ${theme.text} mb-4`}>Add Student</h3>
-                             <div className="space-y-3">
-                                <input placeholder="Name" className={`w-full ${theme.inputBg} p-3 rounded border ${theme.cardBorder} ${theme.text}`} value={newStudent.name} onChange={e=>setNewStudent({...newStudent, name: e.target.value})} />
-                                <div className="flex justify-end gap-2 mt-4">
-                                    <Button onClick={() => setIsAddingStudent(false)} variant="ghost" theme={theme}>Cancel</Button>
-                                    <Button onClick={handleAddStudent} theme={theme}>Save</Button>
-                                </div>
-                             </div>
-                        </Card>
-                    </div>
-                )}
-          </div>
-      )
-  }
+  // Don't render early return - let the main render handle it
 
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-500`}>
@@ -489,9 +743,34 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Wellness'].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab.toLowerCase() ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg' : `${theme.textMuted} hover:${theme.text}`}`}>{tab}</button>
-            ))}
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness'].map((tab) => {
+              const isGem = tab === 'Gem';
+              const isWellness = tab === 'Wellness';
+              return (
+                <button 
+                  key={tab} 
+                  onClick={() => {
+                    if (tab === 'Gem' && activeStudent) {
+                      handleOpenGemWithStudent();
+                    } else {
+                      setActiveTab(tab.toLowerCase());
+                    }
+                  }} 
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                    activeTab === tab.toLowerCase() 
+                      ? isGem 
+                        ? 'bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-purple-500 text-white shadow-lg shadow-cyan-500/50' 
+                        : 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg'
+                      : isGem
+                        ? `${theme.textMuted} hover:text-cyan-400 border border-cyan-500/30 hover:border-cyan-500/50`
+                        : `${theme.textMuted} hover:${theme.text}`
+                  } ${isGem ? 'ring-2 ring-cyan-500/20' : ''}`}
+                >
+                  {isGem && <Sparkles size={12} className="inline mr-1" />}
+                  {tab}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-4">
@@ -506,47 +785,145 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 space-y-8">
-        <div className="flex items-center justify-between">
-            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide flex-1 mr-4">
-            {displayedStudents.map(s => {
-                const status = ComplianceService.getStatus(s.nextIep);
-                return (
-                <button key={s.id} onClick={() => setCurrentStudentId(s.id)} className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all relative min-w-[160px] ${currentStudentId === s.id ? `${theme.inputBg} border-cyan-500/50 shadow-lg` : `${theme.cardBg} ${theme.cardBorder} hover:opacity-80`}`}>
-                    <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${status.color}`}></div>
-                    <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${currentStudentId === s.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 text-slate-400'}`}>{s.name.charAt(0)}</div>
-                    <div className="text-left"><p className={`text-sm font-bold ${theme.text}`}>{s.name}</p><p className={`text-[10px] ${theme.textMuted} uppercase truncate max-w-[100px]`}>{s.need}</p></div>
-                    </div>
-                </button>
-                );
-            })}
-            <button onClick={() => setIsAddingStudent(true)} className={`flex-shrink-0 px-4 py-3 rounded-xl border border-dashed ${theme.cardBorder} ${theme.textMuted} hover:text-cyan-400 flex items-center justify-center`}><Plus size={20} /></button>
+        {loading ? (
+          <div className={`flex items-center justify-center py-20 ${theme.textMuted}`}>
+            <Loader2 className="animate-spin mr-3" size={24} />
+            <span>Loading students...</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+                <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide flex-1 mr-4">
+                {displayedStudents.length === 0 ? (
+                  <div className={`flex-shrink-0 px-4 py-3 rounded-xl border ${theme.cardBorder} ${theme.textMuted} text-sm`}>
+                    No students to display. {showSamples ? 'Toggle samples off or' : ''} Add a student to get started.
+                  </div>
+                ) : (
+                  displayedStudents.map(s => {
+                    const status = ComplianceService.getStatus(s.nextIep || s.nextIepDate);
+                    return (
+                    <button key={s.id} onClick={() => setCurrentStudentId(s.id)} className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all relative min-w-[160px] ${currentStudentId === s.id ? `${theme.inputBg} border-cyan-500/50 shadow-lg` : `${theme.cardBg} ${theme.cardBorder} hover:opacity-80`}`}>
+                        <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${status.color}`}></div>
+                        <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${currentStudentId === s.id ? 'bg-cyan-500 text-white' : 'bg-slate-700 text-slate-400'}`}>{s.name.charAt(0)}</div>
+                        <div className="text-left"><p className={`text-sm font-bold ${theme.text}`}>{s.name}</p><p className={`text-[10px] ${theme.textMuted} uppercase truncate max-w-[100px]`}>{s.need || s.primaryNeed || 'N/A'}</p></div>
+                        </div>
+                    </button>
+                    );
+                  })
+                )}
+                <button onClick={() => setIsAddingStudent(true)} className={`flex-shrink-0 px-4 py-3 rounded-xl border border-dashed ${theme.cardBorder} ${theme.textMuted} hover:text-cyan-400 flex items-center justify-center`}><Plus size={20} /></button>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                    <button onClick={() => setShowSamples(!showSamples)} className={`text-[10px] uppercase font-bold ${theme.textMuted} hover:${theme.text} flex items-center gap-1`}>{showSamples ? <ToggleRight className="text-cyan-400"/> : <ToggleLeft />} Samples {showSamples ? 'On' : 'Off'}</button>
+                </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-                <button onClick={() => setShowSamples(!showSamples)} className={`text-[10px] uppercase font-bold ${theme.textMuted} hover:${theme.text} flex items-center gap-1`}>{showSamples ? <ToggleRight className="text-cyan-400"/> : <ToggleLeft />} Samples {showSamples ? 'On' : 'Off'}</button>
-            </div>
-        </div>
 
-        {activeTab === 'profile' && activeStudent && (
+        {activeTab === 'profile' && (
+          activeStudent ? (
           <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="lg:col-span-2 space-y-6">
                <Card className="p-6" theme={theme}>
                  <div className="flex justify-between items-start mb-6">
-                   <div><h2 className={`text-2xl font-bold ${theme.text}`}>{activeStudent.name}</h2><p className={theme.textMuted}>Grade: {activeStudent.grade} • Primary Need: {activeStudent.need}</p></div>
-                   <div className="relative"><input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.txt" /><Button variant="secondary" onClick={() => fileInputRef.current.click()} icon={isUploading ? Settings : UploadCloud} disabled={isUploading} theme={theme}>{isUploading ? "Analyzing..." : "Upload Data"}</Button></div>
+                   <div><h2 className={`text-2xl font-bold ${theme.text}`}>{activeStudent.name}</h2><p className={theme.textMuted}>Grade: {activeStudent.grade} • Primary Need: {activeStudent.need || activeStudent.primaryNeed}</p></div>
+                   <div className="flex gap-2">
+                     <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
+                     <div className="relative"><input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.txt" /><Button variant="secondary" onClick={() => fileInputRef.current.click()} icon={isUploading ? Settings : UploadCloud} disabled={isUploading} theme={theme}>{isUploading ? "Analyzing..." : "Upload Data"}</Button></div>
+                   </div>
                  </div>
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-3 gap-4">
                     <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep).text}</Badge>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).color}`}></div>
+                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep || activeStudent.nextIepDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text}</Badge>
                     </div>
                     <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextEval).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextEval).text}</Badge>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).color}`}></div>
+                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>504 Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.next504 || activeStudent.next504Date || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text}</Badge>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).color}`}></div>
+                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval || activeStudent.nextEvalDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text}</Badge>
                     </div>
                  </div>
                </Card>
-               <Card className="p-6" theme={theme}><h3 className={`text-lg font-bold ${theme.text} mb-4 flex items-center gap-2`}><BarChart3 className="text-cyan-400"/> Student Summary</h3><p className={`${theme.textMuted} leading-relaxed text-sm whitespace-pre-wrap`}>{activeStudent.summary}</p></Card>
+               <Card className="p-6" theme={theme}>
+                 <h3 className={`text-lg font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                   <BarChart3 className="text-cyan-400"/> Student Summary
+                 </h3>
+                 <p className={`${theme.textMuted} leading-relaxed text-sm whitespace-pre-wrap`}>
+                   {activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.'}
+                 </p>
+               </Card>
+               
+               {/* Chat Histories Section */}
+               {chatHistories.length > 0 && (
+                 <Card className="p-6" theme={theme}>
+                   <h3 className={`text-lg font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                     <MessageSquare className="text-fuchsia-400"/> Chat Histories
+                   </h3>
+                   <div className="space-y-3 max-h-64 overflow-y-auto">
+                     {chatHistories
+                       .filter(chat => {
+                         // Filter chats that match current student if available
+                         if (activeStudent && activeStudent.name) {
+                           const profileName = typeof chat.profile === 'object' && chat.profile.name 
+                             ? chat.profile.name 
+                             : (typeof chat.profile === 'string' ? chat.profile.match(/Student:\s*([^\n]+)/i)?.[1] : '');
+                           return profileName && profileName.toLowerCase().includes(activeStudent.name.toLowerCase());
+                         }
+                         return true; // Show all if no student selected
+                       })
+                       .map((chat) => (
+                         <div
+                           key={chat.id}
+                           onClick={() => {
+                             setSelectedStudentForGem({
+                               profileText: typeof chat.profile === 'object' ? chat.profile.profileText || JSON.stringify(chat.profile) : chat.profile,
+                               name: typeof chat.profile === 'object' && chat.profile.name ? chat.profile.name : activeStudent?.name
+                             });
+                             setActiveTab('gem');
+                           }}
+                           className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                             theme.cardBorder
+                           } ${theme.inputBg} hover:border-cyan-500/50`}
+                         >
+                           <div className="flex items-start justify-between gap-2">
+                             <div className="flex-1 min-w-0">
+                               <div className={`font-medium ${theme.text} text-sm mb-1 truncate`}>
+                                 {typeof chat.profile === 'object' && chat.profile.name 
+                                   ? chat.profile.name 
+                                   : (typeof chat.profile === 'string' ? chat.profile.match(/Student:\s*([^\n]+)/i)?.[1] || 'Chat History' : 'Chat History')}
+                               </div>
+                               <div className={`text-xs ${theme.textMuted} flex items-center gap-1`}>
+                                 <Clock size={12} />
+                                 {new Date(chat.lastAccessed).toLocaleDateString()}
+                               </div>
+                               {chat.messages && chat.messages.length > 0 && (
+                                 <div className={`text-xs ${theme.textMuted} mt-1`}>
+                                   {chat.messages.length} {chat.messages.length === 1 ? 'message' : 'messages'}
+                                 </div>
+                               )}
+                             </div>
+                             <Sparkles size={16} className="text-cyan-400 shrink-0" />
+                           </div>
+                         </div>
+                       ))}
+                   </div>
+                   {chatHistories.filter(chat => {
+                     if (activeStudent && activeStudent.name) {
+                       const profileName = typeof chat.profile === 'object' && chat.profile.name 
+                         ? chat.profile.name 
+                         : (typeof chat.profile === 'string' ? chat.profile.match(/Student:\s*([^\n]+)/i)?.[1] : '');
+                       return profileName && profileName.toLowerCase().includes(activeStudent.name.toLowerCase());
+                     }
+                     return true;
+                   }).length === 0 && (
+                     <p className={`text-sm ${theme.textMuted} text-center py-4`}>
+                       No chat histories found for this student. Open in Gem to start a conversation.
+                     </p>
+                   )}
+                 </Card>
+               )}
             </div>
             <div className="space-y-6">
               <Card className="p-6 h-full flex flex-col" glow theme={theme}>
@@ -562,6 +939,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               </Card>
             </div>
           </div>
+          ) : (
+            <div className={`text-center py-12 ${theme.textMuted}`}>
+              <Users size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="mb-4">No student selected. Please select a student from the list above.</p>
+            </div>
+          )
         )}
 
         {activeTab === 'identify' && (
@@ -682,7 +1065,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               )}
               {behaviorTab === 'log' && (
                   <div className="grid lg:grid-cols-2 gap-8">
-                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
+                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1 overflow-hidden" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
                     <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
                     <div className={`lg:col-span-2 ${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}><table className={`w-full text-sm text-left ${theme.textMuted}`}><thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs`}><tr><th className="p-4">Date</th><th className="p-4">Antecedent</th><th className="p-4">Behavior</th><th className="p-4">Consequence</th></tr></thead><tbody className={`divide-y ${theme.cardBorder}`}>{behaviorLog.length === 0 ? <tr><td colSpan="4" className="p-8 text-center italic opacity-50">No incidents logged yet.</td></tr> : behaviorLog.map(log => (<tr key={log.id}><td className="p-4 font-mono text-cyan-400">{log.date}</td><td className="p-4">{log.antecedent}</td><td className={`p-4 ${theme.text}`}>{log.behavior}</td><td className="p-4">{log.consequence}</td></tr>))}</tbody></table></div>
                   </div>
@@ -695,29 +1078,355 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
             <BurnoutCheck theme={theme} />
         )}
 
+        {/* --- GEM TAB (NEW) --- */}
+        {activeTab === 'gem' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+                <AccommodationGem 
+                  isDark={isDark} 
+                  user={user} 
+                  onBack={() => setActiveTab('profile')} 
+                  isEmbedded={true}
+                  selectedStudent={selectedStudentForGem}
+                />
+            </div>
+        )}
+
+        {/* --- ROSTER TAB (NEW) --- */}
+        {activeTab === 'roster' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+            <Card className="p-6" theme={theme}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
+                  <Users className="text-cyan-400" size={24} />
+                  Student Roster
+                </h2>
+                <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
+                  Add Student
+                </Button>
+              </div>
+              
+              {loading ? (
+                <div className={`text-center py-12 ${theme.textMuted}`}>
+                  <Loader2 className="animate-spin mx-auto mb-4" size={32} />
+                  <p>Loading students...</p>
+                </div>
+              ) : displayedStudents.length === 0 ? (
+                <div className={`text-center py-12 ${theme.textMuted}`}>
+                  <Users size={48} className="mx-auto mb-4 opacity-50" />
+                  <p className="mb-4">No students in your roster yet.</p>
+                  <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
+                    Add Your First Student
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs border-b ${theme.cardBorder}`}>
+                      <tr>
+                        <th className="p-4">Student</th>
+                        <th className="p-4">Grade</th>
+                        <th className="p-4">Primary Need</th>
+                        <th className="p-4">IEP Due Date</th>
+                        <th className="p-4">504 Due Date</th>
+                        <th className="p-4">Evaluation Due</th>
+                        <th className="p-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${theme.cardBorder}`}>
+                      {displayedStudents.map((student) => {
+                        const iepStatus = ComplianceService.getStatus(student.nextIep || student.nextIepDate);
+                        const evalStatus = ComplianceService.getStatus(student.nextEval || student.nextEvalDate);
+                        const plan504Status = ComplianceService.getStatus(student.next504 || student.next504Date);
+                        
+                        return (
+                          <tr key={student.id} className={`hover:${theme.inputBg} transition-colors`}>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${theme.inputBg} border ${theme.cardBorder}`}>
+                                  {student.name.charAt(0)}
+                                </div>
+                                <span className={`font-medium ${theme.text}`}>{student.name}</span>
+                              </div>
+                            </td>
+                            <td className={`p-4 ${theme.textMuted}`}>{student.grade || 'N/A'}</td>
+                            <td className={`p-4 ${theme.textMuted}`}>{student.need || student.primaryNeed || 'N/A'}</td>
+                            <td className="p-4">
+                              {student.nextIep || student.nextIepDate ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={theme.text}>{student.nextIep || student.nextIepDate}</span>
+                                  <Badge color={getBadgeColor(iepStatus.text)} isDark={isDark}>
+                                    {iepStatus.text}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className={theme.textMuted}>No IEP</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {student.next504 || student.next504Date ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={theme.text}>{student.next504 || student.next504Date}</span>
+                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark}>
+                                    {plan504Status.text}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className={theme.textMuted}>No 504</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {student.nextEval || student.nextEvalDate ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={theme.text}>{student.nextEval || student.nextEvalDate}</span>
+                                  <Badge color={getBadgeColor(evalStatus.text)} isDark={isDark}>
+                                    {evalStatus.text}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className={theme.textMuted}>N/A</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <Button 
+                                  onClick={() => {
+                                    setCurrentStudentId(student.id);
+                                    setActiveTab('profile');
+                                  }}
+                                  variant="secondary"
+                                  className="text-xs"
+                                  theme={theme}
+                                >
+                                  View
+                                </Button>
+                                <Button 
+                                  onClick={() => handleOpenGemWithStudent()}
+                                  variant="secondary"
+                                  className="text-xs"
+                                  icon={Sparkles}
+                                  theme={theme}
+                                >
+                                  Gem
+                                </Button>
+                                <button
+                                  onClick={() => handleRemoveStudent(student.id)}
+                                  className={`p-2 rounded-lg ${theme.textMuted} hover:text-red-400 transition-colors`}
+                                  title="Remove student"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+          </>
+        )}
+
       </main>
       
       {isAddingStudent && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}><div className="flex justify-between items-center mb-6"><h2 className={`text-2xl font-bold ${theme.text}`}>Add to Caseload</h2><button onClick={() => setIsAddingStudent(false)} className={`${theme.textMuted} hover:${theme.text}`}><X /></button></div><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input placeholder="Student Name" className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} value={newStudent.name} onChange={e => setNewStudent({...newStudent, name: e.target.value})} /><input placeholder="Grade" className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})} /></div><input placeholder="Primary Need" className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} value={newStudent.need} onChange={e => setNewStudent({...newStudent, need: e.target.value})} /><div className="grid grid-cols-2 gap-4"><div><label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Date</label><input type="date" className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} value={newStudent.nextIep} onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} /></div><div><label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label><input type="date" className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} value={newStudent.nextEval} onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} /></div></div><div className="pt-4 flex justify-end gap-2"><Button variant="ghost" onClick={() => setIsAddingStudent(false)} theme={theme}>Cancel</Button><Button onClick={handleAddStudent} theme={theme}>Save</Button></div></div></Card>
+              <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className={`text-2xl font-bold ${theme.text}`}>Add to Caseload</h2>
+                  <button onClick={() => setIsAddingStudent(false)} className={`${theme.textMuted} hover:${theme.text}`}>
+                    <X />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <input 
+                      placeholder="Student Name" 
+                      className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                      value={newStudent.name} 
+                      onChange={e => setNewStudent({...newStudent, name: e.target.value})} 
+                    />
+                    <input 
+                      placeholder="Grade" 
+                      className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                      value={newStudent.grade} 
+                      onChange={e => setNewStudent({...newStudent, grade: e.target.value})} 
+                    />
+                  </div>
+                  <input 
+                    placeholder="Primary Need" 
+                    className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                    value={newStudent.need} 
+                    onChange={e => setNewStudent({...newStudent, need: e.target.value})} 
+                  />
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        value={newStudent.nextIep} 
+                        onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        value={newStudent.next504} 
+                        onChange={e => setNewStudent({...newStudent, next504: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        value={newStudent.nextEval} 
+                        onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                  <div className="pt-4 flex justify-end gap-2">
+                    <Button variant="ghost" onClick={() => setIsAddingStudent(false)} theme={theme}>Cancel</Button>
+                    <Button onClick={handleAddStudent} theme={theme}>Save</Button>
+                  </div>
+                </div>
+              </Card>
           </div>
       )}
     </div>
   );
 };
 
-// --- LOGIN SCREEN ---
+// --- LOGIN SCREEN (FERPA-Compliant) ---
 const LoginScreen = ({ onLogin, onBack }) => {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const handleAnonLogin = () => { setLoading(true); setTimeout(() => { onLogin({ name: "Educator (Guest)", uid: "guest-123", role: "Teacher", school: "Demo School" }); setLoading(false); }, 800); }
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    role: 'regular_ed',
+    school: '',
+    schoolDistrict: ''
+  });
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (isSignUp) {
+        await signUp(formData.email, formData.password, {
+          name: formData.name,
+          role: formData.role,
+          school: formData.school,
+          schoolDistrict: formData.schoolDistrict
+        });
+        // After signup, automatically sign in
+        const userCredential = await signIn(formData.email, formData.password);
+        const profile = await getCurrentUserProfile(userCredential.user.uid);
+        onLogin(profile);
+      } else {
+        const userCredential = await signIn(formData.email, formData.password);
+        const profile = await getCurrentUserProfile(userCredential.user.uid);
+        onLogin(profile);
+      }
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const theme = getTheme(true);
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_40%,transparent_100%)]"></div>
-      <div className="relative z-10 w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl text-center">
-         <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 mb-6 shadow-lg"><Sparkles className="text-cyan-400" size={40} /></div>
-         <h1 className="text-3xl font-extrabold text-white mb-2">Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1><p className="text-slate-400 font-medium mb-8">Educator Portal Access</p>
-         <Button className="w-full" onClick={handleAnonLogin} disabled={loading} theme={getTheme(true)}>{loading ? "Accessing..." : "Enter Portal (Offline Mode)"}</Button>
-         <button onClick={onBack} className="mt-4 text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest">Back to Home</button>
+      <div className="relative z-10 w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl">
+         <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 mb-6 shadow-lg mx-auto"><Sparkles className="text-cyan-400" size={40} /></div>
+         <h1 className="text-3xl font-extrabold text-white mb-2 text-center">Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
+         <p className="text-slate-400 font-medium mb-6 text-center">FERPA-Compliant Educator Portal</p>
+         
+         <form onSubmit={handleSubmit} className="space-y-4">
+           {isSignUp && (
+             <>
+               <div>
+                 <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Full Name</label>
+                 <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`} placeholder="Jane Doe" />
+               </div>
+               <div>
+                 <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Role</label>
+                 <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`}>
+                   <option value="regular_ed">Regular Education Teacher</option>
+                   <option value="sped">Special Education Teacher</option>
+                   <option value="admin">Administrator</option>
+                 </select>
+               </div>
+               <div>
+                 <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>School</label>
+                 <input type="text" value={formData.school} onChange={e => setFormData({...formData, school: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`} placeholder="Lincoln Elementary" />
+               </div>
+               <div>
+                 <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>School District</label>
+                 <input type="text" value={formData.schoolDistrict} onChange={e => setFormData({...formData, schoolDistrict: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`} placeholder="Springfield School District" />
+               </div>
+             </>
+           )}
+           <div>
+             <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Email</label>
+             <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`} placeholder="teacher@school.edu" />
+           </div>
+           <div>
+             <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Password</label>
+             <input type="password" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} minLength={6} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`} placeholder="••••••••" />
+             {isSignUp && <p className={`text-xs ${theme.textMuted} mt-1`}>Minimum 6 characters</p>}
+           </div>
+           
+           {error && <div className={`p-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-400 text-sm`}>{error}</div>}
+           
+           <Button type="submit" className="w-full" disabled={loading} theme={theme}>
+             {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
+           </Button>
+         </form>
+         
+         <div className="mt-6 text-center">
+           <button onClick={() => {setIsSignUp(!isSignUp); setError('');}} className={`text-sm ${theme.textMuted} hover:text-cyan-400`}>
+             {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+           </button>
+         </div>
+         
+         <div className="mt-6 pt-6 border-t border-slate-700/50">
+           <button 
+             onClick={() => {
+               // Demo mode - bypass authentication
+               onLogin({
+                 uid: 'demo-user',
+                 name: 'Demo Educator',
+                 email: 'demo@prismpath.com',
+                 role: 'sped',
+                 school: 'Demo School',
+                 schoolDistrict: 'Demo District',
+                 isDemo: true
+               });
+             }}
+             className="w-full px-4 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+           >
+             <Sparkles size={16} className="text-cyan-400" />
+             Try Demo Mode (No Account Required)
+           </button>
+           <p className="text-[10px] text-slate-500 mt-2 text-center">Perfect for exploring the platform</p>
+         </div>
+         
+         <button onClick={onBack} className="mt-4 text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest block mx-auto">Back to Home</button>
       </div>
     </div>
   );
@@ -725,6 +1434,29 @@ const LoginScreen = ({ onLogin, onBack }) => {
 
 export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const unsubscribe = onAuthChange((userProfile) => {
+      if (userProfile) {
+        setUser(userProfile);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   // Pass props down correctly to Dashboard
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
+  return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
 }

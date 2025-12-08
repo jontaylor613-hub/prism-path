@@ -16,13 +16,17 @@ import TeacherDashboard from './TeacherDashboard';
 import NeuroDriver from './NeuroDriver';
 import VisualSchedule from './VisualSchedule';
 import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
+import AccommodationGem from './AccommodationGem';
 import { getTheme, GeminiService } from './utils';
+import { FreeTrialService } from './freeTrial';
+import { DevModeService } from './devMode';
+import { GemUsageTracker } from './gemUsageTracker';
 
 // --- SHARED UI COMPONENTS ---
-const Disclaimer = () => (
+const Disclaimer = ({ isDark }) => (
   <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 rounded-xl p-4 mb-8 flex items-start gap-3 text-left shadow-sm">
     <Info className="text-fuchsia-500 shrink-0 mt-0.5" size={18} />
-    <p className="text-sm text-fuchsia-900/80 dark:text-fuchsia-100/90 leading-relaxed font-medium">
+    <p className={`text-sm leading-relaxed font-medium ${isDark ? 'text-fuchsia-100/90' : 'text-fuchsia-900'}`}>
       <strong>Note:</strong> This tool uses AI to generate educational suggestions. It does not replace professional medical advice or official IEPs.
     </p>
   </div>
@@ -47,7 +51,7 @@ const FeatureCard = ({ icon: Icon, title, description, delay, isDark, to }) => {
 };
 
 // --- THE HOME PAGE COMPONENT ---
-const Home = ({ isDark, setIsDark }) => {
+const Home = ({ isDark, setIsDark, devModeActive }) => {
   const theme = getTheme(isDark);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -60,7 +64,10 @@ const Home = ({ isDark, setIsDark }) => {
   const [generatedPlan, setGeneratedPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const gemLink = "https://gemini.google.com/gem/1l1CXxrHsHi41oCGW-In9-MSlSfanKbbB?usp=sharing";
+  const [showTrialLimit, setShowTrialLimit] = useState(false);
+  
+  // Check free trial status
+  const trialStats = FreeTrialService.getUsageStats();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -74,10 +81,26 @@ const Home = ({ isDark, setIsDark }) => {
 
   const handleGenerate = async () => {
     if (!challenge.trim() || !subject.trim()) { setError("Please describe the challenge and the subject."); return; }
-    setLoading(true); setError(''); setGeneratedPlan(null);
+    
+    // Check free trial (skip if dev mode)
+    if (!devModeActive && !FreeTrialService.hasFreeUses()) {
+      setShowTrialLimit(true);
+      setError("You've used your free accommodations. Sign up for full access!");
+      return;
+    }
+    
+    setLoading(true); setError(''); setGeneratedPlan(null); setShowTrialLimit(false);
     try {
         const response = await GeminiService.generate({ targetBehavior: challenge, condition: subject }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
+        
+        // Record the use (skip if dev mode)
+        if (!devModeActive) {
+          const remaining = FreeTrialService.recordUse();
+          if (remaining === 0) {
+            setShowTrialLimit(true);
+          }
+        }
     } catch (err) { setError(err.message || "Failed to generate due to unknown AI error."); } 
     finally { setLoading(false); }
   };
@@ -138,7 +161,7 @@ const Home = ({ isDark, setIsDark }) => {
             </div>
 
             <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors`}>Features</a>
-            <a href={gemLink} target="_blank" rel="noreferrer" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Launch Gem <ExternalLink size={14} className="inline ml-1" /></a>
+            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accommodation Assistant</Link>
           </div>
 
           <button className={`md:hidden ${theme.text}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -162,11 +185,18 @@ const Home = ({ isDark, setIsDark }) => {
           <span className="w-2 h-2 rounded-full bg-cyan-500 motion-safe:animate-pulse"></span><span>AI-Powered Accommodations</span>
         </div>
         <h1 className={`text-5xl md:text-7xl font-extrabold tracking-tight ${theme.text} mb-6`}>Personalized Learning <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400">Without Limits.</span></h1>
-        <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>Empowering <strong>educators, students</strong> and <strong>homeschool parents</strong>. Get instant, AI-powered accommodations tailored to match your learner's energy and unique learning profile.</p>
+        <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>Empowering <strong>educators, students</strong> and <strong>parents</strong>. Get instant, AI-powered accommodations tailored to match your learner's energy and unique learning profile.</p>
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <a href={gemLink} target="_blank" rel="noreferrer" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Open Gem <Zap size={18}/></a>
+          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accommodation Assistant <Zap size={18}/></Link>
           <a href="#accommodations" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</a>
         </div>
+        {devModeActive && (
+          <div className="mt-4 text-center">
+            <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
+              🔓 Dev Mode Active
+            </span>
+          </div>
+        )}
       </section>
 
       <section id="features" className="relative z-10 py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -185,7 +215,34 @@ const Home = ({ isDark, setIsDark }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-start gap-12">
           <div className="lg:w-5/12">
             <h2 className={`text-3xl font-bold ${theme.text} mb-6`}>Instant AI Accommodations <br /><span className="text-cyan-500">Try it right here</span></h2>
-            <Disclaimer />
+            <Disclaimer isDark={isDark} />
+            
+            {/* Free Trial Badge */}
+            {trialStats.hasRemaining && (
+              <div className={`mb-4 p-3 rounded-lg border ${isDark ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'} flex items-center justify-between`}>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="text-emerald-500" size={18} />
+                  <span className={`text-sm font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                    {trialStats.remaining} free {trialStats.remaining === 1 ? 'accommodation' : 'accommodations'} remaining
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            {showTrialLimit && (
+              <div className={`mb-4 p-4 rounded-lg border ${isDark ? 'bg-amber-900/20 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+                <p className={`text-sm font-medium ${isDark ? 'text-amber-400' : 'text-amber-700'} mb-2`}>
+                  🎉 You've used your free accommodations!
+                </p>
+                <p className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-600'} mb-3`}>
+                  Sign up for unlimited access to AI-powered accommodations, student tracking, and more.
+                </p>
+                <Link to="/educator" className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full text-xs font-bold hover:shadow-lg transition-all">
+                  Create Account →
+                </Link>
+              </div>
+            )}
+            
             <div className="space-y-4 mb-8">
                 <div><label className={`block text-sm font-medium ${theme.textMuted} mb-2`}>Challenge</label><input type="text" value={challenge} onChange={(e) => setChallenge(e.target.value)} placeholder="e.g. Dyslexia" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} focus:border-cyan-500 outline-none`} /></div>
                 <div><label className={`block text-sm font-medium ${theme.textMuted} mb-2`}>Subject</label><input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Reading" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} focus:border-fuchsia-500 outline-none`} /></div>
@@ -221,11 +278,143 @@ const Home = ({ isDark, setIsDark }) => {
   );
 };
 
+// --- GEM ROUTE COMPONENT (with IP tracking) ---
+function GemRoute({ isDark, devModeActive, onExit }) {
+  const [canUse, setCanUse] = useState(null); // null = checking, true/false = result
+  const [hasUsed, setHasUsed] = useState(false);
+  const theme = getTheme(isDark);
+
+  useEffect(() => {
+    const checkUsage = async () => {
+      // Dev mode bypasses all restrictions
+      if (devModeActive) {
+        setCanUse(true);
+        return;
+      }
+
+      // Check if user can use GEM (1 use limit without account)
+      const allowed = await GemUsageTracker.canUseGem();
+      setCanUse(allowed);
+      
+      if (!allowed) {
+        // Check if they've already used it
+        const usage = GemUsageTracker.getUsage();
+        setHasUsed(usage.count > 0);
+      }
+    };
+    
+    checkUsage();
+  }, [devModeActive]);
+
+  // Track usage when GEM is actually used (when user sends first message)
+  const handleGemUse = async () => {
+    if (!devModeActive && canUse) {
+      await GemUsageTracker.recordUsage();
+      setCanUse(false); // Prevent further use on future visits
+      setHasUsed(true);
+      // Note: User can complete their current session (profile + differentiated work)
+      // but will be blocked on subsequent visits due to IP tracking
+    }
+  };
+
+  if (canUse === null) {
+    // Still checking
+    return (
+      <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.text} p-8`}>
+        <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-md text-center`}>
+          <Sparkles className="text-cyan-400 mx-auto mb-4 animate-pulse" size={48} />
+          <p className={theme.textMuted}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (devModeActive) {
+    // Dev mode - full access
+    return (
+      <div className="relative z-[150] min-h-screen">
+        <AccommodationGem 
+          isDark={isDark} 
+          user={{ uid: 'dev', name: 'Dev User', role: 'admin' }}
+          onBack={onExit} 
+        />
+      </div>
+    );
+  }
+
+  if (!canUse || hasUsed) {
+    // Usage limit reached
+    return (
+      <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.text} p-8`}>
+        <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-md text-center`}>
+          <Sparkles className="text-cyan-400 mx-auto mb-4" size={48} />
+          <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>Free Trial Limit Reached</h2>
+          <p className={`${theme.textMuted} mb-6`}>
+            You've used your one free GEM session. Create an account for unlimited access to the Accommodation Assistant and all educator tools.
+          </p>
+          <Link to="/educator" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all inline-block mb-4">
+            Create Free Account
+          </Link>
+          <p className={`text-xs ${theme.textMuted} mt-4`}>
+            FERPA-Compliant • Secure • No Credit Card Required
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // First use - allow but track
+  return (
+    <div className="relative z-[150] min-h-screen">
+      <AccommodationGem 
+        isDark={isDark} 
+        user={null} // No user = demo mode
+        onBack={onExit}
+        onFirstUse={handleGemUse} // Track usage on first message
+      />
+    </div>
+  );
+}
+
 // --- MAIN APP ROUTER ---
 export default function App() {
   const [isDark, setIsDark] = useState(true);
+  const [devModeActive, setDevModeActive] = useState(DevModeService.isActive());
   const navigate = useNavigate();
   const handleExit = () => navigate('/');
+  
+  // Dev mode code handler - works anywhere on page (toggles on/off)
+  useEffect(() => {
+    let codeBuffer = '';
+    
+    const handleKeyPress = (e) => {
+      // Skip if typing in an input/textarea (let them type normally)
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        return;
+      }
+      
+      // Build code buffer
+      codeBuffer = (codeBuffer + e.key).slice(-7);
+      
+      // Check if code matches
+      if (DevModeService.checkCode(codeBuffer)) {
+        const currentlyActive = DevModeService.isActive();
+        if (currentlyActive) {
+          DevModeService.deactivate();
+          setDevModeActive(false);
+          alert('🔒 Dev Mode Deactivated. Returning to normal mode.');
+        } else {
+          DevModeService.activate();
+          setDevModeActive(true);
+          alert('🔓 Dev Mode Activated! Full access unlocked.');
+        }
+        codeBuffer = '';
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
   return (
     <div className={`min-h-screen ${getTheme(isDark).bg} ${getTheme(isDark).text} font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200 transition-colors duration-500`}>
@@ -238,7 +427,7 @@ export default function App() {
       </div>
 
       <Routes>
-        <Route path="/" element={<Home isDark={isDark} setIsDark={setIsDark} />} />
+        <Route path="/" element={<Home isDark={isDark} setIsDark={setIsDark} devModeActive={devModeActive} />} />
         
         <Route path="/resume" element={
           <div className="relative z-10 pt-10">
@@ -274,6 +463,10 @@ export default function App() {
           <div className="relative z-[150] min-h-screen">
             <VisualSchedule onBack={handleExit} isDark={isDark} />
           </div>
+        } />
+
+        <Route path="/gem" element={
+          <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} />
         } />
       </Routes>
     </div>

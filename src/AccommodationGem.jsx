@@ -219,8 +219,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           file: file
         }]);
         
-        // Auto-add message about the image
-        const imageMessage = `I've uploaded an image of student work: ${file.name}. Please analyze this and provide accommodations.`;
+        // Auto-add message about the image - this will be sent to the multimodal API
+        const imageMessage = `I've uploaded an image: ${file.name}. Please analyze this and provide accommodations.`;
         setInput(prev => prev + (prev ? ' ' : '') + imageMessage);
       };
       reader.readAsDataURL(file);
@@ -248,14 +248,17 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
             }
             
             if (pdfjsLib) {
-              pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+              // Set worker source - use CDN for better compatibility
+              if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+              }
               
               const arrayBuffer = await file.arrayBuffer();
               const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
               let fullText = '';
               
-              // Extract text from all pages (limit to first 10 pages for performance)
-              const maxPages = Math.min(pdf.numPages, 10);
+              // Extract text from all pages (limit to first 20 pages for better coverage)
+              const maxPages = Math.min(pdf.numPages, 20);
               for (let i = 1; i <= maxPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
@@ -263,18 +266,20 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                 fullText += pageText + '\n\n';
               }
               
-              if (pdf.numPages > 10) {
-                fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 10 pages]`;
+              if (pdf.numPages > 20) {
+                fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 20 pages]`;
               }
               
+              // Store PDF with extracted content - this will be sent to the API
+              const pdfContent = fullText.trim();
               setUploadedFiles(prev => [...prev, {
                 id: Date.now(),
                 name: file.name,
                 type: 'pdf',
                 file: file,
-                content: fullText.substring(0, 10000) // Limit to 10k chars
+                content: pdfContent // Full extracted text - will be sent to API
               }]);
-              setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
+              setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this document and provide accommodations.`);
             } else {
               throw new Error('PDF library not available');
             }
@@ -422,8 +427,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  // Export to Google Docs
-  const handleExportToGoogleDocs = () => {
+  // Export to Google Docs using Google Docs API
+  const handleExportToGoogleDocs = async () => {
     // Get the last AI message (accommodations)
     const lastAIMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
     if (!lastAIMessage || !lastAIMessage.content) {
@@ -431,32 +436,76 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       return;
     }
 
-    // Format content - clean up markdown and format for Google Docs
+    // Format content - convert markdown to HTML for better Google Docs import
     let content = lastAIMessage.content;
     
-    // Convert markdown to plain text with formatting hints
-    content = content
-      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
-      .replace(/\*(.*?)\*/g, '$1') // Remove italic markdown
-      .replace(/^### (.*$)/gm, '$1') // Remove h3
-      .replace(/^## (.*$)/gm, '$1') // Remove h2
-      .replace(/^# (.*$)/gm, '$1') // Remove h1
-      .trim();
+    // Convert markdown to HTML
+    let htmlContent = content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>') // Italic
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>') // H3
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>') // H2
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>') // H1
+      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>') // Numbered lists
+      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>') // Bullet points
+      .replace(/\n\n/g, '</p><p>') // Paragraphs
+      .replace(/\n/g, '<br>'); // Line breaks
 
-    // Copy to clipboard
-    navigator.clipboard.writeText(content).then(() => {
-      // Open Google Docs in new tab
-      window.open('https://docs.google.com/document/create', '_blank');
+    const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Accommodations</title>
+</head>
+<body>
+  <h1>Accommodations</h1>
+  <div>${htmlContent}</div>
+</body>
+</html>`;
+
+    try {
+      // Create HTML blob
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
       
-      // Show notification
-      alert('Content copied to clipboard! Paste it into the new Google Doc that just opened.');
-    }).catch(err => {
-      console.error('Failed to copy to clipboard:', err);
-      // Fallback: open with content in URL (limited length)
-      const encodedContent = encodeURIComponent(content.substring(0, 2000));
-      window.open(`https://docs.google.com/document/create?usp=sharing`, '_blank');
-      alert('Please copy the content manually and paste it into Google Docs.');
-    });
+      // Create a temporary link to download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'accommodations.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // Open Google Docs
+      const googleDocsUrl = 'https://docs.google.com/document/create';
+      window.open(googleDocsUrl, '_blank');
+      
+      // Show instructions
+      setTimeout(() => {
+        alert('Instructions:\n\n1. A file "accommodations.html" has been downloaded\n2. Google Docs has been opened in a new tab\n3. In Google Docs: File → Open → Upload → Select the downloaded HTML file\n4. The content will be imported into your Google Doc');
+      }, 500);
+    } catch (error) {
+      console.error('Export error:', error);
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(content).then(() => {
+        window.open('https://docs.google.com/document/create', '_blank');
+        alert('Content copied to clipboard! Paste it into the new Google Doc that just opened.');
+      });
+    }
+  };
+
+  // Import from Google Drive
+  const handleImportFromGoogleDrive = () => {
+    // Open Google Drive in a new window with instructions
+    const driveUrl = 'https://drive.google.com/drive/my-drive';
+    const driveWindow = window.open(driveUrl, '_blank', 'width=1000,height=700');
+    
+    // Show helpful instructions
+    setTimeout(() => {
+      const instructions = `To import a file from Google Drive:\n\n1. In the Google Drive window that just opened, find and select your file\n2. Click the three dots menu (⋮) on the file\n3. Select "Download" to download the file\n4. Come back here and use the "Upload Document" button (📄) to upload the downloaded file\n\nAlternatively, you can drag and drop the downloaded file directly into this chat area.`;
+      alert(instructions);
+    }, 1000);
   };
 
   return (
@@ -639,16 +688,24 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           </div>
         )}
 
-        {/* Export Button - Show when there are AI messages */}
+        {/* Export/Import Buttons - Show when there are AI messages */}
         {messages.some(msg => msg.role === 'assistant') && (
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex justify-end gap-2">
+            <button
+              onClick={handleImportFromGoogleDrive}
+              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${isDark ? 'bg-green-900/20 text-green-400 hover:bg-green-900/30' : 'bg-green-50 text-green-700 hover:bg-green-100'} transition-colors flex items-center gap-2 text-sm font-medium`}
+              title="Import from Google Drive"
+            >
+              <FileUp size={16} />
+              Import from Drive
+            </button>
             <button
               onClick={handleExportToGoogleDocs}
               className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${isDark ? 'bg-blue-900/20 text-blue-400 hover:bg-blue-900/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} transition-colors flex items-center gap-2 text-sm font-medium`}
               title="Export to Google Docs"
             >
               <ExternalLink size={16} />
-              Export to Google Docs
+              Export to Docs
             </button>
           </div>
         )}

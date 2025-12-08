@@ -64,13 +64,37 @@ export const GeminiService = {
   },
 
   // --- SECURE API CALL (Uses serverless endpoint to keep API key safe) ---
-  fetchWithFallback: async (prompt) => {
+  fetchWithFallback: async (prompt, files = []) => {
       try {
+          // Prepare files for API (only send necessary data)
+          const filesForAPI = files.map(file => {
+            if (file.type === 'image' && file.data) {
+              return {
+                type: 'image',
+                data: file.data,
+                name: file.name
+              };
+            } else if (file.type === 'pdf' && file.content) {
+              return {
+                type: 'pdf',
+                content: file.content,
+                name: file.name
+              };
+            } else if (file.content) {
+              return {
+                type: file.type || 'text',
+                content: file.content,
+                name: file.name
+              };
+            }
+            return null;
+          }).filter(f => f !== null);
+
           // Use the secure serverless API endpoint (works on Vercel and locally with vercel dev)
           const response = await fetch('/api/generate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt })
+              body: JSON.stringify({ prompt, files: filesForAPI })
           });
 
           if (!response.ok) {
@@ -284,7 +308,14 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
    - Do NOT treat document uploads as profile setup requests
    - Do NOT respond with "Okay, I've logged the student profile" when analyzing documents
    - Start immediately with your analysis and accommodation recommendations
-   - If a student profile exists, use it to inform your accommodations, but don't re-log the profile`;
+   - If a student profile exists, use it to inform your accommodations, but don't re-log the profile
+
+6. **CRITICAL: Demo Requests** - When you see "skipWelcomeMessage" flag or "This is a demo request" in the user prompt:
+   - Do NOT log this as a learner profile
+   - Do NOT show welcome messages
+   - Do NOT ask for profile information
+   - Provide accommodations immediately based on the challenge and subject provided
+   - This is a one-time demo, not a profile setup`;
 
         // Build user prompt with context and conversation history
         let promptText = '';
@@ -321,9 +352,10 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
                 } else if (file.type === 'image') {
                     promptText += `\n${file.name} (image of student work - analyze and provide accommodations)`;
                 } else if (file.type === 'pdf') {
-                    // For PDFs, if content was extracted, include it
+                    // For PDFs, if content was extracted, include it (up to 50k chars for better analysis)
                     if (file.content) {
-                        promptText += `\n${file.name} (PDF document):\n${file.content.substring(0, 5000)}`;
+                        const pdfContent = file.content.length > 50000 ? file.content.substring(0, 50000) + '\n[Content truncated - document is very long]' : file.content;
+                        promptText += `\n${file.name} (PDF document):\n${pdfContent}`;
                     } else {
                         promptText += `\n${file.name} (PDF document - analyze this document and provide accommodations)`;
                     }
@@ -345,7 +377,9 @@ ${userPrompt}`;
         // If skipWelcomeMessage flag is set (for front page Instant AI Accommodations)
         // Skip all profile/welcome logic and provide accommodations immediately
         else if (data.skipWelcomeMessage) {
-          userPrompt = `Provide immediate, actionable differentiation techniques and accommodations. Do NOT show any welcome message, profile logging, or ask for additional information. Start directly with specific accommodation strategies based on the challenge and subject provided.
+          userPrompt = `CRITICAL: This is a demo request from the home page. Do NOT log this as a learner profile. Do NOT show any welcome message, profile logging, or ask for additional information. 
+
+Provide immediate, actionable differentiation techniques and accommodations. Start directly with specific accommodation strategies based on the challenge and subject provided.
 
 Challenge: ${data.targetBehavior || 'Not specified'}
 Subject: ${data.condition || 'Not specified'}
@@ -355,7 +389,7 @@ Provide:
 2. Accommodation strategies  
 3. Implementation suggestions
 
-Start immediately with the accommodations - no introductions, confirmations, or profile logging.`;
+Start immediately with the accommodations - no introductions, confirmations, or profile logging. This is a demo request and should NOT create or log a learner profile.`;
         }
         // If this is the first message and no profile exists, explicitly request welcome
         // Only if user hasn't already provided profile information
@@ -407,7 +441,9 @@ Start immediately with the accommodations - no introductions, confirmations, or 
         ? `${systemInstruction}\n\n---\n\nUser Request:\n${userPrompt}`
         : systemInstruction + "\n\n" + userPrompt;
       
-      const resultData = await GeminiService.fetchWithFallback(fullPrompt);
+      // Extract files from data for multimodal support
+      const files = data.files || [];
+      const resultData = await GeminiService.fetchWithFallback(fullPrompt, files);
       
       // Don't format AI response for accommodation type - let it use its own formatting
       const rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;

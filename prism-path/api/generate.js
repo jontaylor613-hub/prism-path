@@ -18,19 +18,50 @@ export default async function handler(req, res) {
 
   // 3. Parse Input
   let prompt = "";
+  let files = [];
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     prompt = body.prompt;
+    files = body.files || [];
     
-    // Validate prompt exists and is not empty
-    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-      return res.status(400).json({ error: "Prompt is required and cannot be empty" });
+    // Validate prompt exists and is not empty (unless files are provided)
+    if ((!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) && (!files || files.length === 0)) {
+      return res.status(400).json({ error: "Prompt or files are required" });
     }
   } catch (e) {
     return res.status(400).json({ error: "Invalid JSON body: " + e.message });
   }
 
-  // 4. Call Google API with fallback models
+  // 4. Build parts array for multimodal API
+  const parts = [];
+  
+  // Add text prompt if provided
+  if (prompt && prompt.trim().length > 0) {
+    parts.push({ text: prompt });
+  }
+  
+  // Add file parts (images, PDFs)
+  for (const file of files) {
+    if (file.type === 'image' && file.data) {
+      // Handle base64 image data
+      const base64Data = file.data.split(',')[1] || file.data;
+      const mimeType = file.data.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
+      parts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      });
+    } else if (file.type === 'pdf' && file.content) {
+      // For PDFs, include extracted text in the prompt
+      parts.push({ text: `\n\nPDF Document "${file.name}":\n${file.content}` });
+    } else if (file.content) {
+      // For other text-based files
+      parts.push({ text: `\n\nDocument "${file.name}":\n${file.content}` });
+    }
+  }
+
+  // 5. Call Google API with fallback models
   try {
     // Try models in order: 2.0-exp (newest), then 1.5-flash (reliable fallback)
     const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
@@ -43,7 +74,7 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
+            contents: [{ parts: parts }]
           })
         });
 

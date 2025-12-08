@@ -6,6 +6,11 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+  
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
+  }
 
   // 2. Get API Key from Vercel Secure Storage
   const apiKey = process.env.GEMINI_API_KEY;
@@ -16,8 +21,13 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     prompt = body.prompt;
+    
+    // Validate prompt exists and is not empty
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return res.status(400).json({ error: "Prompt is required and cannot be empty" });
+    }
   } catch (e) {
-    return res.status(400).json({ error: "Invalid JSON body" });
+    return res.status(400).json({ error: "Invalid JSON body: " + e.message });
   }
 
   // 4. Call Google API with fallback models
@@ -41,13 +51,27 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) {
+            throw new Error("No response from AI model");
+          }
           return res.status(200).json({ result: text });
+        }
+        
+        // Handle specific error status codes
+        if (response.status === 400) {
+          const errorMsg = data.error?.message || data.message || "Invalid request to AI service";
+          console.error("Google API 400 Error:", errorMsg, data);
+          throw new Error(`AI Service Error: ${errorMsg}`);
         }
         
         // If rate limited, stop trying other models
         if (response.status === 429) {
           throw new Error("Rate Limit: Please try again in 30 seconds");
         }
+        
+        // Log other errors for debugging
+        console.error(`Google API Error (${response.status}):`, data);
+        throw new Error(data.error?.message || `AI Service returned status ${response.status}`);
       } catch (modelError) {
         // If rate limited, don't try other models
         if (modelError.message.includes("Rate Limit")) {

@@ -17,7 +17,7 @@ import NeuroDriver from './NeuroDriver';
 import VisualSchedule from './VisualSchedule';
 import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
 import AccommodationGem from './AccommodationGem';
-import ArchiveOfPotentials from './ArchiveOfPotentials.jsx';
+import ArchiveOfPotentials from './ArchiveOfPotentials';
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';

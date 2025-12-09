@@ -99,12 +99,13 @@ const missions = [
   }
 ];
 
-export default function ArchiveOfPotentials({ onBack, isDark }) {
+export default function ArchiveOfPotentials({ onBack, isDark, onSkillsDiscovered }) {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('home'); // 'home', 'hub', 'mission', 'outcome'
   const [selectedMission, setSelectedMission] = useState(null);
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [discoveredSkills, setDiscoveredSkills] = useState([]);
 
   const handleStart = () => {
     setCurrentView('hub');
@@ -118,6 +119,19 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
   const handleSelectChoice = (choice) => {
     setSelectedChoice(choice);
     setCurrentView('outcome');
+    // Add discovered skills to the list
+    if (choice.outcome?.skills) {
+      const skills = choice.outcome.skills.split(',').map(s => s.trim());
+      setDiscoveredSkills(prev => {
+        const newSkills = [...prev];
+        skills.forEach(skill => {
+          if (!newSkills.includes(skill)) {
+            newSkills.push(skill);
+          }
+        });
+        return newSkills;
+      });
+    }
   };
 
   const handleCopySkills = () => {
@@ -125,6 +139,22 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
       navigator.clipboard.writeText(selectedChoice.outcome.skills);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleAddToResume = () => {
+    if (discoveredSkills.length > 0) {
+      // If callback provided (modal mode), use it
+      if (onSkillsDiscovered) {
+        onSkillsDiscovered(discoveredSkills);
+      } else {
+        // Otherwise navigate (standalone mode)
+        navigate('/resume', { 
+          state: { 
+            skills: discoveredSkills 
+          } 
+        });
+      }
     }
   };
 
@@ -145,7 +175,7 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
   // Home View
   if (currentView === 'home') {
     return (
-      <div className="min-h-screen bg-[#1f1f1f] text-[#f0f0f0] flex items-center justify-center p-4">
+      <div className={`${onSkillsDiscovered ? 'bg-[#1f1f1f] rounded-2xl' : 'min-h-screen bg-[#1f1f1f]'} text-[#f0f0f0] flex items-center justify-center p-4`}>
         <div className="max-w-2xl w-full">
           <button 
             onClick={onBack || (() => navigate('/resume'))} 
@@ -180,7 +210,7 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
   // Mission Hub View
   if (currentView === 'hub') {
     return (
-      <div className="min-h-screen bg-[#1f1f1f] text-[#f0f0f0] p-4 md:p-8">
+      <div className={`${onSkillsDiscovered ? 'bg-[#1f1f1f] rounded-2xl max-h-[90vh] overflow-y-auto' : 'min-h-screen bg-[#1f1f1f]'} text-[#f0f0f0] p-4 md:p-8`}>
         <div className="max-w-4xl mx-auto">
           <button 
             onClick={() => setCurrentView('home')} 
@@ -214,7 +244,7 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
   // Mission View
   if (currentView === 'mission' && selectedMission) {
     return (
-      <div className="min-h-screen bg-[#1f1f1f] text-[#f0f0f0] p-4 md:p-8">
+      <div className={`${onSkillsDiscovered ? 'bg-[#1f1f1f] rounded-2xl max-h-[90vh] overflow-y-auto' : 'min-h-screen bg-[#1f1f1f]'} text-[#f0f0f0] p-4 md:p-8`}>
         <div className="max-w-3xl mx-auto">
           <button 
             onClick={() => setCurrentView('hub')} 
@@ -248,7 +278,7 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
   // Outcome View
   if (currentView === 'outcome' && selectedChoice) {
     return (
-      <div className="min-h-screen bg-[#1f1f1f] text-[#f0f0f0] p-4 md:p-8">
+      <div className={`${onSkillsDiscovered ? 'bg-[#1f1f1f] rounded-2xl max-h-[90vh] overflow-y-auto' : 'min-h-screen bg-[#1f1f1f]'} text-[#f0f0f0] p-4 md:p-8`}>
         <div className="max-w-3xl mx-auto">
           <div className="bg-[#2a2a2a] border border-cyan-500/30 rounded-2xl p-8">
             <h2 className="text-3xl font-bold mb-6 text-cyan-400">Mission Complete</h2>
@@ -272,25 +302,48 @@ export default function ArchiveOfPotentials({ onBack, isDark }) {
               </div>
             </div>
             
-            <div className="flex gap-4">
-              <button
-                onClick={() => {
-                  setCurrentView('hub');
-                  setSelectedMission(null);
-                  setSelectedChoice(null);
-                }}
-                className="flex-1 px-6 py-3 bg-[#333] border border-cyan-500/30 rounded-lg hover:bg-[#3a3a3a] transition-all"
-              >
-                Mission Hub
-              </button>
-              {selectedMission && missions.findIndex(m => m.id === selectedMission.id) < missions.length - 1 && (
-                <button
-                  onClick={handleNextMission}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-amber-500 text-white rounded-lg font-bold hover:from-cyan-400 hover:to-amber-400 transition-all"
-                >
-                  Next Mission
-                </button>
+            <div className="space-y-4">
+              {discoveredSkills.length > 0 && (
+                <div className="bg-cyan-900/20 border border-cyan-500/50 rounded-xl p-4">
+                  <p className="text-sm text-cyan-300 mb-2 font-semibold">All Discovered Skills:</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {discoveredSkills.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded-full text-xs text-cyan-200">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                  {discoveredSkills.length > 0 && (
+                    <button
+                      onClick={handleAddToResume}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-amber-500 text-white rounded-lg font-bold hover:from-cyan-400 hover:to-amber-400 transition-all"
+                    >
+                      Add All Skills to Resume
+                    </button>
+                  )}
+                </div>
               )}
+              
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setCurrentView('hub');
+                    setSelectedMission(null);
+                    setSelectedChoice(null);
+                  }}
+                  className="flex-1 px-6 py-3 bg-[#333] border border-cyan-500/30 rounded-lg hover:bg-[#3a3a3a] transition-all"
+                >
+                  Mission Hub
+                </button>
+                {selectedMission && missions.findIndex(m => m.id === selectedMission.id) < missions.length - 1 && (
+                  <button
+                    onClick={handleNextMission}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-amber-500 text-white rounded-lg font-bold hover:from-cyan-400 hover:to-amber-400 transition-all"
+                  >
+                    Next Mission
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

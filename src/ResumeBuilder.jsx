@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Sparkles, User, Briefcase, GraduationCap, Award, 
   ArrowRight, ArrowLeft, Check, Printer, RotateCcw, 
@@ -8,12 +8,15 @@ import {
 
 // --- THE FIX: Import the brain ---
 import { GeminiService } from './utils';
+import ArchiveOfPotentials from './ArchiveOfPotentials';
 
 export default function ResumeBuilder({ onBack, isLowStim }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
+  const [showSkillsGame, setShowSkillsGame] = useState(false);
 
   // --- State Management ---
   const [data, setData] = useState({
@@ -45,6 +48,51 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
   const [tempRef, setTempRef] = useState({
     name: '', title: '', contact: '', relation: ''
   });
+
+  // Handle skills from ArchiveOfPotentials (from navigation state)
+  useEffect(() => {
+    if (location.state?.skills && Array.isArray(location.state.skills)) {
+      setData(prev => {
+        const newSkills = location.state.skills.filter(skill => 
+          skill && !prev.skills.includes(skill)
+        );
+        if (newSkills.length > 0) {
+          // Navigate to skills step (step 5, which is the skills step)
+          setStep(5);
+          // Clear location state
+          window.history.replaceState({}, document.title);
+          return {
+            ...prev,
+            skills: [...prev.skills, ...newSkills]
+          };
+        }
+        return prev;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  // Handle skills from modal
+  const handleSkillsDiscovered = (skills) => {
+    if (skills && Array.isArray(skills)) {
+      setData(prev => {
+        const newSkills = skills.filter(skill => 
+          skill && !prev.skills.includes(skill)
+        );
+        if (newSkills.length > 0) {
+          // Navigate to skills step
+          setStep(5);
+          return {
+            ...prev,
+            skills: [...prev.skills, ...newSkills]
+          };
+        }
+        return prev;
+      });
+    }
+    // Close the modal
+    setShowSkillsGame(false);
+  };
 
   // --- Actions ---
   const handleChange = (field, value) => setData(prev => ({ ...prev, [field]: value }));
@@ -406,14 +454,23 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
       </div>
       
       {/* Skills Discovery Game Button */}
-      <div className="mb-6 flex justify-end">
-        <button
-          onClick={() => navigate('/archive')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 ${isLowStim ? 'bg-slate-700 text-white border border-slate-600' : 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white shadow-lg hover:shadow-cyan-500/50'}`}
-        >
-          <Gamepad2 size={18} />
-          Click Here to Discover Your Skills
-        </button>
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <p className={`text-sm ${isLowStim ? 'text-slate-400' : 'text-cyan-300/80'} mb-2`}>
+              {data.skills.length === 0 
+                ? "Don't know what skills to list? Play a quick game to discover your strengths!" 
+                : "Want to discover more skills? Play the game!"}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowSkillsGame(true)}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 whitespace-nowrap ${isLowStim ? 'bg-slate-700 text-white border border-slate-600' : 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white shadow-lg hover:shadow-cyan-500/50'}`}
+          >
+            <Gamepad2 size={18} />
+            {data.skills.length === 0 ? 'Discover Your Skills' : 'Discover More Skills'}
+          </button>
+        </div>
       </div>
       
       {/* Progress Bar */}
@@ -441,6 +498,19 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
             )}
         </div>
       </div>
+
+      {/* Skills Game Modal Overlay */}
+      {showSkillsGame && (
+        <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl">
+            <ArchiveOfPotentials 
+              onBack={() => setShowSkillsGame(false)} 
+              isDark={!isLowStim}
+              onSkillsDiscovered={handleSkillsDiscovered}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

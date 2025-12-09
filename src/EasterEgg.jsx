@@ -53,19 +53,34 @@ const EasterEgg = ({ isDark }) => {
     return () => window.removeEventListener('keydown', handleCodeEntry);
   }, [isOpen]);
 
+  // Setup canvas size
+  useEffect(() => {
+    if (!isOpen || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const container = canvas.parentElement;
+    if (!container) return;
+    
+    // Set canvas size to match container
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width || 800;
+    canvas.height = rect.height || 300;
+  }, [isOpen]);
+
   // Game loop
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const groundHeight = 250;
+    const groundHeight = Math.floor(canvas.height * 0.83); // 83% of canvas height
     const gravity = 0.6;
+    let animationFrameId = null;
 
     const jump = () => {
       if (!gameActive) return;
       const p = gameState.current.player;
-      if (p.y >= groundHeight - p.height) { 
+      if (p.grounded && p.y >= groundHeight - p.height) { 
         p.dy = -p.jumpForce;
         p.grounded = false;
       }
@@ -92,13 +107,16 @@ const EasterEgg = ({ isDark }) => {
     window.addEventListener('touchstart', handleInput, { passive: false });
 
     const loop = () => {
-      if (!gameActive) return;
+      if (!gameActive || gameOver) return;
 
       const state = gameState.current;
       state.frames++;
       setScore(Math.floor(state.frames / 10));
 
-      // Simple background
+      // Clear entire canvas first
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Sky background
       ctx.fillStyle = '#1a0a2e';
       ctx.fillRect(0, 0, canvas.width, groundHeight);
       
@@ -106,68 +124,103 @@ const EasterEgg = ({ isDark }) => {
       ctx.fillStyle = '#2a2a3e';
       ctx.fillRect(0, groundHeight, canvas.width, canvas.height - groundHeight);
 
-      // Player (simple cube)
+      // Ground line
+      ctx.strokeStyle = '#3a3a4e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, groundHeight);
+      ctx.lineTo(canvas.width, groundHeight);
+      ctx.stroke();
+
+      // Update player physics
       state.player.dy += gravity;
       state.player.y += state.player.dy;
 
-      if (state.player.y > groundHeight - state.player.height) {
+      // Ground collision
+      if (state.player.y >= groundHeight - state.player.height) {
         state.player.y = groundHeight - state.player.height;
         state.player.dy = 0;
         state.player.grounded = true;
       }
 
-      // Draw player cube
+      // Draw player cube with glow effect
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#22d3ee';
       ctx.fillStyle = '#22d3ee';
       ctx.fillRect(state.player.x, state.player.y, state.player.width, state.player.height);
+      ctx.shadowBlur = 0;
 
-      // Spawn obstacles
-      if (state.frames % 120 === 0) {
+      // Spawn obstacles (every 120 frames, but increase frequency with score)
+      const spawnRate = Math.max(60, 120 - Math.floor(state.frames / 500));
+      if (state.frames % spawnRate === 0) {
         state.obstacles.push({
           x: canvas.width,
-          y: groundHeight - 30,
+          y: groundHeight,
           width: 20,
-          height: 30
+          height: 30 + Math.floor(Math.random() * 20) // Vary height
         });
       }
 
+      // Increase game speed gradually
+      state.gameSpeed = 4 + Math.floor(state.frames / 1000) * 0.5;
+
       // Update and draw obstacles
-      for (let i = 0; i < state.obstacles.length; i++) {
+      for (let i = state.obstacles.length - 1; i >= 0; i--) {
         let obs = state.obstacles[i];
         obs.x -= state.gameSpeed;
 
+        // Draw obstacle with glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00ffff';
         ctx.fillStyle = '#00ffff';
         ctx.fillRect(obs.x, obs.y - obs.height, obs.width, obs.height);
+        ctx.shadowBlur = 0;
 
-        // Collision detection
+        // Improved collision detection (AABB)
+        const playerRight = state.player.x + state.player.width;
+        const playerBottom = state.player.y + state.player.height;
+        const obsRight = obs.x + obs.width;
+        const obsTop = obs.y - obs.height;
+
         if (
-          state.player.x < obs.x + obs.width &&
-          state.player.x + state.player.width > obs.x &&
+          state.player.x < obsRight &&
+          playerRight > obs.x &&
           state.player.y < obs.y &&
-          state.player.y + state.player.height > obs.y - obs.height
+          playerBottom > obsTop
         ) {
           setGameOver(true);
           setGameActive(false);
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
           return;
         }
 
+        // Remove off-screen obstacles
         if (obs.x + obs.width < 0) {
-          state.obstacles.shift();
-          i--;
+          state.obstacles.splice(i, 1);
         }
       }
 
-      requestRef.current = requestAnimationFrame(loop);
+      if (gameActive && !gameOver) {
+        animationFrameId = requestAnimationFrame(loop);
+      }
     };
 
-    if (gameActive) requestRef.current = requestAnimationFrame(loop);
+    if (gameActive && !gameOver) {
+      animationFrameId = requestAnimationFrame(loop);
+    }
 
     return () => {
       window.removeEventListener('keydown', handleInput);
       window.removeEventListener('mousedown', handleInput);
       window.removeEventListener('touchstart', handleInput);
-      cancelAnimationFrame(requestRef.current);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
-  }, [isOpen, gameActive, isDark]);
+  }, [isOpen, gameActive, gameOver, isDark]);
 
   useEffect(() => {
     if (gameOver && score > highScore) {
@@ -178,8 +231,19 @@ const EasterEgg = ({ isDark }) => {
 
   const startGame = (e) => {
     if (e) e.stopPropagation();
+    const canvas = canvasRef.current;
+    const groundHeight = canvas ? Math.floor(canvas.height * 0.83) : 250;
+    
     gameState.current = {
-      player: { x: 50, y: 220, width: 30, height: 30, dy: 0, jumpForce: 12, grounded: true },
+      player: { 
+        x: 50, 
+        y: groundHeight - 30, 
+        width: 30, 
+        height: 30, 
+        dy: 0, 
+        jumpForce: 12, 
+        grounded: true 
+      },
       obstacles: [],
       frames: 0,
       gameSpeed: 4
@@ -205,7 +269,7 @@ const EasterEgg = ({ isDark }) => {
           className="relative w-full h-[300px] bg-black rounded-lg overflow-hidden border border-pink-500/20 select-none cursor-pointer active:scale-[0.99] transition-transform"
           onMouseDown={e => { if(gameActive) e.preventDefault(); }}
         >
-          <canvas ref={canvasRef} width={800} height={300} className="w-full h-full object-contain pointer-events-none" />
+          <canvas ref={canvasRef} className="w-full h-full pointer-events-none" style={{ display: 'block' }} />
 
           <div className="absolute top-4 right-4 flex flex-col gap-2 text-mono font-bold font-mono">
             <div className="flex gap-4">

@@ -833,13 +833,13 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     
     const tableRows = periods.map((period, index) => `
       <tr style="border-bottom: 1px solid #ddd;">
-        <td style="padding: 12px; font-weight: bold; width: 150px;">${period.name}</td>
+        <td style="padding: 12px; font-weight: bold; width: 150px; color: #000;">${period.name}</td>
         <td style="padding: 12px; text-align: center; width: 80px;">
-          <div style="width: 30px; height: 30px; border: 2px solid #333; margin: 0 auto; ${period.signed ? 'background-color: #10b981; position: relative;' : ''}">
+          <div style="width: 30px; height: 30px; border: 2px solid #000; margin: 0 auto; ${period.signed ? 'background-color: #000; position: relative;' : ''}">
             ${period.signed ? '<span style="color: white; font-size: 20px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">✓</span>' : ''}
           </div>
         </td>
-        <td style="padding: 12px;">
+        <td style="padding: 12px; color: #000;">
           <div style="min-height: 30px; border: 1px solid #ccc; padding: 8px; white-space: pre-wrap;">${period.comment || ''}</div>
         </td>
       </tr>
@@ -851,13 +851,14 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         <head>
           <title>Goal Checklist - ${activeStudent?.name || 'Student'}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
-            h2 { color: #06b6d4; margin-bottom: 10px; font-size: 20px; }
-            .goal-text { background-color: #f0f9ff; border-left: 4px solid #06b6d4; padding: 15px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; color: #000; }
+            h2 { color: #000; margin-bottom: 10px; font-size: 20px; font-weight: bold; }
+            .goal-text { background-color: #fff; border-left: 4px solid #000; padding: 15px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #000; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background-color: #06b6d4; color: white; padding: 12px; text-align: left; font-weight: bold; }
-            td { padding: 12px; }
-            .student-info { margin-bottom: 20px; font-size: 14px; }
+            th { background-color: #000; color: #fff; padding: 12px; text-align: left; font-weight: bold; }
+            td { padding: 12px; color: #000; }
+            .student-info { margin-bottom: 20px; font-size: 14px; color: #000; }
+            strong { color: #000; font-weight: bold; }
             @media print { 
               body { padding: 15px; }
               @page { margin: 1cm; }
@@ -1223,9 +1224,9 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                <Card className="p-6" theme={theme}>
                  <div className="flex justify-between items-start mb-6">
                    <div><h2 className={`text-2xl font-bold ${theme.text}`}>{activeStudent.name}</h2><p className={theme.textMuted}>Grade: {activeStudent.grade} • Primary Need: {activeStudent.need || activeStudent.primaryNeed}</p></div>
-                   <div className="flex gap-2 flex-wrap">
-                     <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
-                     <div className="flex gap-2">
+                   <div className="flex flex-col items-end gap-2">
+                     <div className="flex gap-2 flex-wrap">
+                       <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
                        <select 
                          value={uploadFileType} 
                          onChange={(e) => setUploadFileType(e.target.value)}
@@ -1256,6 +1257,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                          </Button>
                        </div>
                      </div>
+                     <p className={`text-[10px] ${theme.textMuted} text-right`}>Uploaded documents are analyzed and automatically added to the Student Summary</p>
                    </div>
                  </div>
                  <div className={`grid gap-4 ${(activeStudent.nextIep || activeStudent.nextIepDate) && (activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-3' : (activeStudent.nextIep || activeStudent.nextIepDate || activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -1280,12 +1282,66 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                  </div>
                </Card>
                <Card className="p-6" theme={theme}>
-                 <h3 className={`text-lg font-bold ${theme.text} mb-4 flex items-center gap-2`}>
-                   <BarChart3 className="text-cyan-400"/> Student Summary
-                 </h3>
-                 <p className={`${theme.textMuted} leading-relaxed text-sm whitespace-pre-wrap`}>
-                   {studentSummary || activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.'}
-                 </p>
+                 <div className="flex justify-between items-center mb-4">
+                   <h3 className={`text-lg font-bold ${theme.text} flex items-center gap-2`}>
+                     <BarChart3 className="text-cyan-400"/> Student Summary
+                   </h3>
+                   <Button 
+                     onClick={() => {
+                       const summary = studentSummary || activeStudent.summary || '';
+                       if (summary) {
+                         navigator.clipboard.writeText(summary);
+                         alert('Summary copied to clipboard!');
+                       }
+                     }}
+                     variant="secondary"
+                     icon={Copy}
+                     className="text-xs"
+                     theme={theme}
+                     disabled={!studentSummary && !activeStudent.summary}
+                   >
+                     Copy
+                   </Button>
+                 </div>
+                 <div className={`${theme.inputBg} rounded-xl p-4 border ${theme.cardBorder} max-h-[400px] overflow-y-auto`}>
+                   {(() => {
+                     const summary = studentSummary || activeStudent.summary || '';
+                     if (!summary) {
+                       return <p className={`${theme.textMuted} text-sm`}>No summary available. Click "Open in Gem" to start working with this student.</p>;
+                     }
+                     // Format summary: convert markdown-style asterisks to HTML bold, clean up formatting
+                     const formatted = summary
+                       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // **text** to <strong>
+                       .replace(/\*(.+?)\*/g, '<strong>$1</strong>') // *text* to <strong>
+                       .replace(/\n\n+/g, '\n\n') // Remove excessive line breaks
+                       .split('\n')
+                       .map(line => {
+                         // Convert section headers (lines starting with --- or ===)
+                         if (line.trim().startsWith('---') || line.trim().startsWith('===')) {
+                           return '<hr class="my-4 border-gray-300" />';
+                         }
+                         // Convert markdown headers
+                         if (line.trim().startsWith('#')) {
+                           const level = line.match(/^#+/)[0].length;
+                           const text = line.replace(/^#+\s*/, '');
+                           return `<h${Math.min(level, 4)} class="font-bold ${theme.text} mb-2 mt-4">${text}</h${Math.min(level, 4)}>`;
+                         }
+                         // Convert bullet points
+                         if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+                           const text = line.replace(/^[-*]\s+/, '');
+                           return `<li class="ml-4 mb-1 ${theme.text}">${text}</li>`;
+                         }
+                         // Regular paragraph
+                         if (line.trim()) {
+                           return `<p class="mb-2 ${theme.text} leading-relaxed">${line}</p>`;
+                         }
+                         return '';
+                       })
+                       .filter(line => line)
+                       .join('');
+                     return <div className={`text-sm leading-relaxed ${theme.text}`} dangerouslySetInnerHTML={{ __html: formatted }} />;
+                   })()}
+                 </div>
                </Card>
                
                {/* Chat Histories Section */}
@@ -1383,7 +1439,13 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                 )}
                 {generatedEmail && !isGenerating && (
                   <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
-                    <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div>
+                    <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Email Draft</label>
+                    <textarea
+                      value={generatedEmail}
+                      onChange={(e) => setGeneratedEmail(e.target.value)}
+                      className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[200px] whitespace-pre-wrap font-mono text-xs mb-2`}
+                      placeholder="Edit the email draft..."
+                    />
                     <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="w-full" icon={Copy} theme={theme}>Copy to Clipboard</Button>
                   </div>
                 )}
@@ -1404,24 +1466,35 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                  <h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><FileText className="text-cyan-400"/> PLAAFP Wizard</h2>
                  <p className={`text-sm ${theme.textMuted} mb-6`}>Input basic observations to generate a comprehensive Present Levels narrative.</p>
                  <div className="space-y-4">
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Student Strengths</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Key Needs/Deficits</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} /></div>
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Student Strengths</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} /></div>
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Key Needs/Deficits</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} /></div>
                    <div>
                      <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Impact of Disability</label>
                      <div className="flex gap-2">
-                       <textarea className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} />
+                       <textarea className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} />
                        <Button onClick={handleGenerateImpact} disabled={isGenerating || (!plaafpInputs.strengths && !plaafpInputs.needs)} className="self-start" icon={Wand2} theme={theme} title="Generate impact based on strengths and needs">
                          {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
                        </Button>
                      </div>
                    </div>
-                   <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Compiling..." : "Generate Narrative"}</Button>
+                   <Button onClick={handleGeneratePlaafp} disabled={isGenerating || (!plaafpInputs.strengths && !plaafpInputs.needs)} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Compiling..." : "Generate Narrative"} {plaafpInputs.strengths && plaafpInputs.needs && <span className="text-xs opacity-70 ml-2">(Ctrl+Enter)</span>}</Button>
                  </div>
               </Card>
               <Card className={`p-8 flex flex-col`} theme={theme}>
                  <h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Narrative Preview</h2>
                  {plaafpResult ? (
-                     <div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{plaafpResult}</div><CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} /></div>
+                     <div className="flex-1 flex flex-col">
+                       <div className="mb-2">
+                         <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Narrative Text</label>
+                         <textarea
+                           value={plaafpResult}
+                           onChange={(e) => setPlaafpResult(e.target.value)}
+                           className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-xl p-4 ${theme.text} outline-none min-h-[300px] leading-relaxed text-sm font-serif`}
+                           placeholder="Enter or edit the narrative text..."
+                         />
+                       </div>
+                       <CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} />
+                     </div>
                  ) : (
                      <div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Brain size={48} className="mb-4 opacity-50"/><p>Enter data to generate statement.</p></div>
                  )}
@@ -1452,21 +1525,21 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                    
                    {goalType === 'academic' ? (
                      <>
-                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Skill</label><input type="text" value={goalInputs.skill} onChange={(e) => setGoalInputs({...goalInputs, skill: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Reading comprehension, Math computation..." /></div>
-                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal</label><input type="text" value={goalInputs.goal} onChange={(e) => setGoalInputs({...goalInputs, goal: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will read and comprehend grade-level texts..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Skill</label><input type="text" value={goalInputs.skill} onChange={(e) => setGoalInputs({...goalInputs, skill: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.skill && goalInputs.goal) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Reading comprehension, Math computation..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal</label><input type="text" value={goalInputs.goal} onChange={(e) => setGoalInputs({...goalInputs, goal: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.skill && goalInputs.goal) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will read and comprehend grade-level texts..." /></div>
                      </>
                    ) : (
                      <>
-                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. When given a directive or during transitions..." /></div>
-                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will follow directions without argument..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.condition && goalInputs.behavior) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. When given a directive or during transitions..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.condition && goalInputs.behavior) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will follow directions without argument..." /></div>
                      </>
                    )}
                    
-                   <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full" theme={theme}>
+                   <Button onClick={handleGenerateGoal} disabled={isGenerating || (goalType === 'academic' ? (!goalInputs.skill || !goalInputs.goal) : (!goalInputs.condition || !goalInputs.behavior))} className="w-full" theme={theme}>
                      {isGenerating ? (
                        <span className="animate-pulse">Generating...</span>
                      ) : (
-                       <span><Wand2 size={16} className="inline mr-2"/> Generate {goalType === 'academic' ? 'Academic' : 'Behavior'} Goal</span>
+                       <span><Wand2 size={16} className="inline mr-2"/> Generate {goalType === 'academic' ? 'Academic' : 'Behavior'} Goal {((goalType === 'academic' && goalInputs.skill && goalInputs.goal) || (goalType === 'behavior' && goalInputs.condition && goalInputs.behavior)) && <span className="text-xs opacity-70 ml-2">(Enter)</span>}</span>
                      )}
                    </Button>
                  </div>
@@ -1475,7 +1548,15 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                 <h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Goal Preview</h2>
                 {goalText ? (
                     <div className="flex-1 flex flex-col">
-                        <div className={`${theme.inputBg} rounded-xl p-6 mb-4 border ${theme.cardBorder}`}><p className={`text-lg ${theme.text} leading-relaxed font-medium whitespace-pre-wrap`}>{goalText}</p></div>
+                        <div className="mb-2">
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Goal Text</label>
+                          <textarea
+                            value={goalText}
+                            onChange={(e) => setGoalText(e.target.value)}
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-xl p-4 ${theme.text} outline-none min-h-[120px] leading-relaxed text-lg font-medium`}
+                            placeholder="Enter or edit the goal text..."
+                          />
+                        </div>
                         <div className={`p-4 ${theme.inputBg} rounded-xl border ${theme.cardBorder} space-y-4`}>
                             <div className="flex gap-4">
                                 <div className="flex-1"><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Target %</label><input type="number" value={goalConfig.target} onChange={e => setGoalConfig({...goalConfig, target: Number(e.target.value)})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
@@ -1517,9 +1598,36 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                                     <div className={`${theme.inputBg} rounded-xl border ${theme.cardBorder} p-6 h-fit`}>
                                         <h3 className={`text-sm font-bold ${theme.text} uppercase mb-4`}>Log Data Point</h3>
                                         <div className="space-y-4">
-                                            <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label><input type="date" value={newMeasure.date} onChange={e => setNewMeasure({...newMeasure, date: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
-                                            <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Score (%)</label><input type="number" placeholder="0-100" value={newMeasure.score} onChange={e => setNewMeasure({...newMeasure, score: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
-                                            <Button onClick={handleAddDataPoint} className="w-full" icon={Plus} theme={theme}>Add Data Point</Button>
+                                            <div>
+                                              <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label>
+                                              <input 
+                                                type="date" 
+                                                value={newMeasure.date} 
+                                                onChange={e => setNewMeasure({...newMeasure, date: e.target.value})} 
+                                                className={`w-full ${theme.bg} border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400' : 'border-slate-300 hover:border-cyan-500'} rounded p-2 ${theme.text} transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`}
+                                                title="Click to open calendar picker"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Score (%)</label>
+                                              <input 
+                                                type="number" 
+                                                placeholder="0-100" 
+                                                value={newMeasure.score} 
+                                                onChange={e => setNewMeasure({...newMeasure, score: e.target.value})} 
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && newMeasure.date && newMeasure.score) { e.preventDefault(); handleAddDataPoint(); } }}
+                                                className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} 
+                                              />
+                                            </div>
+                                            <Button 
+                                              onClick={handleAddDataPoint} 
+                                              disabled={!newMeasure.date || !newMeasure.score}
+                                              className="w-full" 
+                                              icon={Plus} 
+                                              theme={theme}
+                                            >
+                                              Add Data Point {newMeasure.date && newMeasure.score && <span className="text-xs opacity-70 ml-2">(Enter)</span>}
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -1661,7 +1769,72 @@ Create a comprehensive summary that can be added to the student's profile. Forma
               )}
               {behaviorTab === 'log' && (
                   <div className="grid lg:grid-cols-2 gap-8">
-                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1 overflow-hidden" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
+                    <Card className="p-8" glow theme={theme}>
+                      <h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}>
+                        <ShieldAlert className="text-fuchsia-400"/> Incident Log
+                      </h2>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label>
+                            <input 
+                              type="date" 
+                              className={`w-full ${theme.inputBg} border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400' : 'border-slate-300 hover:border-cyan-500'} rounded-lg p-3 ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
+                              onChange={e => setNewIncident({...newIncident, date: e.target.value})}
+                              title="Click to open calendar picker"
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Antecedent</label>
+                            <input 
+                              type="text" 
+                              placeholder="What happened before?" 
+                              className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                              onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Behavior Observed</label>
+                          <input 
+                            type="text" 
+                            placeholder="Describe the behavior" 
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                            onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} 
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Consequence/Intervention</label>
+                          <input 
+                            type="text" 
+                            placeholder="What was the response?" 
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                            onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} 
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={handleLogBehavior} 
+                            disabled={!newIncident.date || !newIncident.behavior}
+                            className="flex-1 overflow-hidden" 
+                            icon={Plus} 
+                            theme={theme}
+                          >
+                            Log Incident
+                          </Button>
+                          <Button 
+                            onClick={handleAnalyzeBehavior} 
+                            disabled={isAnalyzing || behaviorLog.length === 0} 
+                            variant="secondary" 
+                            className="flex-1" 
+                            icon={isAnalyzing ? Loader2 : Brain} 
+                            theme={theme}
+                          >
+                            {isAnalyzing ? "Analyzing..." : "Analyze Patterns"}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
                     <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
                     <div className={`lg:col-span-2 ${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}><table className={`w-full text-sm text-left ${theme.textMuted}`}><thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs`}><tr><th className="p-4">Date</th><th className="p-4">Antecedent</th><th className="p-4">Behavior</th><th className="p-4">Consequence</th></tr></thead><tbody className={`divide-y ${theme.cardBorder}`}>{behaviorLog.length === 0 ? <tr><td colSpan="4" className="p-8 text-center italic opacity-50">No incidents logged yet.</td></tr> : behaviorLog.map(log => (<tr key={log.id}><td className="p-4 font-mono text-cyan-400">{log.date}</td><td className="p-4">{log.antecedent}</td><td className={`p-4 ${theme.text}`}>{log.behavior}</td><td className="p-4">{log.consequence}</td></tr>))}</tbody></table></div>
                   </div>
@@ -1896,7 +2069,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={editStudentData.nextIep || ''} 
                         onChange={e => setEditStudentData({...editStudentData, nextIep: e.target.value})} 
                       />
@@ -1905,7 +2078,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={editStudentData.next504 || ''} 
                         onChange={e => setEditStudentData({...editStudentData, next504: e.target.value})} 
                       />
@@ -1914,7 +2087,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={editStudentData.nextEval || ''} 
                         onChange={e => setEditStudentData({...editStudentData, nextEval: e.target.value})} 
                       />
@@ -1986,7 +2159,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.nextIep} 
                         onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} 
                       />
@@ -1995,7 +2168,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.next504} 
                         onChange={e => setNewStudent({...newStudent, next504: e.target.value})} 
                       />
@@ -2004,7 +2177,7 @@ Create a comprehensive summary that can be added to the student's profile. Forma
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.nextEval} 
                         onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} 
                       />

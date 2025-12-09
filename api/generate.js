@@ -21,12 +21,12 @@ export default async function handler(req, res) {
   let files = [];
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    prompt = body.prompt;
+    prompt = body.prompt || "";
     files = body.files || [];
     
-    // Validate prompt exists and is not empty
-    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-      return res.status(400).json({ error: "Prompt is required and cannot be empty" });
+    // Validate prompt exists and is not empty (unless files are provided)
+    if ((!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) && (!files || files.length === 0)) {
+      return res.status(400).json({ error: "Prompt or files are required" });
     }
   } catch (e) {
     return res.status(400).json({ error: "Invalid JSON body: " + e.message });
@@ -37,8 +37,13 @@ export default async function handler(req, res) {
     // Try models in order: 2.0-exp (newest), then 1.5-flash (reliable fallback)
     const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
     
-    // Build parts array - start with text prompt
-    const parts = [{ text: prompt }];
+    // Build parts array for multimodal API
+    const parts = [];
+    
+    // Add text prompt if provided
+    if (prompt && prompt.trim().length > 0) {
+      parts.push({ text: prompt });
+    }
     
     // Add file parts if provided (for multimodal support)
     if (files && files.length > 0) {
@@ -50,9 +55,9 @@ export default async function handler(req, res) {
           let mimeType = 'image/jpeg';
           
           if (imageData.startsWith('data:')) {
-            const parts = imageData.split(',');
-            const header = parts[0];
-            imageData = parts[1];
+            const dataParts = imageData.split(',');
+            const header = dataParts[0];
+            imageData = dataParts[1];
             
             // Extract mime type from data URL
             const mimeMatch = header.match(/data:([^;]+)/);
@@ -62,13 +67,18 @@ export default async function handler(req, res) {
           }
           
           parts.push({
-            inline_data: {
-              mime_type: mimeType,
+            inlineData: {
+              mimeType: mimeType,
               data: imageData
             }
           });
+        } else if (file.type === 'pdf' && file.content) {
+          // For PDFs, include extracted text in the prompt
+          parts.push({ text: `\n\nPDF Document "${file.name}":\n${file.content}` });
+        } else if (file.content) {
+          // For other text-based files
+          parts.push({ text: `\n\nDocument "${file.name}":\n${file.content}` });
         }
-        // PDF and other text content is already included in the prompt text
       }
     }
     

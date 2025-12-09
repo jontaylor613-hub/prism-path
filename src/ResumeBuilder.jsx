@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, User, Briefcase, GraduationCap, Award, 
   ArrowRight, ArrowLeft, Check, Printer, RotateCcw, 
-  Trash2, Wand, Loader2, X, BookOpen, Users, Calendar, MapPin 
+  Trash2, Wand, Loader2, X, BookOpen, Users, Calendar, MapPin, Gamepad2
 } from 'lucide-react';
 
 // --- THE FIX: Import the brain ---
 import { GeminiService } from './utils';
 
 export default function ResumeBuilder({ onBack, isLowStim }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -401,6 +403,17 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
       <div className="mb-8 flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"><ArrowLeft size={16}/> Exit Builder</button>
         <div className="text-xs text-slate-500 font-mono">SECURE MODE: DATA NOT SAVED</div>
+      </div>
+      
+      {/* Skills Discovery Game Button */}
+      <div className="mb-6 flex justify-end">
+        <button
+          onClick={() => navigate('/archive')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 ${isLowStim ? 'bg-slate-700 text-white border border-slate-600' : 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white shadow-lg hover:shadow-cyan-500/50'}`}
+        >
+          <Gamepad2 size={18} />
+          Click Here to Discover Your Skills
+        </button>
       </div>
       
       {/* Progress Bar */}

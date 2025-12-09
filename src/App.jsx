@@ -17,6 +17,7 @@ import NeuroDriver from './NeuroDriver';
 import VisualSchedule from './VisualSchedule';
 import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
 import AccommodationGem from './AccommodationGem';
+import ArchiveOfPotentials from './ArchiveOfPotentials';
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -290,8 +291,17 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 function GemRoute({ isDark, devModeActive, onExit, user = null }) {
   const [canUse, setCanUse] = useState(null); // null = checking, true/false = result
   const [hasUsed, setHasUsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const theme = getTheme(isDark);
   const location = useLocation();
+
+  // Track auth state
+  useEffect(() => {
+    const unsubscribe = onAuthChange((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const checkUsage = async () => {
@@ -485,6 +495,12 @@ export default function App() {
 
         <Route path="/gem" element={
           <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} user={null} />
+        } />
+
+        <Route path="/archive" element={
+          <div className="relative z-[150] min-h-screen">
+            <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
+          </div>
         } />
       </Routes>
     </div>

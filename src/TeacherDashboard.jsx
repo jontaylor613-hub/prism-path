@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
-  LineChart, Target, BookOpen, Plus, Save, Trash2, CheckCircle,
+  Target, BookOpen, Plus, Save, Trash2, CheckCircle,
   Brain, Layout, FileText, Sparkles, ClipboardList, ArrowRight,
   GraduationCap, LogOut, Calculator, Calendar, Clock,
   Search, ChevronDown, User, Wand2, Copy, Heart,
@@ -26,6 +26,9 @@ import { ChatHistoryService } from './chatHistory';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
+    // Safety check: ensure theme exists, fallback to default dark theme
+    const safeTheme = theme || getTheme(true);
+    
     const [step, setStep] = useState('intro'); // intro, quiz, results
     const [answers, setAnswers] = useState({});
     const [score, setScore] = useState(0);
@@ -92,28 +95,28 @@ const BurnoutCheck = ({ theme }) => {
     const resultData = getResultContent();
 
     return (
-        <Card className="p-8 h-full flex flex-col items-center justify-center min-h-[500px]" theme={theme}>
+        <Card className="p-8 h-full flex flex-col items-center justify-center min-h-[500px]" theme={safeTheme}>
             
             {step === 'intro' && (
                 <div className="text-center max-w-lg animate-in zoom-in">
                     <div className="bg-fuchsia-500/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6 text-fuchsia-500">
                         <Heart size={40} fill="currentColor" />
                     </div>
-                    <h2 className={`text-3xl font-bold ${theme.text} mb-4`}>Educator Pulse Check</h2>
-                    <p className={`${theme.textMuted} mb-8 leading-relaxed`}>
+                    <h2 className={`text-3xl font-bold ${safeTheme.text} mb-4`}>Educator Pulse Check</h2>
+                    <p className={`${safeTheme.textMuted} mb-8 leading-relaxed`}>
                         Teaching is demanding. This quick, private check-in helps you gauge your energy levels and connects you with local resources.
                     </p>
-                    <Button onClick={() => setStep('quiz')} theme={theme}>Start Check-in</Button>
+                    <Button onClick={() => setStep('quiz')} theme={safeTheme}>Start Check-in</Button>
                 </div>
             )}
 
             {step === 'quiz' && (
                 <div className="w-full max-w-xl animate-in slide-in-from-right">
-                    <h3 className={`text-xl font-bold ${theme.text} mb-6`}>Over the last 2 weeks...</h3>
+                    <h3 className={`text-xl font-bold ${safeTheme.text} mb-6`}>Over the last 2 weeks...</h3>
                     <div className="space-y-8">
                         {questions.map((q) => (
                             <div key={q.id} className="space-y-3">
-                                <p className={`font-medium ${theme.text}`}>{q.text}</p>
+                                <p className={`font-medium ${safeTheme.text}`}>{q.text}</p>
                                 <div className="grid grid-cols-5 gap-2">
                                     {[1, 2, 3, 4, 5].map((val) => (
                                         <button
@@ -122,7 +125,7 @@ const BurnoutCheck = ({ theme }) => {
                                             className={`p-3 rounded-lg border transition-all ${
                                                 answers[q.id] === val 
                                                 ? 'bg-cyan-500 text-white border-cyan-500' 
-                                                : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:border-cyan-400`
+                                                : `${safeTheme.inputBg} ${safeTheme.inputBorder} ${safeTheme.textMuted} hover:border-cyan-400`
                                             }`}
                                         >
                                             {val}
@@ -130,8 +133,8 @@ const BurnoutCheck = ({ theme }) => {
                                     ))}
                                 </div>
                                 <div className="flex justify-between text-xs uppercase tracking-widest opacity-50">
-                                    <span className={theme.textMuted}>Never</span>
-                                    <span className={theme.textMuted}>Always</span>
+                                    <span className={safeTheme.textMuted}>Never</span>
+                                    <span className={safeTheme.textMuted}>Always</span>
                                 </div>
                             </div>
                         ))}
@@ -140,7 +143,7 @@ const BurnoutCheck = ({ theme }) => {
                         <Button 
                             onClick={calculateResults}
                             disabled={Object.keys(answers).length < questions.length}
-                            theme={theme}
+                            theme={safeTheme}
                         >
                             See Results
                         </Button>
@@ -152,31 +155,31 @@ const BurnoutCheck = ({ theme }) => {
                 <div className="w-full max-w-2xl animate-in zoom-in">
                     <div className={`p-6 rounded-xl border-l-8 mb-8 ${resultData.bg}`}>
                         <h3 className={`text-2xl font-black mb-2 ${resultData.color}`}>{resultData.level}</h3>
-                        <p className={`${theme.text} text-lg`}>{resultData.msg}</p>
+                        <p className={`${safeTheme.text} text-lg`}>{resultData.msg}</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div>
-                            <h4 className={`font-bold ${theme.textMuted} uppercase tracking-widest text-sm mb-4`}>Suggested Actions</h4>
+                            <h4 className={`font-bold ${safeTheme.textMuted} uppercase tracking-widest text-sm mb-4`}>Suggested Actions</h4>
                             <ul className="space-y-3">
                                 {resultData.tips.map((tip, i) => (
-                                    <li key={i} className={`flex items-start gap-3 ${theme.text}`}>
+                                    <li key={i} className={`flex items-start gap-3 ${safeTheme.text}`}>
                                         <CheckCircle size={18} className="text-cyan-500 mt-1 shrink-0" />
                                         <span>{tip}</span>
                                     </li>
                                 ))}
                             </ul>
                         </div>
-                        <div className={`${theme.inputBg} p-6 rounded-xl border ${theme.cardBorder} flex flex-col items-center justify-center text-center`}>
+                        <div className={`${safeTheme.inputBg} p-6 rounded-xl border ${safeTheme.cardBorder} flex flex-col items-center justify-center text-center`}>
                             <MapPin size={32} className="text-fuchsia-500 mb-3" />
-                            <h4 className={`font-bold ${theme.text} mb-2`}>Find Local Support</h4>
-                            <p className={`text-sm ${theme.textMuted} mb-4`}>Locate support groups and therapists near your current location.</p>
-                            <Button onClick={getLocalSupport} variant="secondary" icon={ArrowRight} theme={theme}>Search Near Me</Button>
+                            <h4 className={`font-bold ${safeTheme.text} mb-2`}>Find Local Support</h4>
+                            <p className={`text-sm ${safeTheme.textMuted} mb-4`}>Locate support groups and therapists near your current location.</p>
+                            <Button onClick={getLocalSupport} variant="secondary" icon={ArrowRight} theme={safeTheme}>Search Near Me</Button>
                         </div>
                     </div>
 
                     <div className="text-center">
-                        <button onClick={() => {setStep('intro'); setAnswers({});}} className={`text-sm ${theme.textMuted} hover:${theme.text} underline`}>
+                        <button onClick={() => {setStep('intro'); setAnswers({});}} className={`text-sm ${safeTheme.textMuted} hover:${safeTheme.text} underline`}>
                             Retake Check-in
                         </button>
                     </div>
@@ -235,14 +238,17 @@ const SimpleLineChart = ({ data, target, theme }) => {
 };
 
 // --- HELPER COMPONENTS ---
-const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme }) => {
+const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme, type = "button", ...props }) => {
+  // Safety check: ensure theme exists, fallback to default dark theme
+  const safeTheme = theme || getTheme(true);
+  
   const baseStyle = "inline-flex items-center justify-center px-4 py-2 rounded-full font-bold transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide relative overflow-hidden";
   
   const variants = {
     primary: "text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(217,70,239,0.5)] border border-white/10",
-    secondary: `${theme.inputBg} ${theme.primaryText} border ${theme.inputBorder} hover:opacity-80`,
+    secondary: `${safeTheme.inputBg} ${safeTheme.primaryText} border ${safeTheme.inputBorder} hover:opacity-80`,
     danger: "bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40",
-    ghost: `${theme.textMuted} hover:${theme.text}`,
+    ghost: `${safeTheme.textMuted} hover:${safeTheme.text}`,
     copy: "w-full py-3 bg-emerald-900/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/40 font-mono tracking-widest uppercase shadow-lg hover:shadow-emerald-500/20"
   };
   
@@ -253,9 +259,11 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   
   return (
     <button 
+      type={type}
       onClick={onClick} 
       disabled={disabled} 
       className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}
+      {...props}
     >
       {primaryGradientBg}
       <span className="relative z-10 flex items-center">
@@ -266,12 +274,16 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   );
 };
 
-const Card = ({ children, className = "", glow = false, theme }) => (
-  <div className={`relative rounded-2xl overflow-hidden ${theme.cardBg} ${theme.cardBorder} border ${className} ${glow ? 'shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'shadow-xl'}`}>
-    {glow && <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>}
-    <div className="relative z-10">{children}</div>
-  </div>
-);
+const Card = ({ children, className = "", glow = false, theme }) => {
+  // Safety check: ensure theme exists, fallback to default dark theme
+  const safeTheme = theme || getTheme(true);
+  return (
+    <div className={`relative rounded-2xl overflow-hidden ${safeTheme.cardBg} ${safeTheme.cardBorder} border ${className} ${glow ? 'shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'shadow-xl'}`}>
+      {glow && <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>}
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+};
 
 // --- FIXED BADGE COMPONENT ---
 const Badge = ({ children, color = "cyan", isDark }) => {
@@ -1449,18 +1461,24 @@ const LoginScreen = ({ onLogin, onBack }) => {
 
 export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
   const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Check if user is already logged in
-    const unsubscribe = onAuthChange((userProfile) => {
-      if (userProfile) {
-        setUser(userProfile);
-      } else {
-        setUser(null);
-      }
-    });
+    try {
+      const unsubscribe = onAuthChange((userProfile) => {
+        if (userProfile) {
+          setUser(userProfile);
+        } else {
+          setUser(null);
+        }
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (err) {
+      console.error('Auth error:', err);
+      setError(err.message);
+    }
   }, []);
 
   const handleLogout = async () => {
@@ -1472,6 +1490,32 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
     }
   };
 
+  // Error boundary
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-red-500/30 rounded-xl p-8 max-w-md text-center">
+          <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Dashboard</h2>
+          <p className="text-slate-400 mb-4">{error}</p>
+          <button onClick={onBack} className="px-4 py-2 bg-cyan-500 text-white rounded-lg">Go Back</button>
+        </div>
+      </div>
+    );
+  }
+
   // Pass props down correctly to Dashboard
-  return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
+  try {
+    return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
+  } catch (err) {
+    console.error('Render error:', err);
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-red-500/30 rounded-xl p-8 max-w-md text-center">
+          <h2 className="text-2xl font-bold text-red-400 mb-4">Render Error</h2>
+          <p className="text-slate-400 mb-4">{err.message}</p>
+          <button onClick={onBack} className="px-4 py-2 bg-cyan-500 text-white rounded-lg">Go Back</button>
+        </div>
+      </div>
+    );
+  }
 }

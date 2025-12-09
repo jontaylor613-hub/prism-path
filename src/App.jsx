@@ -18,11 +18,15 @@ import VisualSchedule from './VisualSchedule';
 import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
 import AccommodationGem from './AccommodationGem';
 import ArchiveOfPotentials from './ArchiveOfPotentials';
+import SignupPage from './components/SignupPage';
+import ParentDashboard from './components/ParentDashboard';
+import QuickTrack from './components/QuickTrack';
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
 import { onAuthChange } from './auth';
+import { useSmartLock } from './hooks/useSmartLock';
 
 // --- SHARED UI COMPONENTS ---
 const Disclaimer = ({ isDark }) => (
@@ -411,6 +415,9 @@ export default function App() {
   const navigate = useNavigate();
   const handleExit = () => navigate('/');
   
+  // Security: Smart Lock anti-tamper protection (disabled in dev mode)
+  useSmartLock();
+  
   // Dev mode code handler - works anywhere on page (toggles on/off)
   useEffect(() => {
     let codeBuffer = '';
@@ -500,6 +507,24 @@ export default function App() {
         <Route path="/archive" element={
           <div className="relative z-[150] min-h-screen">
             <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
+          </div>
+        } />
+
+        <Route path="/signup" element={
+          <div className="relative z-[150] min-h-screen">
+            <SignupPage onBack={handleExit} />
+          </div>
+        } />
+
+        <Route path="/parent/dashboard" element={
+          <div className="relative z-[150] min-h-screen">
+            <ParentDashboard onBack={handleExit} isDark={isDark} />
+          </div>
+        } />
+
+        <Route path="/track/:token" element={
+          <div className="relative z-[150] min-h-screen">
+            <QuickTrack isDark={isDark} />
           </div>
         } />
       </Routes>

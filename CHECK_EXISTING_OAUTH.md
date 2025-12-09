@@ -88,3 +88,4 @@ After adding the Client ID to your `.env`:
 - Make sure it's the Client ID (not Client Secret)
 - Verify the environment variable name is exactly `VITE_GOOGLE_CLIENT_ID`
 
+

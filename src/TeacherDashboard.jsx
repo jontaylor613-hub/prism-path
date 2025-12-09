@@ -7,7 +7,7 @@ import {
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer,
-  Sun, Moon, Loader2, Thermometer
+  Sun, Moon, Loader2, Thermometer, ExternalLink
 } from 'lucide-react';
 
 // --- IMPORTS ---
@@ -23,6 +23,16 @@ import {
   get504Accommodations
 } from './studentData';
 import { ChatHistoryService } from './chatHistory';
+import CommandBar from './components/CommandBar';
+import DashboardBriefing from './components/DashboardBriefing';
+import VoiceObservation from './components/VoiceObservation';
+import StudentProgressChart from './components/StudentProgressChart';
+import ToneCheck from './components/ToneCheck';
+import GoalInput from './components/GoalInput';
+import OnboardingTour from './components/OnboardingTour';
+import A11yMenu from './components/A11yMenu';
+import CrisisMode from './components/CrisisMode';
+import { translateContent } from './utils/translator';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -306,16 +316,76 @@ const Badge = ({ children, color = "cyan", isDark }) => {
   return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest ${styles[color] || styles.cyan}`}>{children}</span>;
 };
 
-const CopyBlock = ({ content, label = "Copy for Documentation", theme }) => {
+const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "Document" }) => {
   const [copied, setCopied] = useState(false);
+  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
+  const [savedDocLink, setSavedDocLink] = useState(null);
+  
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleSaveToDrive = async () => {
+    if (!content || !content.trim()) return;
+
+    setIsSavingToDrive(true);
+    setSavedDocLink(null);
+
+    try {
+      const { GoogleIntegration, getGoogleAccessToken } = await import('../lib/googleService');
+      const accessToken = await getGoogleAccessToken();
+      const google = new GoogleIntegration(accessToken);
+      
+      const docTitle = title || label.replace('Copy ', '') || 'PrismPath Document';
+      const result = await google.createDoc(docTitle, content);
+      
+      setSavedDocLink(result.webViewLink);
+    } catch (error) {
+      console.error('Error saving to Drive:', error);
+      alert('Failed to save to Google Drive. Please check your connection and try again.');
+    } finally {
+      setIsSavingToDrive(false);
+    }
+  };
+
   return (
     <div className={`mt-4 pt-4 border-t ${theme.cardBorder} animate-in fade-in`}>
-      <Button onClick={handleCopy} variant="copy" icon={copied ? CheckCircle : Copy} theme={theme}>{copied ? "Copied to Clipboard!" : label}</Button>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Button 
+          onClick={handleCopy} 
+          variant="copy" 
+          icon={copied ? CheckCircle : Copy} 
+          theme={theme}
+          className="flex-1"
+        >
+          {copied ? "Copied to Clipboard!" : label}
+        </Button>
+        <Button
+          onClick={handleSaveToDrive}
+          disabled={isSavingToDrive || !content}
+          variant="secondary"
+          icon={isSavingToDrive ? Loader2 : FileText}
+          theme={theme}
+          className="flex-1"
+        >
+          {isSavingToDrive ? "Saving..." : savedDocLink ? "Saved to Drive" : "Save to Google Drive"}
+        </Button>
+      </div>
+      {savedDocLink && (
+        <div className="mt-2 text-center">
+          <a
+            href={savedDocLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-sm ${theme.primaryText || 'text-cyan-600'} hover:underline flex items-center justify-center gap-1`}
+          >
+            <ExternalLink size={14} />
+            Open Doc
+          </a>
+        </div>
+      )}
       <p className={`text-center text-[10px] ${theme.textMuted} mt-2 uppercase tracking-widest`}>Ready for Infinite Campus / IEP Direct</p>
     </div>
   );
@@ -338,6 +408,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
   const [goals, setGoals] = useState([]);
+  const [showA11yMenu, setShowA11yMenu] = useState(false);
   const [activeGoalId, setActiveGoalId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedStudentForGem, setSelectedStudentForGem] = useState(null);
@@ -687,6 +758,8 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     setIsGenerating(true);
     // Clear previous email to allow new generation
     setGeneratedEmail('');
+    setTranslatedEmail('');
+    setShowTranslation(false);
     
     try {
       // Add timestamp to ensure unique generation each time
@@ -701,6 +774,19 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       const result = await GeminiService.generate(prompt, 'email');
       setGeneratedEmail(result);
+      setEmailDraft(result); // Set for ToneCheck
+      
+      // Check if parent has preferred language and translate if needed
+      // Note: In a real implementation, parentLanguage would come from student/parent data
+      // For now, we'll add a UI control to set it
+      if (parentLanguage && parentLanguage !== 'English') {
+        try {
+          const translated = await translateContent(result, parentLanguage);
+          setTranslatedEmail(translated);
+        } catch (transError) {
+          console.error('Translation error:', transError);
+        }
+      }
     } catch (error) {
       console.error('Error generating email:', error);
       setGeneratedEmail('Error generating email. Please try again.');
@@ -784,6 +870,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       setActiveTab(tab.toLowerCase());
                     }
                   }} 
+                  data-tour={isGem ? "ai-tools" : undefined}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
                     activeTab === tab.toLowerCase() 
                       ? isGem 
@@ -802,6 +889,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <button onClick={() => setShowA11yMenu(true)} className={`p-2 rounded-full transition-all ${theme.textMuted} hover:${theme.text} hover:bg-slate-500/10`} title="Accessibility Settings">
+                <Settings size={20} />
+            </button>
             <button onClick={onToggleTheme} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
                 {isDark ? <Moon size={20} /> : <Sun size={20} />}
             </button>
@@ -811,6 +901,26 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
         </div>
       </header>
+
+      {/* Onboarding Tour */}
+      <OnboardingTour isDark={isDark} onComplete={() => console.log('Tour completed')} />
+
+      {/* Accessibility Menu */}
+      <A11yMenu isDark={isDark} isOpen={showA11yMenu} onClose={() => setShowA11yMenu(false)} />
+
+      {/* Global Command Bar */}
+      <CommandBar
+        students={displayedStudents}
+        onOpenA11y={() => setShowA11yMenu(true)}
+        onNavigate={(tab) => setActiveTab(tab)}
+        onAddStudent={() => setIsAddingStudent(true)}
+        onDraftEmail={() => {
+          setActiveTab('profile');
+          handleGenerateEmail();
+        }}
+        onSelectStudent={(studentId) => setCurrentStudentId(studentId)}
+        isDark={isDark}
+      />
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 space-y-8">
         {loading ? (
@@ -849,7 +959,29 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
         {activeTab === 'profile' && (
           activeStudent ? (
-          <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* Morning Briefing Widget */}
+            <DashboardBriefing
+              students={displayedStudents}
+              isDark={isDark}
+              onReviewNow={() => {
+                // Navigate to first student with upcoming IEP
+                const upcomingStudent = displayedStudents.find(s => {
+                  const iepDate = s.nextIep || s.nextIepDate;
+                  if (!iepDate) return false;
+                  const reviewDate = new Date(iepDate);
+                  const now = new Date();
+                  const sevenDaysFromNow = new Date(now);
+                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                  return reviewDate >= now && reviewDate <= sevenDaysFromNow;
+                });
+                if (upcomingStudent) {
+                  setCurrentStudentId(upcomingStudent.id);
+                }
+              }}
+            />
+            
+            <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
                <Card className="p-6" theme={theme}>
                  <div className="flex justify-between items-start mb-6">
@@ -961,11 +1093,80 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                    {emailTopic === 'Solicit Feedback' && (
                        <div className={`${theme.inputBg} p-3 rounded border ${theme.cardBorder} space-y-2`}><p className={`text-xs font-bold ${theme.textMuted} uppercase`}>Ask about:</p>{['behavior', 'social', 'academic', 'independence'].map(area => (<label key={area} className={`flex items-center gap-2 text-sm ${theme.textMuted} cursor-pointer hover:${theme.text}`}><input type="checkbox" checked={feedbackAreas[area]} onChange={e => setFeedbackAreas({...feedbackAreas, [area]: e.target.checked})} className="accent-cyan-500"/>{area.charAt(0).toUpperCase() + area.slice(1)} at Home</label>))}</div>
                    )}
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Parent Preferred Language</label><select value={parentLanguage} onChange={(e) => setParentLanguage(e.target.value)} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`}><option>English</option><option>Spanish</option><option>French</option><option>Mandarin</option><option>Arabic</option><option>Vietnamese</option><option>Tagalog</option></select></div>
                    <Button onClick={handleGenerateEmail} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Drafting..." : "Generate Email Draft"}</Button>
                 </div>
-                {generatedEmail && (<div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}><div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>{generatedEmail}</div><Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="w-full" icon={Copy} theme={theme}>Copy to Clipboard</Button></div>)}
-              </Card>
+                {generatedEmail && (
+                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
+                    {/* Tone Check for Email Draft */}
+                    <div className="mb-4">
+                      <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Email Draft (Edit to check tone)</label>
+                      <textarea
+                        value={emailDraft}
+                        onChange={(e) => {
+                          setEmailDraft(e.target.value);
+                          setGeneratedEmail(e.target.value);
+                        }}
+                        className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[150px] font-mono text-xs`}
+                        placeholder="Email draft will appear here..."
+                      />
+                      <ToneCheck text={emailDraft} isDark={isDark} />
+                    </div>
+                    
+                    {/* Translation Toggle */}
+                    {translatedEmail && parentLanguage !== 'English' && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className={`text-xs font-bold ${theme.textMuted} uppercase`}>Translation ({parentLanguage})</label>
+                          <button
+                            onClick={() => setShowTranslation(!showTranslation)}
+                            className={`text-xs ${theme.textMuted} hover:${theme.text} underline`}
+                          >
+                            {showTranslation ? 'Hide' : 'Show'} Translation
+                          </button>
+                        </div>
+                        {showTranslation && (
+                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>
+                            {translatedEmail}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Split View: English and Translation */}
+                    {translatedEmail && parentLanguage !== 'English' && showTranslation && (
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>English</label>
+                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono border ${theme.cardBorder} max-h-64 overflow-y-auto`}>
+                            {generatedEmail}
+                          </div>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>{parentLanguage}</label>
+                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono border ${theme.cardBorder} max-h-64 overflow-y-auto`}>
+                            {translatedEmail}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy English</Button>
+                      {translatedEmail && (
+                        <Button onClick={() => navigator.clipboard.writeText(translatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy {parentLanguage}</Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+               </Card>
             </div>
+            
+            {/* Student Progress Chart */}
+            <StudentProgressChart
+              student={activeStudent}
+              isDark={isDark}
+            />
           </div>
           ) : (
             <div className={`text-center py-12 ${theme.textMuted}`}>
@@ -990,7 +1191,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               <Card className={`p-8 flex flex-col`} theme={theme}>
                  <h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Narrative Preview</h2>
                  {plaafpResult ? (
-                     <div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{plaafpResult}</div><CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} /></div>
+                     <div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{plaafpResult}</div><CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} title="PLAAFP Statement" /></div>
                  ) : (
                      <div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Brain size={48} className="mb-4 opacity-50"/><p>Enter data to generate statement.</p></div>
                  )}
@@ -1004,7 +1205,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                  <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan" isDark={isDark}>AI Active</Badge></div>
                  <div className="space-y-6">
                    <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Given a grade level text..." /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will decode..." /></div>
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><GoalInput value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} student={activeStudent} isDark={isDark} placeholder="e.g. Student will decode..." /></div>
                    <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full" theme={theme}>{isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}</Button>
                  </div>
               </Card>
@@ -1020,7 +1221,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             </div>
                             <Button onClick={handleLockGoal} icon={Lock} className="w-full" variant="secondary" theme={theme}>Lock & Track This Goal</Button>
                         </div>
-                        <div className="mt-4"><CopyBlock content={goalText} label="Copy Goal Only" theme={theme} /></div>
+                        <div className="mt-4"><CopyBlock content={goalText} label="Copy Goal Only" theme={theme} title="IEP Goal" /></div>
                     </div>
                 ) : (
                     <div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Target size={32} className="mx-auto mb-2 opacity-50"/><p>Define conditions to generate a goal.</p></div>
@@ -1031,6 +1232,14 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
         {activeTab === 'monitor' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                {/* Student Progress Chart */}
+                {activeStudent && (
+                  <StudentProgressChart
+                    student={activeStudent}
+                    isDark={isDark}
+                  />
+                )}
+                
                 <Card className="p-6" theme={theme}>
                     <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Activity className="text-emerald-400"/> Progress Monitoring</h2>{activeGoal && <div className={`text-xs ${theme.textMuted} ${theme.inputBg} px-3 py-1 rounded border ${theme.cardBorder}`}>Data Collection: <span className={`${theme.text} font-bold`}>{activeGoal.frequency}</span></div>}</div>
                     {goals.length === 0 ? (
@@ -1092,9 +1301,35 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                   </div>
               )}
               {behaviorTab === 'log' && (
-                  <div className="grid lg:grid-cols-2 gap-8">
-                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1 overflow-hidden" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
-                    <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
+                  <div className="space-y-6">
+                    {/* Voice Observation Tracker */}
+                    <VoiceObservation
+                      students={displayedStudents}
+                      onObservationSubmit={(data) => {
+                        // Auto-fill the incident log form
+                        setNewIncident({
+                          date: data.time ? new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                          antecedent: data.antecedent || '',
+                          behavior: data.behavior || '',
+                          consequence: data.consequence || ''
+                        });
+                        // If student name matches, we could set the active student
+                        if (data.studentName) {
+                          const matchingStudent = displayedStudents.find(s => 
+                            s.name.toLowerCase().includes(data.studentName.toLowerCase())
+                          );
+                          if (matchingStudent) {
+                            setCurrentStudentId(matchingStudent.id);
+                          }
+                        }
+                      }}
+                      isDark={isDark}
+                    />
+                    
+                    <div className="grid lg:grid-cols-2 gap-8">
+                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.date} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.antecedent} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.behavior} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.consequence} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1 overflow-hidden" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
+                    <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} title="Behavior Intervention Plan" /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
+                    </div>
                     <div className={`lg:col-span-2 ${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}><table className={`w-full text-sm text-left ${theme.textMuted}`}><thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs`}><tr><th className="p-4">Date</th><th className="p-4">Antecedent</th><th className="p-4">Behavior</th><th className="p-4">Consequence</th></tr></thead><tbody className={`divide-y ${theme.cardBorder}`}>{behaviorLog.length === 0 ? <tr><td colSpan="4" className="p-8 text-center italic opacity-50">No incidents logged yet.</td></tr> : behaviorLog.map(log => (<tr key={log.id}><td className="p-4 font-mono text-cyan-400">{log.date}</td><td className="p-4">{log.antecedent}</td><td className={`p-4 ${theme.text}`}>{log.behavior}</td><td className="p-4">{log.consequence}</td></tr>))}</tbody></table></div>
                   </div>
               )}
@@ -1127,7 +1362,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                   <Users className="text-cyan-400" size={24} />
                   Student Roster
                 </h2>
-                <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
+                <Button 
+                  onClick={() => setIsAddingStudent(true)} 
+                  icon={Plus} 
+                  theme={theme}
+                  data-tour="add-student"
+                >
                   Add Student
                 </Button>
               </div>
@@ -1141,7 +1381,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                 <div className={`text-center py-12 ${theme.textMuted}`}>
                   <Users size={48} className="mx-auto mb-4 opacity-50" />
                   <p className="mb-4">No students in your roster yet.</p>
-                  <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
+                  <Button 
+                    onClick={() => setIsAddingStudent(true)} 
+                    icon={Plus} 
+                    theme={theme}
+                    data-tour="add-student"
+                  >
                     Add Your First Student
                   </Button>
                 </div>
@@ -1326,6 +1571,13 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               </Card>
           </div>
       )}
+
+      {/* Crisis Mode - Always available */}
+      <CrisisMode 
+        activeStudent={activeStudent} 
+        user={user}
+        officePhone="555-0100"
+      />
     </div>
   );
 };

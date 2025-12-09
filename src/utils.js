@@ -459,6 +459,21 @@ Be specific and actionable. Use the If/Then Strategy Matrix.`;
         systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown. No intro. Just the improved text.";
         userPrompt = `Rewrite this ${data.section || 'section'}: "${data.text || data.textToImprove || ''}"`;
     }
+    else if (type === 'translator') {
+        systemInstruction = `You are a professional translator. Translate the provided text accurately to ${data.targetLanguage || 'Spanish'}. Maintain the same tone, formality level, and structure as the original. If the text is an email or formal communication, preserve the formatting and salutations. Return ONLY the translated text, no explanations, no markdown.`;
+        userPrompt = `Translate this text to ${data.targetLanguage || 'Spanish'}:\n\n${data.text || ''}`;
+    }
+    else if (type === 'tone') {
+        systemInstruction = `You are a professional communication coach. Analyze the provided text for hostility, frustration, or non-objective language. Return ONLY a valid JSON object with this exact structure:
+{
+  "score": <number 1-10 where 1=safe, 10=very risky>,
+  "flaggedPhrases": [<array of problematic phrases>],
+  "betterAlternatives": [<array of suggested improvements>]
+}
+
+Be objective and professional. Only flag truly problematic language.`;
+        userPrompt = `Analyze this text for tone issues:\n\n${data.text || ''}`;
+    }
 
     if (!userPrompt.trim()) return "Error: Prompt content cannot be empty.";
 

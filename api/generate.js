@@ -1,3 +1,111 @@
+/**
+ * AI Router & Handler - Backend Implementation
+ * Routes requests to appropriate AI models based on mode
+ */
+
+import { rateLimitMiddleware } from './rateLimit.js';
+
+// AI Mode Configuration
+const AI_MODES = {
+  neuro_driver: {
+    model: 'gemini-1.5-flash',
+    systemPrompt: "You are an executive function coach. Output ONLY a numbered list of actionable steps. Max 10 words per step. If the user asks for homework help or roleplay, REFUSE."
+  },
+  accommodation_gem: {
+    model: 'gemini-1.5-pro',
+    systemPrompt: "Expert curriculum differentiator. Analyze input/PDF and provide modifications."
+  },
+  iep_builder: {
+    model: 'gemini-1.5-pro',
+    systemPrompt: "Special Ed Case Manager. Write formal goals and professional emails."
+  },
+  instant_help: {
+    model: 'gemini-1.5-flash',
+    systemPrompt: "Inclusion Specialist. Provide 3 bullet points of immediate accommodation strategies."
+  }
+};
+
+/**
+ * Call Gemini API with specific model and prompt
+ */
+async function callGeminiAPI(apiKey, model, systemPrompt, userPrompt, files = []) {
+  // Build parts array
+  const parts = [];
+  
+  // Add system instruction as first part
+  if (systemPrompt) {
+    parts.push({ text: systemPrompt });
+  }
+  
+  // Add user prompt
+  if (userPrompt && userPrompt.trim().length > 0) {
+    parts.push({ text: userPrompt });
+  }
+  
+  // Add file parts if provided
+  if (files && files.length > 0) {
+    for (const file of files) {
+      if (file.type === 'image' && file.data) {
+        let imageData = file.data;
+        let mimeType = 'image/jpeg';
+        
+        if (imageData.startsWith('data:')) {
+          const dataParts = imageData.split(',');
+          const header = dataParts[0];
+          imageData = dataParts[1];
+          
+          const mimeMatch = header.match(/data:([^;]+)/);
+          if (mimeMatch) {
+            mimeType = mimeMatch[1];
+          }
+        }
+        
+        parts.push({
+          inlineData: {
+            mimeType: mimeType,
+            data: imageData
+          }
+        });
+      } else if (file.type === 'pdf' && file.content) {
+        parts.push({ text: `\n\nPDF Document "${file.name}":\n${file.content}` });
+      } else if (file.content) {
+        parts.push({ text: `\n\nDocument "${file.name}":\n${file.content}` });
+      }
+    }
+  }
+  
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: parts }]
+    })
+  });
+
+  const data = await response.json();
+
+  if (response.ok) {
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error("No response from AI model");
+    }
+    return text;
+  }
+  
+  if (response.status === 400) {
+    const errorMsg = data.error?.message || data.message || "Invalid request to AI service";
+    throw new Error(`AI Service Error: ${errorMsg}`);
+  }
+  
+  if (response.status === 429) {
+    throw new Error("Rate Limit: Please try again in 30 seconds");
+  }
+  
+  throw new Error(data.error?.message || `AI Service returned status ${response.status}`);
+}
+
 export default async function handler(req, res) {
   // 1. CORS Headers (Security Handshake)
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -12,6 +120,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
+  // 0. Rate Limiting - "The Bouncer"
+  const rateLimitResult = rateLimitMiddleware(req, res);
+  if (rateLimitResult) {
+    return rateLimitResult; // Returns 429 response if limit exceeded
+  }
+
   // 2. Get API Key from Vercel Secure Storage
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Server Error: API Key is missing" });
@@ -19,10 +133,12 @@ export default async function handler(req, res) {
   // 3. Parse Input
   let prompt = "";
   let files = [];
+  let mode = null;
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     prompt = body.prompt || "";
     files = body.files || [];
+    mode = body.mode || null;
     
     // Validate prompt exists and is not empty (unless files are provided)
     if ((!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) && (!files || files.length === 0)) {
@@ -32,105 +148,68 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid JSON body: " + e.message });
   }
 
-  // 4. Call Google API with fallback models
+  // 4. Route to appropriate AI mode handler
   try {
-    // Try models in order: 2.0-exp (newest), then 1.5-flash (reliable fallback)
-    const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
-    
-    // Build parts array for multimodal API
-    const parts = [];
-    
-    // Add text prompt if provided
-    if (prompt && prompt.trim().length > 0) {
-      parts.push({ text: prompt });
-    }
-    
-    // Add file parts if provided (for multimodal support)
-    if (files && files.length > 0) {
-      for (const file of files) {
-        if (file.type === 'image' && file.data) {
-          // Handle base64 image data
-          // Remove data URL prefix if present
-          let imageData = file.data;
-          let mimeType = 'image/jpeg';
-          
-          if (imageData.startsWith('data:')) {
-            const dataParts = imageData.split(',');
-            const header = dataParts[0];
-            imageData = dataParts[1];
-            
-            // Extract mime type from data URL
-            const mimeMatch = header.match(/data:([^;]+)/);
-            if (mimeMatch) {
-              mimeType = mimeMatch[1];
-            }
+    // If mode is specified, use router pattern
+    if (mode && AI_MODES[mode]) {
+      const config = AI_MODES[mode];
+      
+      // Extract system prompt and user prompt from full prompt
+      // If prompt already includes system instruction, use as-is
+      // Otherwise, prepend system instruction
+      let systemPrompt = config.systemPrompt;
+      let userPrompt = prompt;
+      
+      // Check if prompt already contains system instruction separator
+      if (prompt.includes('\n\n---\n\n')) {
+        const parts = prompt.split('\n\n---\n\n');
+        systemPrompt = parts[0];
+        userPrompt = parts.slice(1).join('\n\n---\n\n');
+      }
+      
+      // Try primary model, then fallback
+      const models = [config.model];
+      if (config.model === 'gemini-1.5-pro') {
+        models.push('gemini-1.5-flash'); // Fallback to flash
+      }
+      
+      let lastError = null;
+      for (const model of models) {
+        try {
+          const result = await callGeminiAPI(apiKey, model, systemPrompt, userPrompt, files);
+          return res.status(200).json({ result });
+        } catch (modelError) {
+          lastError = modelError;
+          // If rate limited, don't try fallback
+          if (modelError.message.includes("Rate Limit")) {
+            throw modelError;
           }
-          
-          parts.push({
-            inlineData: {
-              mimeType: mimeType,
-              data: imageData
-            }
-          });
-        } else if (file.type === 'pdf' && file.content) {
-          // For PDFs, include extracted text in the prompt
-          parts.push({ text: `\n\nPDF Document "${file.name}":\n${file.content}` });
-        } else if (file.content) {
-          // For other text-based files
-          parts.push({ text: `\n\nDocument "${file.name}":\n${file.content}` });
+          // Continue to fallback
+          continue;
         }
       }
-    }
-    
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: parts }]
-          })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) {
-            throw new Error("No response from AI model");
+      
+      throw lastError || new Error("All models unavailable");
+    } else {
+      // Legacy mode: use default behavior with fallback models
+      const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
+      // Legacy behavior: use prompt as-is without system instructions
+      let lastError = null;
+      for (const model of models) {
+        try {
+          const result = await callGeminiAPI(apiKey, model, null, prompt, files);
+          return res.status(200).json({ result });
+        } catch (modelError) {
+          lastError = modelError;
+          if (modelError.message.includes("Rate Limit")) {
+            throw modelError;
           }
-          return res.status(200).json({ result: text });
+          continue;
         }
-        
-        // Handle specific error status codes
-        if (response.status === 400) {
-          const errorMsg = data.error?.message || data.message || "Invalid request to AI service";
-          console.error("Google API 400 Error:", errorMsg, data);
-          throw new Error(`AI Service Error: ${errorMsg}`);
-        }
-        
-        // If rate limited, stop trying other models
-        if (response.status === 429) {
-          throw new Error("Rate Limit: Please try again in 30 seconds");
-        }
-        
-        // Log other errors for debugging
-        console.error(`Google API Error (${response.status}):`, data);
-        throw new Error(data.error?.message || `AI Service returned status ${response.status}`);
-      } catch (modelError) {
-        // If rate limited, don't try other models
-        if (modelError.message.includes("Rate Limit")) {
-          throw modelError;
-        }
-        // Otherwise, try next model
-        continue;
       }
+      
+      throw lastError || new Error("All models unavailable");
     }
-    
-    throw new Error("All models unavailable");
-
   } catch (error) {
     console.error("API Error:", error);
     return res.status(500).json({ error: "Failed: " + error.message });

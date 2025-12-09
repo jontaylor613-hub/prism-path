@@ -4,10 +4,139 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, Mic, Camera, X, Sparkles, FileText, Image as ImageIcon, 
   Loader2, Send, Trash2, Wand2, FileUp, Volume2, VolumeX, Plus, 
-  MessageSquare, User, Clock, ExternalLink
+  MessageSquare, User, Clock, ExternalLink, CheckCircle
 } from 'lucide-react';
 import { GeminiService, getTheme } from './utils';
 import { ChatHistoryService } from './chatHistory';
+import { generateStrategyId, incrementStrategyUsage, getStrategyUsage } from './lib/mockStore';
+import WisdomBadge from './components/WisdomBadge';
+
+/**
+ * Component to render AI accommodation messages with wisdom badges and "Add to IEP" buttons
+ */
+function AccommodationMessageContent({ content, isDark, theme, onAddToIEP }) {
+  const parseStrategies = (content) => {
+    if (!content || typeof content !== 'string') return [];
+    
+    const strategies = [];
+    const lines = content.split('\n');
+    
+    const bulletPattern = /^[\s]*[-*•]\s+(.+)$/;
+    const numberedPattern = /^[\s]*\d+[.)]\s+(.+)$/;
+    const boldColonPattern = /^\*\*(.+?)\*\*:\s*(.+)$/;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      let strategyText = null;
+      
+      const bulletMatch = line.match(bulletPattern);
+      if (bulletMatch) {
+        strategyText = bulletMatch[1].trim();
+      }
+      
+      const numberedMatch = line.match(numberedPattern);
+      if (numberedMatch) {
+        strategyText = numberedMatch[1].trim();
+      }
+      
+      const boldMatch = line.match(boldColonPattern);
+      if (boldMatch) {
+        strategyText = `${boldMatch[1].trim()}: ${boldMatch[2].trim()}`;
+      }
+      
+      if (strategyText && strategyText.length > 10) {
+        const strategyId = generateStrategyId(strategyText);
+        const usageCount = getStrategyUsage(strategyId);
+        
+        strategies.push({
+          id: strategyId,
+          text: strategyText,
+          originalLine: line,
+          usageCount: usageCount
+        });
+      }
+    }
+    
+    return strategies;
+  };
+
+  const processAIResponse = (content) => {
+    if (!content) return { strategies: [], otherContent: content };
+    
+    const strategies = parseStrategies(content);
+    const sortedStrategies = [...strategies].sort((a, b) => b.usageCount - a.usageCount);
+    
+    if (sortedStrategies.length === 0) {
+      return { strategies: [], otherContent: content };
+    }
+    
+    const lines = content.split('\n');
+    const strategyLines = new Set(sortedStrategies.map(s => s.originalLine));
+    const otherLines = lines.filter(line => !strategyLines.has(line.trim()));
+    
+    return {
+      strategies: sortedStrategies,
+      otherContent: otherLines.join('\n')
+    };
+  };
+
+  const processed = processAIResponse(content);
+  
+  // If no strategies found, render content as-is
+  if (processed.strategies.length === 0) {
+    return <div className="whitespace-pre-wrap">{content}</div>;
+  }
+
+  // Re-fetch usage counts to ensure we have the latest data
+  const strategiesWithUsage = processed.strategies.map(strategy => ({
+    ...strategy,
+    usageCount: getStrategyUsage(strategy.id) // Get fresh count
+  })).sort((a, b) => b.usageCount - a.usageCount); // Re-sort with fresh counts
+
+  return (
+    <div className="space-y-4">
+      {/* Non-strategy content (intro, headers, etc.) */}
+      {processed.otherContent.trim() && (
+        <div className="whitespace-pre-wrap text-sm mb-4">{processed.otherContent.trim()}</div>
+      )}
+      
+      {/* Strategies list with badges and buttons */}
+      {strategiesWithUsage.length > 0 && (
+        <div className="space-y-3">
+          {strategiesWithUsage.map((strategy, index) => (
+            <div
+              key={`${strategy.id}-${index}`}
+              className={`flex items-start gap-3 p-3 rounded-lg border ${
+                isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+              } transition-all hover:border-cyan-500/50`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span className={`${theme.text} text-sm`}>{strategy.text}</span>
+                  <WisdomBadge usageCount={strategy.usageCount} isDark={isDark} />
+                </div>
+              </div>
+              <button
+                onClick={() => onAddToIEP(strategy.id, strategy.text)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  isDark
+                    ? 'bg-cyan-900/30 text-cyan-400 hover:bg-cyan-900/50 border border-cyan-500/30'
+                    : 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100 border border-cyan-300'
+                }`}
+                title="Add this strategy to IEP"
+              >
+                <CheckCircle size={14} />
+                Add to IEP
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, onFirstUse = null }) {
   const theme = getTheme(isDark);
@@ -438,6 +567,22 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  /**
+   * Handle "Add to IEP" button click
+   */
+  const handleAddToIEP = (strategyId, strategyText) => {
+    incrementStrategyUsage(strategyId);
+    
+    // Force re-render by updating messages to trigger strategy re-sorting
+    // Create a new message object to trigger React re-render
+    setMessages(prev => prev.map(msg => {
+      if (msg.role === 'assistant' && msg.content) {
+        return { ...msg, _wisdomUpdate: Date.now() }; // Add timestamp to force update
+      }
+      return msg;
+    }));
+  };
+
   // Export to Google Docs using clipboard and direct link
   const handleExportToGoogleDocs = async () => {
     // Get the last AI message (accommodations)
@@ -774,7 +919,17 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                         ))}
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    {msg.role === 'assistant' ? (
+                      <AccommodationMessageContent 
+                        key={msg._wisdomUpdate || msg.id} // Use wisdom update timestamp as key to force re-render
+                        content={msg.content} 
+                        isDark={isDark} 
+                        theme={theme}
+                        onAddToIEP={handleAddToIEP}
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    )}
                   </div>
                 </div>
               ))}

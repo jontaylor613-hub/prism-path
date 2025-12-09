@@ -20,8 +20,8 @@ import { logAuditEvent } from './auditLog';
 export const createStudent = async (studentData, userId, userRole) => {
   try {
     // Validate user has permission to create students
-    if (userRole !== 'admin' && userRole !== 'sped') {
-      throw new Error('Unauthorized: Only SPED teachers and admins can create student records');
+    if (userRole !== 'admin' && userRole !== 'sped' && userRole !== 'parent') {
+      throw new Error('Unauthorized: Only SPED teachers, admins, and parents can create student records');
     }
 
     const studentRef = doc(collection(db, 'students'));
@@ -42,9 +42,10 @@ export const createStudent = async (studentData, userId, userRole) => {
       
       // Access control
       createdBy: userId,
-      assignedTeachers: [userId], // Teachers who can access this student
+      assignedTeachers: userRole === 'parent' ? [] : [userId], // Teachers who can access this student
       isSpedStudent: userRole === 'sped',
-      schoolId: studentData.schoolId || '',
+      schoolId: userRole === 'parent' ? 'home_school' : (studentData.schoolId || ''),
+      parentId: userRole === 'parent' ? userId : (studentData.parentId || ''), // For parent-created students
       
       // Metadata
       createdAt: serverTimestamp(),
@@ -88,6 +89,14 @@ export const getStudentsForUser = async (userId, userRole) => {
         collection(db, 'students'),
         where('isActive', '==', true),
         where('isSpedStudent', '==', true),
+        orderBy('createdAt', 'desc')
+      );
+    } else if (userRole === 'parent') {
+      // Parents see their own children (students assigned to their userId)
+      studentsQuery = query(
+        collection(db, 'students'),
+        where('isActive', '==', true),
+        where('parentId', '==', userId),
         orderBy('createdAt', 'desc')
       );
     } else {
@@ -137,7 +146,8 @@ export const getStudent = async (studentId, userId, userRole) => {
     const hasAccess = 
       userRole === 'admin' ||
       (userRole === 'sped' && student.isSpedStudent) ||
-      student.assignedTeachers?.includes(userId);
+      student.assignedTeachers?.includes(userId) ||
+      (userRole === 'parent' && (student.parentId === userId || student.assignedParents?.includes(userId)));
 
     if (!hasAccess) {
       throw new Error('Unauthorized: You do not have access to this student');
@@ -228,12 +238,15 @@ export const getStudentGoals = async (studentId, userId) => {
       ...doc.data()
     }));
 
-    await logAuditEvent({
-      userId,
-      action: 'VIEW_GOALS',
-      resourceType: 'goals',
-      resourceParentId: studentId
-    });
+    // Only log audit if userId is provided (skip for public token access)
+    if (userId && userId !== 'system') {
+      await logAuditEvent({
+        userId,
+        action: 'VIEW_GOALS',
+        resourceType: 'goals',
+        resourceParentId: studentId
+      });
+    }
 
     return goals;
   } catch (error) {
@@ -399,6 +412,101 @@ export const removeStudent = async (studentId, userId, userRole) => {
     return true;
   } catch (error) {
     console.error('Error removing student:', error);
+    throw error;
+  }
+};
+
+// Generate secure token for student QR code
+export const generateStudentToken = async (studentId, userId) => {
+  try {
+    // Generate a secure random token
+    let token;
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      token = crypto.randomUUID();
+    } else {
+      // Fallback for older browsers
+      const randomPart1 = Math.random().toString(36).substring(2, 15);
+      const randomPart2 = Math.random().toString(36).substring(2, 15);
+      const randomPart3 = Math.random().toString(36).substring(2, 15);
+      token = `${Date.now()}-${randomPart1}-${randomPart2}-${randomPart3}`;
+    }
+    
+    // Store token in student document
+    const studentRef = doc(db, 'students', studentId);
+    await updateDoc(studentRef, {
+      trackingToken: token,
+      tokenGeneratedAt: serverTimestamp(),
+      tokenGeneratedBy: userId,
+      updatedAt: serverTimestamp()
+    });
+
+    await logAuditEvent({
+      userId,
+      action: 'GENERATE_TRACKING_TOKEN',
+      resourceType: 'student',
+      resourceId: studentId
+    });
+
+    return token;
+  } catch (error) {
+    console.error('Error generating token:', error);
+    throw error;
+  }
+};
+
+// Get student by tracking token (public access, no auth required)
+export const getStudentByToken = async (token) => {
+  try {
+    const studentsRef = collection(db, 'students');
+    const q = query(studentsRef, where('trackingToken', '==', token), where('isActive', '==', true));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const studentDoc = snapshot.docs[0];
+    return { id: studentDoc.id, ...studentDoc.data() };
+  } catch (error) {
+    console.error('Error fetching student by token:', error);
+    throw error;
+  }
+};
+
+// Save progress tracking data point
+export const saveProgressData = async (studentId, goalId, value, metadata = {}) => {
+  try {
+    const progressRef = doc(collection(db, 'students', studentId, 'progress'));
+    const progressData = {
+      goalId,
+      value,
+      date: serverTimestamp(),
+      ...metadata,
+      createdAt: serverTimestamp()
+    };
+
+    await setDoc(progressRef, progressData);
+
+    return { id: progressRef.id, ...progressData };
+  } catch (error) {
+    console.error('Error saving progress data:', error);
+    throw error;
+  }
+};
+
+// Get progress history for a goal
+export const getGoalProgress = async (studentId, goalId) => {
+  try {
+    const progressRef = collection(db, 'students', studentId, 'progress');
+    const q = query(progressRef, where('goalId', '==', goalId), orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching progress:', error);
     throw error;
   }
 };

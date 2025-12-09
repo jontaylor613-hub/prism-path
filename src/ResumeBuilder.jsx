@@ -8,7 +8,7 @@ import {
 
 // --- THE FIX: Import the brain ---
 import { GeminiService } from './utils';
-import ArchiveOfPotentials from './ArchiveOfPotentials';
+import ArchiveOfPotentials from './ArchiveOfPotentials.jsx';
 
 export default function ResumeBuilder({ onBack, isLowStim }) {
   const navigate = useNavigate();

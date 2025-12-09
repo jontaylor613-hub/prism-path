@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Trophy, Play, RotateCcw } from 'lucide-react';
 
-const KONAMI_CODE = [
-  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 
-  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 
-  'b', 'a', 'Enter'
-];
-
 const EasterEgg = ({ isDark }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [gameActive, setGameActive] = useState(false);
@@ -18,12 +12,12 @@ const EasterEgg = ({ isDark }) => {
   const requestRef = useRef(null);
   const keyHistory = useRef([]);
 
-  // Simple game state
+  // Simple game state - Geometry Jump style
   const gameState = useRef({
-    player: { x: 50, y: 200, width: 30, height: 30, dy: 0, jumpForce: 12, grounded: true },
+    player: { x: 50, y: 200, width: 40, height: 40, dy: 0, jumpForce: 15, grounded: true },
     obstacles: [],
     frames: 0,
-    gameSpeed: 4
+    gameSpeed: 5
   });
 
   // Konami code detection
@@ -61,20 +55,19 @@ const EasterEgg = ({ isDark }) => {
     const container = canvas.parentElement;
     if (!container) return;
     
-    // Set canvas size to match container
     const rect = container.getBoundingClientRect();
     canvas.width = rect.width || 800;
     canvas.height = rect.height || 300;
   }, [isOpen]);
 
-  // Game loop
+  // Game loop - Simple and smooth like Geometry Jump
   useEffect(() => {
     if (!isOpen || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const groundHeight = Math.floor(canvas.height * 0.83); // 83% of canvas height
-    const gravity = 0.6;
+    const groundHeight = Math.floor(canvas.height * 0.85);
+    const gravity = 0.8;
     let animationFrameId = null;
 
     const jump = () => {
@@ -88,7 +81,7 @@ const EasterEgg = ({ isDark }) => {
 
     const handleInput = (e) => {
       if (e.type === 'keydown') {
-        if (e.code === 'Space' || e.key === 'ArrowUp') {
+        if (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'w') {
           e.preventDefault();
           if (!gameActive && !gameOver) startGame();
           else jump();
@@ -113,26 +106,25 @@ const EasterEgg = ({ isDark }) => {
       state.frames++;
       setScore(Math.floor(state.frames / 10));
 
-      // Clear entire canvas first
+      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Sky background
-      ctx.fillStyle = '#1a0a2e';
-      ctx.fillRect(0, 0, canvas.width, groundHeight);
-      
-      // Ground
-      ctx.fillStyle = '#2a2a3e';
-      ctx.fillRect(0, groundHeight, canvas.width, canvas.height - groundHeight);
+      // Simple gradient background - Geometry Jump style
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGradient.addColorStop(0, '#0a0a0a');
+      bgGradient.addColorStop(1, '#1a1a2e');
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Ground line
-      ctx.strokeStyle = '#3a3a4e';
-      ctx.lineWidth = 2;
+      // Ground - simple line
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, groundHeight);
       ctx.lineTo(canvas.width, groundHeight);
       ctx.stroke();
 
-      // Update player physics
+      // Player physics - smooth and responsive
       state.player.dy += gravity;
       state.player.y += state.player.dy;
 
@@ -143,50 +135,50 @@ const EasterEgg = ({ isDark }) => {
         state.player.grounded = true;
       }
 
-      // Draw player cube with glow effect
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = '#22d3ee';
+      // Draw player - simple geometric shape (Geometry Jump style)
       ctx.fillStyle = '#22d3ee';
       ctx.fillRect(state.player.x, state.player.y, state.player.width, state.player.height);
-      ctx.shadowBlur = 0;
+      
+      // Simple outline for visibility
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(state.player.x, state.player.y, state.player.width, state.player.height);
 
-      // Spawn obstacles (every 120 frames, but increase frequency with score)
-      const spawnRate = Math.max(60, 120 - Math.floor(state.frames / 500));
+      // Spawn obstacles - simple blocks
+      const spawnRate = Math.max(80, 150 - Math.floor(state.frames / 300));
       if (state.frames % spawnRate === 0) {
+        const height = 30 + Math.floor(Math.random() * 40);
         state.obstacles.push({
           x: canvas.width,
-          y: groundHeight,
-          width: 20,
-          height: 30 + Math.floor(Math.random() * 20) // Vary height
+          y: groundHeight - height,
+          width: 25,
+          height: height
         });
       }
 
-      // Increase game speed gradually
-      state.gameSpeed = 4 + Math.floor(state.frames / 1000) * 0.5;
+      // Gradually increase speed
+      state.gameSpeed = 5 + Math.floor(state.frames / 500) * 0.3;
 
-      // Update and draw obstacles
+      // Update and draw obstacles - simple blocks
       for (let i = state.obstacles.length - 1; i >= 0; i--) {
         let obs = state.obstacles[i];
         obs.x -= state.gameSpeed;
 
-        // Draw obstacle with glow
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00ffff';
-        ctx.fillStyle = '#00ffff';
-        ctx.fillRect(obs.x, obs.y - obs.height, obs.width, obs.height);
-        ctx.shadowBlur = 0;
+        // Draw obstacle - simple block
+        ctx.fillStyle = '#f472b6';
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        
+        // Outline
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
 
-        // Improved collision detection (AABB)
-        const playerRight = state.player.x + state.player.width;
-        const playerBottom = state.player.y + state.player.height;
-        const obsRight = obs.x + obs.width;
-        const obsTop = obs.y - obs.height;
-
+        // Simple collision detection
         if (
-          state.player.x < obsRight &&
-          playerRight > obs.x &&
-          state.player.y < obs.y &&
-          playerBottom > obsTop
+          state.player.x < obs.x + obs.width &&
+          state.player.x + state.player.width > obs.x &&
+          state.player.y < obs.y + obs.height &&
+          state.player.y + state.player.height > obs.y
         ) {
           setGameOver(true);
           setGameActive(false);
@@ -232,21 +224,21 @@ const EasterEgg = ({ isDark }) => {
   const startGame = (e) => {
     if (e) e.stopPropagation();
     const canvas = canvasRef.current;
-    const groundHeight = canvas ? Math.floor(canvas.height * 0.83) : 250;
+    const groundHeight = canvas ? Math.floor(canvas.height * 0.85) : 250;
     
     gameState.current = {
       player: { 
         x: 50, 
-        y: groundHeight - 30, 
-        width: 30, 
-        height: 30, 
+        y: groundHeight - 40, 
+        width: 40, 
+        height: 40, 
         dy: 0, 
-        jumpForce: 12, 
+        jumpForce: 15, 
         grounded: true 
       },
       obstacles: [],
       frames: 0,
-      gameSpeed: 4
+      gameSpeed: 5
     };
     setGameOver(false);
     setScore(0);
@@ -259,14 +251,14 @@ const EasterEgg = ({ isDark }) => {
     <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
       <div className="relative w-full max-w-3xl bg-[#1a0a2e] border-2 border-pink-500/50 rounded-2xl p-2 shadow-[0_0_50px_rgba(219,39,119,0.3)]">
         <div className="flex justify-between items-center px-4 py-2 border-b border-pink-500/20 mb-2">
-          <span className="text-pink-400 font-black tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(219,39,119,0.5)' }}>Prism Runner</span>
+          <span className="text-pink-400 font-black tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(219,39,119,0.5)' }}>Prism Jump</span>
           <button onClick={() => { setIsOpen(false); setGameActive(false); }} className="text-pink-400 hover:text-pink-300 transition-colors">
             <X />
           </button>
         </div>
 
         <div 
-          className="relative w-full h-[300px] bg-black rounded-lg overflow-hidden border border-pink-500/20 select-none cursor-pointer active:scale-[0.99] transition-transform"
+          className="relative w-full h-[300px] bg-black rounded-lg overflow-hidden border border-pink-500/20 select-none cursor-pointer"
           onMouseDown={e => { if(gameActive) e.preventDefault(); }}
         >
           <canvas ref={canvasRef} className="w-full h-full pointer-events-none" style={{ display: 'block' }} />
@@ -280,7 +272,7 @@ const EasterEgg = ({ isDark }) => {
 
           {!gameActive && !gameOver && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
-              <h1 className="text-4xl font-black text-white mb-2 tracking-tighter" style={{ textShadow: '0 0 20px rgba(219,39,119,0.8), 0 0 40px rgba(219,39,119,0.4)' }}>PRISM RUNNER</h1>
+              <h1 className="text-4xl font-black text-white mb-2 tracking-tighter" style={{ textShadow: '0 0 20px rgba(219,39,119,0.8), 0 0 40px rgba(219,39,119,0.4)' }}>PRISM JUMP</h1>
               <p className="text-pink-300 mb-6 font-mono text-sm" style={{ textShadow: '0 0 10px rgba(219,39,119,0.6)' }}>TAP or SPACE to JUMP</p>
               <button onClick={startGame} className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white px-8 py-3 rounded-full font-bold transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(219,39,119,0.5)]">
                 <Play fill="white" size={18}/> START GAME
@@ -301,7 +293,7 @@ const EasterEgg = ({ isDark }) => {
         </div>
         
         <div className="text-center mt-2 text-[10px] text-pink-400/60 uppercase tracking-widest">
-          Konami Code Accepted • Simple Cube Runner
+          Konami Code Accepted • Geometry Jump Style
         </div>
       </div>
     </div>

@@ -454,18 +454,21 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
       </div>
       
       {/* Skills Discovery Game Button */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="mb-6 p-4 rounded-xl border-2 border-dashed border-cyan-500/30 bg-cyan-500/5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1">
-            <p className={`text-sm ${isLowStim ? 'text-slate-400' : 'text-cyan-300/80'} mb-2`}>
+            <p className={`text-sm font-medium ${isLowStim ? 'text-slate-300' : 'text-cyan-200'} mb-1`}>
               {data.skills.length === 0 
-                ? "Don't know what skills to list? Play a quick game to discover your strengths!" 
-                : "Want to discover more skills? Play the game!"}
+                ? "Don't know what skills to list?" 
+                : "Want to discover more skills?"}
+            </p>
+            <p className={`text-xs ${isLowStim ? 'text-slate-500' : 'text-cyan-300/70'}`}>
+              Play a quick game to discover your strengths!
             </p>
           </div>
           <button
             onClick={() => setShowSkillsGame(true)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 whitespace-nowrap ${isLowStim ? 'bg-slate-700 text-white border border-slate-600' : 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white shadow-lg hover:shadow-cyan-500/50'}`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 whitespace-nowrap shadow-lg ${isLowStim ? 'bg-slate-700 text-white border-2 border-slate-600 hover:bg-slate-600' : 'bg-gradient-to-r from-cyan-500 to-amber-500 text-white hover:from-cyan-400 hover:to-amber-400 hover:shadow-cyan-500/50'}`}
           >
             <Gamepad2 size={18} />
             {data.skills.length === 0 ? 'Discover Your Skills' : 'Discover More Skills'}

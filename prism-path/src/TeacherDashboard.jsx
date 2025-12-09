@@ -917,23 +917,57 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     setIsUploading(true);
     
     try {
-      // Read file content
-      const reader = new FileReader();
-      const fileContent = await new Promise((resolve, reject) => {
-        reader.onload = (event) => resolve(event.target.result);
-        reader.onerror = reject;
-        
-        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          // For PDFs, we'll need to extract text (simplified - in production, use a PDF library)
-          reader.readAsArrayBuffer(file);
-        } else if (file.type.includes('text') || file.name.toLowerCase().endsWith('.txt')) {
-          reader.readAsText(file);
-        } else if (file.type.includes('word') || file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
-          reader.readAsText(file);
-        } else {
-          reader.readAsText(file);
+      let fileText = '';
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      
+      // Extract text from PDF using pdfjs-dist
+      if (isPdf) {
+        try {
+          // Import pdfjs-dist dynamically
+          const pdfjsModule = await import('pdfjs-dist');
+          const pdfjsLib = pdfjsModule.default || pdfjsModule;
+          
+          // Set up worker
+          if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+          }
+          
+          // Read PDF and extract text
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          
+          // Extract text from all pages (limit to first 50 pages for comprehensive coverage)
+          const maxPages = Math.min(pdf.numPages, 50);
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n';
+          }
+          
+          if (pdf.numPages > 50) {
+            fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 50 pages]`;
+          }
+          
+          fileText = fullText.trim();
+          
+          if (!fileText || fileText.length === 0) {
+            throw new Error('Could not extract text from PDF. The PDF may be image-based or encrypted.');
+          }
+        } catch (pdfError) {
+          console.error('PDF extraction error:', pdfError);
+          throw new Error(`Failed to extract text from PDF: ${pdfError.message}. Please ensure the PDF contains extractable text.`);
         }
-      });
+      } else {
+        // For text files, read directly
+        const reader = new FileReader();
+        fileText = await new Promise((resolve, reject) => {
+          reader.onload = (event) => resolve(event.target.result);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
       
       // Determine file type from uploadFileType state or file name
       let fileTypeLabel = uploadFileType;
@@ -945,23 +979,25 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       // Use AI to analyze the file and create a summary
       const analysisPrompt = `You are analyzing a ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
 
-CRITICAL: You must analyze the ACTUAL document content provided below and extract specific information from it. Do NOT provide a template or generic instructions. You must read the document and extract the actual information it contains.
+CRITICAL INSTRUCTIONS:
+1. The document content is provided below. You MUST read and analyze the ACTUAL content.
+2. Extract SPECIFIC information from the document - do NOT provide generic templates or placeholders.
+3. If information is not in the document, state "Not specified in document" rather than making up generic examples.
+4. Provide a clear, comprehensive summary with actual data from the document.
 
-Extract and summarize the following information from the document:
-- Present levels of performance (actual data from the document)
-- Strengths and needs (specific strengths and needs mentioned in the document)
+Extract and summarize the following information from the ACTUAL document content:
+- Present levels of performance (extract actual data from the document)
+- Strengths and needs (extract specific strengths and needs mentioned in the document)
 - Accommodations mentioned (list all specific accommodations found in the document)
-- Goals or objectives (actual goals/objectives from the document)
-- Test scores or performance data (specific scores and data from the document)
-- Any other relevant educational information (specific details from the document)
+- Goals or objectives (extract actual goals/objectives from the document)
+- Test scores or performance data (extract specific scores and data from the document)
+- Any other relevant educational information (extract specific details from the document)
 
-Create a comprehensive summary based on the ACTUAL content of the document. Format it clearly with sections.`;
-      
-      const fileText = typeof fileContent === 'string' ? fileContent : 'PDF file uploaded - content extraction needed';
+Format the summary clearly with sections. Only include information that is actually in the document.`;
       
       // Determine file type for the files array
       let fileTypeForService = 'text';
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      if (isPdf) {
         fileTypeForService = 'pdf';
       } else if (file.type.includes('word') || file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
         fileTypeForService = 'word';
@@ -971,7 +1007,7 @@ Create a comprehensive summary based on the ACTUAL content of the document. Form
       const filesArray = [{
         type: fileTypeForService,
         name: file.name,
-        content: fileText.substring(0, 100000) // Increased limit for comprehensive analysis
+        content: fileText.substring(0, 200000) // Increased limit for comprehensive analysis
       }];
       
       const analysisResult = await GeminiService.generate({
@@ -982,9 +1018,24 @@ Create a comprehensive summary based on the ACTUAL content of the document. Form
         selectedStudent: activeStudent
       }, 'accommodation');
       
+      // Clean up the result - remove "Sample data" if it appears
+      let cleanedResult = analysisResult;
+      if (cleanedResult.startsWith('Sample data.') || cleanedResult.startsWith('Sample data')) {
+        cleanedResult = cleanedResult.replace(/^Sample data\.?\s*/i, '').trim();
+      }
+      
       // Update student summary with the analysis
-      const currentSummary = studentSummary || activeStudent.summary || '';
-      const newSummary = `${currentSummary}\n\n--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${analysisResult}`;
+      // Remove "Sample data." from existing summary if present
+      let currentSummary = studentSummary || activeStudent.summary || '';
+      if (currentSummary.trim() === 'Sample data.' || currentSummary.trim() === 'Sample data') {
+        currentSummary = '';
+      } else if (currentSummary.includes('Sample data.')) {
+        currentSummary = currentSummary.replace(/Sample data\.?\s*/gi, '').trim();
+      }
+      
+      const newSummary = currentSummary 
+        ? `${currentSummary}\n\n--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${cleanedResult}`
+        : `--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${cleanedResult}`;
       
       setStudentSummary(newSummary);
       

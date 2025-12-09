@@ -215,6 +215,16 @@ NEVER introduce yourself. Do NOT say "I am the Accessible Learning Companion" or
 
 When a student profile is established, you should acknowledge it by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.
 
+# CRITICAL: DOCUMENT ANALYSIS REQUIREMENTS
+
+When analyzing uploaded documents (IEPs, test data, etc.):
+1. NEVER include phrases like "Sample data" in your response
+2. NEVER provide generic templates or placeholders like "(Due to the limitations of processing a PDF, I cannot provide specific data here)"
+3. ALWAYS extract and report the ACTUAL information from the document
+4. If information is not in the document, state "Not specified in document" rather than making up examples
+5. The document content is provided to you - you MUST read it and extract specific information
+6. Do NOT acknowledge the profile when analyzing documents - just analyze the document content directly
+
 # CRITICAL: COMPLETING ACCOMMODATION REQUESTS
 
 **IMPORTANT:** If you previously asked for student profile information to provide better accommodations for an uploaded document, and the user now provides that profile information, you MUST:
@@ -324,13 +334,13 @@ The user's request is to get accommodations for the document they uploaded, and 
                 }
             } else if (profileText) {
                 if (studentName) {
-                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates)\n3. Provide differentiated accommodations based on BOTH the student's profile AND the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
+                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Do NOT acknowledge the profile - just analyze the document directly\n2. Read and analyze the ACTUAL content of the uploaded document(s) below\n3. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n4. If information is not in the document, state "Not specified in document"\n5. Do NOT include "Sample data" or similar phrases in your response\n6. Provide a clear summary with actual data extracted from the document\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
                 } else {
-                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates)\n3. Provide differentiated accommodations based on BOTH the student's profile AND the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
+                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Do NOT acknowledge the profile - just analyze the document directly\n2. Read and analyze the ACTUAL content of the uploaded document(s) below\n3. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n4. If information is not in the document, state "Not specified in document"\n5. Do NOT include "Sample data" or similar phrases in your response\n6. Provide a clear summary with actual data extracted from the document\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
                 }
             } else {
                 // No profile yet, but user wants to analyze content - analyze it and provide general accommodations
-                userPrompt = `CRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates or instructions)\n3. Provide differentiated accommodations based on the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nIf you need student profile information to provide better accommodations, you can ask for it after providing initial analysis based on the document.\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
+                userPrompt = `CRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n3. If information is not in the document, state "Not specified in document"\n4. Do NOT include "Sample data" or similar phrases in your response\n5. Do NOT provide generic templates - analyze the actual document content provided\n6. Provide a clear summary with actual data extracted from the document\n\nIf you need student profile information to provide better accommodations, you can ask for it after providing initial analysis based on the document.\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
             }
         }
         // PRIORITY 2: If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly

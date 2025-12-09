@@ -943,25 +943,43 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       else if (fileTypeLabel === 'benchmark') fileTypeLabel = 'Benchmark Data';
       
       // Use AI to analyze the file and create a summary
-      const analysisPrompt = `Analyze this ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
-Extract key information including:
-- Present levels of performance
-- Strengths and needs
-- Accommodations mentioned
-- Goals or objectives
-- Test scores or performance data
-- Any other relevant educational information
+      const analysisPrompt = `You are analyzing a ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
 
-Create a comprehensive summary that can be added to the student's profile. Format it clearly with sections.`;
+CRITICAL: You must analyze the ACTUAL document content provided below and extract specific information from it. Do NOT provide a template or generic instructions. You must read the document and extract the actual information it contains.
+
+Extract and summarize the following information from the document:
+- Present levels of performance (actual data from the document)
+- Strengths and needs (specific strengths and needs mentioned in the document)
+- Accommodations mentioned (list all specific accommodations found in the document)
+- Goals or objectives (actual goals/objectives from the document)
+- Test scores or performance data (specific scores and data from the document)
+- Any other relevant educational information (specific details from the document)
+
+Create a comprehensive summary based on the ACTUAL content of the document. Format it clearly with sections.`;
       
       const fileText = typeof fileContent === 'string' ? fileContent : 'PDF file uploaded - content extraction needed';
+      
+      // Determine file type for the files array
+      let fileTypeForService = 'text';
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        fileTypeForService = 'pdf';
+      } else if (file.type.includes('word') || file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
+        fileTypeForService = 'word';
+      }
+      
+      // Format file data as expected by GeminiService.generate()
+      const filesArray = [{
+        type: fileTypeForService,
+        name: file.name,
+        content: fileText.substring(0, 100000) // Increased limit for comprehensive analysis
+      }];
+      
       const analysisResult = await GeminiService.generate({
         message: analysisPrompt,
-        fileContent: fileText.substring(0, 50000), // Limit content size
-        fileName: file.name,
-        fileType: fileTypeLabel,
+        files: filesArray,
         student: activeStudent.name,
-        grade: activeStudent.grade
+        grade: activeStudent.grade,
+        selectedStudent: activeStudent
       }, 'accommodation');
       
       // Update student summary with the analysis

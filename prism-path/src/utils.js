@@ -324,13 +324,13 @@ The user's request is to get accommodations for the document they uploaded, and 
                 }
             } else if (profileText) {
                 if (studentName) {
-                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations based on the student's profile.\n\n${userPrompt}`;
+                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates)\n3. Provide differentiated accommodations based on BOTH the student's profile AND the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
                 } else {
-                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations based on the student's profile.\n\n${userPrompt}`;
+                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates)\n3. Provide differentiated accommodations based on BOTH the student's profile AND the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
                 }
             } else {
                 // No profile yet, but user wants to analyze content - analyze it and provide general accommodations
-                userPrompt = `CONTENT ANALYSIS REQUEST:\nThe user has uploaded content to analyze. Please analyze the uploaded document(s) and provide differentiated accommodations. If you need student profile information to provide better accommodations, you can ask for it after providing initial analysis.\n\n${userPrompt}`;
+                userPrompt = `CRITICAL: CONTENT ANALYSIS REQUEST\n\nThe user has uploaded document(s) to analyze. You MUST:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document (not generic templates or instructions)\n3. Provide differentiated accommodations based on the actual document content\n4. Do NOT provide generic instructions or templates - analyze the actual document content provided\n\nIf you need student profile information to provide better accommodations, you can ask for it after providing initial analysis based on the document.\n\nThe document content is included below. Analyze it now:\n\n${userPrompt}`;
             }
         }
         // PRIORITY 2: If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly

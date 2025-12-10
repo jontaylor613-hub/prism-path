@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar, Clock, Plus, Trash2, Download, Mic, 
-  MicOff, ArrowLeft, Layout
+  MicOff, ArrowLeft, Layout, Printer
 } from 'lucide-react';
 import { getTheme } from './utils';
+import { generatePDF } from './utils/pdfExporter';
 
 const BLOCK_COLORS = [
     'bg-red-200 text-red-900 border-red-300',
@@ -82,6 +83,24 @@ const VisualSchedule = ({ onBack, isDark }) => {
       window.print();
   };
 
+  const handleExportPDF = async () => {
+    try {
+      // Format schedule content for PDF
+      let scheduleContent = `# Daily Schedule\n\n`;
+      scheduleContent += `**Date:** ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n\n`;
+      scheduleContent += `## Schedule\n\n`;
+      
+      const sortedItems = [...items].sort((a, b) => a.time.localeCompare(b.time));
+      sortedItems.forEach((item, index) => {
+        scheduleContent += `${index + 1}. **${item.time}** - ${item.task}\n`;
+      });
+      
+      await generatePDF('Daily Schedule', scheduleContent, '', 'PrismPath');
+    } catch (error) {
+      alert('Failed to generate PDF: ' + error.message);
+    }
+  };
+
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} p-4 md:p-8 flex flex-col items-center transition-colors duration-500`}>
       <div className="w-full max-w-4xl flex items-center justify-between mb-8 print:hidden">
@@ -115,9 +134,12 @@ const VisualSchedule = ({ onBack, isDark }) => {
                   <button onClick={addItem} disabled={!newTask || !newTime} className="w-full py-3 bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2">
                       <Plus size={20} /> Add
                   </button>
-                  <div className="pt-6 border-t border-slate-500/10 mt-6">
+                  <div className="pt-6 border-t border-slate-500/10 mt-6 space-y-2">
                       <button onClick={handlePrint} className={`w-full py-3 border ${theme.inputBorder} ${theme.inputBg} ${theme.text} font-bold rounded-xl hover:bg-slate-500/5 transition-all flex items-center justify-center gap-2`}>
-                          <Download size={18} /> Save as PDF
+                          <Printer size={18} /> Print
+                      </button>
+                      <button onClick={handleExportPDF} className={`w-full py-3 bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2`}>
+                          <Download size={18} /> Export PDF
                       </button>
                   </div>
               </div>

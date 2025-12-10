@@ -35,6 +35,7 @@ import CrisisMode from './components/CrisisMode';
 import ImportRoster from './components/ImportRoster';
 import AdminDashboard from './components/AdminDashboard';
 import { translateContent } from './utils/translator';
+import { generatePDF } from './utils/pdfExporter';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -318,7 +319,7 @@ const Badge = ({ children, color = "cyan", isDark }) => {
   return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest ${styles[color] || styles.cyan}`}>{children}</span>;
 };
 
-const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "Document" }) => {
+const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "Document", schoolName = "" }) => {
   const [copied, setCopied] = useState(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [savedDocLink, setSavedDocLink] = useState(null);
@@ -327,6 +328,14 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      await generatePDF(title, content, schoolName, 'PrismPath');
+    } catch (error) {
+      alert('Failed to generate PDF: ' + error.message);
+    }
   };
 
   const handleSaveToDrive = async () => {
@@ -363,6 +372,15 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "
           className="flex-1"
         >
           {copied ? "Copied to Clipboard!" : label}
+        </Button>
+        <Button
+          onClick={handleExportPDF}
+          variant="secondary"
+          icon={FileDown}
+          theme={theme}
+          className="flex-1"
+        >
+          Export PDF
         </Button>
         <Button
           onClick={handleSaveToDrive}
@@ -1219,11 +1237,28 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       </div>
                     )}
                     
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy English</Button>
                       {translatedEmail && (
                         <Button onClick={() => navigator.clipboard.writeText(translatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy {parentLanguage}</Button>
                       )}
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            const emailTitle = `Email - ${emailTopic || 'Parent Communication'}`;
+                            const emailContent = generatedEmail + (translatedEmail ? `\n\n--- Translation (${parentLanguage}) ---\n\n${translatedEmail}` : '');
+                            await generatePDF(emailTitle, emailContent, '', 'PrismPath');
+                          } catch (error) {
+                            alert('Failed to generate PDF: ' + error.message);
+                          }
+                        }}
+                        variant="secondary" 
+                        className="flex-1" 
+                        icon={FileDown} 
+                        theme={theme}
+                      >
+                        Export PDF
+                      </Button>
                     </div>
                   </div>
                 )}

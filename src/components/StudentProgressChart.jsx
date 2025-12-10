@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, ToggleLeft, ToggleRight, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, ToggleLeft, ToggleRight, BarChart3, FileDown } from 'lucide-react';
 import { getTheme } from '../utils';
+import { generatePDF } from '../utils/pdfExporter';
 
 /**
  * Student Progress Chart Component
@@ -88,16 +89,48 @@ export default function StudentProgressChart({
           </div>
         </div>
 
-        {/* Parent View Toggle */}
-        <button
-          onClick={() => setIsParentView(!isParentView)}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} hover:bg-slate-500/10 transition-colors`}
-        >
-          {isParentView ? <ToggleRight className="text-cyan-400" size={18} /> : <ToggleLeft size={18} />}
-          <span className={`text-xs font-bold uppercase ${theme.textMuted}`}>
-            {isParentView ? 'Parent View' : 'Teacher View'}
-          </span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Parent View Toggle */}
+          <button
+            onClick={() => setIsParentView(!isParentView)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} hover:bg-slate-500/10 transition-colors`}
+          >
+            {isParentView ? <ToggleRight className="text-cyan-400" size={18} /> : <ToggleLeft size={18} />}
+            <span className={`text-xs font-bold uppercase ${theme.textMuted}`}>
+              {isParentView ? 'Parent View' : 'Teacher View'}
+            </span>
+          </button>
+          
+          {/* PDF Export Button */}
+          {progressData.length > 0 && (
+            <button
+              onClick={async () => {
+                try {
+                  const chartTitle = `${student.name} - Progress Report`;
+                  let chartContent = `# Progress Report\n\n`;
+                  chartContent += `**Student:** ${student.name}\n`;
+                  chartContent += `**Goal:** ${isParentView ? 'Reading Skills' : 'Reading Fluency Goal'}\n`;
+                  chartContent += `**Date:** ${new Date().toLocaleDateString()}\n\n`;
+                  chartContent += `## Progress Summary\n\n`;
+                  chartContent += `**Average Score:** ${averageProgress}%\n`;
+                  chartContent += `**Target Score:** ${progressData[0]?.target || 80}%\n`;
+                  chartContent += `**Trend:** ${trend === 'up' ? 'Positive' : trend === 'down' ? 'Declining' : 'Stable'}\n\n`;
+                  chartContent += `## Weekly Progress\n\n`;
+                  progressData.forEach((point, index) => {
+                    chartContent += `${index + 1}. ${isParentView ? getParentLabel(point.week) : point.week}: ${point.score}% (Target: ${point.target}%)\n`;
+                  });
+                  await generatePDF(chartTitle, chartContent, '', 'PrismPath');
+                } catch (error) {
+                  alert('Failed to generate PDF: ' + error.message);
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} hover:bg-slate-500/10 transition-colors`}
+              title="Export Progress Report as PDF"
+            >
+              <FileDown size={18} className={theme.textMuted} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Trend Badge */}

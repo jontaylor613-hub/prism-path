@@ -6,11 +6,9 @@
 import { useState, useEffect } from 'react';
 import { Settings, Type, Contrast, X } from 'lucide-react';
 import { getTheme } from '../utils';
+import { applyFontMode, applyContrastMode } from './A11yProvider';
 
 const A11Y_STORAGE_KEY = 'prismpath_a11y_settings';
-
-// Load OpenDyslexic font (CDN)
-const OPENDYSLEXIC_FONT_URL = 'https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/OpenDyslexic-Regular.woff2';
 
 export default function A11yMenu({ isDark = true, isOpen, onClose }) {
   const [fontMode, setFontMode] = useState('default');
@@ -30,82 +28,14 @@ export default function A11yMenu({ isDark = true, isOpen, onClose }) {
     }
   }, []);
 
-  // Apply font mode
+  // Apply font mode when changed
   useEffect(() => {
-    const body = document.body;
-    
-    if (fontMode === 'dyslexic') {
-      // Load OpenDyslexic font
-      if (!document.getElementById('opendyslexic-font')) {
-        const link = document.createElement('link');
-        link.id = 'opendyslexic-font';
-        link.rel = 'stylesheet';
-        link.href = 'https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/OpenDyslexic.css';
-        document.head.appendChild(link);
-      }
-      
-      body.style.fontFamily = 'OpenDyslexic, sans-serif';
-    } else {
-      body.style.fontFamily = '';
-    }
-
-    return () => {
-      body.style.fontFamily = '';
-    };
+    applyFontMode(fontMode);
   }, [fontMode]);
 
-  // Apply contrast mode
+  // Apply contrast mode when changed
   useEffect(() => {
-    const body = document.body;
-    const root = document.documentElement;
-
-    if (contrastMode === 'high') {
-      body.style.backgroundColor = '#000000';
-      body.style.color = '#FFD700';
-      root.style.setProperty('--high-contrast', '1');
-      
-      // Override common text colors
-      const style = document.createElement('style');
-      style.id = 'high-contrast-override';
-      style.textContent = `
-        * {
-          color: #FFD700 !important;
-          background-color: #000000 !important;
-        }
-        input, textarea, select {
-          background-color: #000000 !important;
-          color: #FFD700 !important;
-          border-color: #FFD700 !important;
-        }
-        button {
-          background-color: #FFD700 !important;
-          color: #000000 !important;
-        }
-        a {
-          color: #FFD700 !important;
-        }
-      `;
-      document.head.appendChild(style);
-    } else {
-      body.style.backgroundColor = '';
-      body.style.color = '';
-      root.style.removeProperty('--high-contrast');
-      
-      const style = document.getElementById('high-contrast-override');
-      if (style) {
-        style.remove();
-      }
-    }
-
-    return () => {
-      body.style.backgroundColor = '';
-      body.style.color = '';
-      root.style.removeProperty('--high-contrast');
-      const style = document.getElementById('high-contrast-override');
-      if (style) {
-        style.remove();
-      }
-    };
+    applyContrastMode(contrastMode);
   }, [contrastMode]);
 
   // Save settings to localStorage

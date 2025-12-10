@@ -7,7 +7,7 @@ import {
   MessageSquare, User, Clock, Printer, Download, ExternalLink
 } from 'lucide-react';
 import { GeminiService, getTheme } from '../utils';
-import { ChatHistoryService } from './chatHistory';
+import { ChatHistoryService } from '../chatHistory';
 
 export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null }) {
   const theme = getTheme(isDark);

@@ -549,8 +549,12 @@ export default async function handler(req, res) {
   // 3. Get API Key from environment
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
+    console.error("GEMINI_API_KEY is missing from environment variables");
     return res.status(500).json({ error: "Server Error: API Key is missing" });
   }
+  
+  // Log API key status (without exposing the actual key)
+  console.log("API Key present:", !!apiKey, "Length:", apiKey.length);
 
   // 4. Parse Input - CRITICAL: All variables instantiated inside handler (prevents stale state)
   // Each request gets fresh variables - no shared state between requests
@@ -675,8 +679,16 @@ export default async function handler(req, res) {
     
   } catch (error) {
     console.error("API Error:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Error details:", {
+      message: error.message,
+      name: error.name,
+      apiKeyPresent: !!process.env.GEMINI_API_KEY,
+      apiKeyLength: process.env.GEMINI_API_KEY?.length || 0
+    });
     return res.status(500).json({ 
-      error: "Failed: " + error.message 
+      error: "Failed: " + error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }

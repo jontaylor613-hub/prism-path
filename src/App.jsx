@@ -1,32 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { 
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Info, 
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
-  SmilePlus, Sun, Moon
+  SmilePlus, Sun, Moon, Loader2
 } from 'lucide-react';
 
-// Tools
-import ResumeBuilder from './ResumeBuilder';
-import SocialMap from './SocialMap';
-import EmotionalCockpit from './EmotionalCockpit';
-import TeacherDashboard from './TeacherDashboard';
-import NeuroDriver from './NeuroDriver';
-import VisualSchedule from './VisualSchedule';
-import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
-import AccommodationGem from './AccommodationGem';
-import ArchiveOfPotentials from './ArchiveOfPotentials';
-import SignupPage from './components/SignupPage';
-import ParentDashboard from './components/ParentDashboard';
-import QuickTrack from './components/QuickTrack';
+// EasterEgg removed for performance optimization
+
+// Lazy load all route components for code splitting
+const ResumeBuilder = lazy(() => import('./ResumeBuilder'));
+const SocialMap = lazy(() => import('./SocialMap'));
+const EmotionalCockpit = lazy(() => import('./EmotionalCockpit'));
+const TeacherDashboard = lazy(() => import('./TeacherDashboard'));
+const NeuroDriver = lazy(() => import('./NeuroDriver'));
+const VisualSchedule = lazy(() => import('./VisualSchedule'));
+const AccommodationGem = lazy(() => import('./AccommodationGem'));
+const ArchiveOfPotentials = lazy(() => import('./ArchiveOfPotentials'));
+const SignupPage = lazy(() => import('./components/SignupPage'));
+const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
+const QuickTrack = lazy(() => import('./components/QuickTrack'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
 import { onAuthChange } from './auth';
 import { useSmartLock } from './hooks/useSmartLock';
+
+// Loading fallback component for Suspense
+const LoadingFallback = ({ isDark = true }) => {
+  const theme = getTheme(isDark);
+  return (
+    <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.text}`}>
+      <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-md text-center`}>
+        <Loader2 className="text-cyan-400 mx-auto mb-4 animate-spin" size={48} />
+        <p className={theme.textMuted}>Loading...</p>
+      </div>
+    </div>
+  );
+};
 
 // --- SHARED UI COMPONENTS ---
 const Disclaimer = ({ isDark }) => (
@@ -369,13 +383,15 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
   // Logged-in users and dev mode get full access
   if ((currentUser && currentUser.uid) || devModeActive) {
     return (
-      <div className="relative z-[150] min-h-screen">
-        <AccommodationGem 
-          isDark={isDark} 
-          user={currentUser || { uid: 'dev', name: 'Dev User', role: 'admin' }}
-          onBack={onExit} 
-        />
-      </div>
+      <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+        <div className="relative z-[150] min-h-screen">
+          <AccommodationGem 
+            isDark={isDark} 
+            user={currentUser || { uid: 'dev', name: 'Dev User', role: 'admin' }}
+            onBack={onExit} 
+          />
+        </div>
+      </Suspense>
     );
   }
 
@@ -402,14 +418,16 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
 
   // First use - allow but track
   return (
-    <div className="relative z-[150] min-h-screen">
-      <AccommodationGem 
-        isDark={isDark} 
-        user={null} // No user = demo mode
-        onBack={onExit}
-        onFirstUse={handleGemUse} // Track usage on first message
-      />
-    </div>
+    <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+      <div className="relative z-[150] min-h-screen">
+        <AccommodationGem 
+          isDark={isDark} 
+          user={null} // No user = demo mode
+          onBack={onExit}
+          onFirstUse={handleGemUse} // Track usage on first message
+        />
+      </div>
+    </Suspense>
   );
 }
 
@@ -459,9 +477,6 @@ export default function App() {
   return (
     <div className={`min-h-screen ${getTheme(isDark).bg} ${getTheme(isDark).text} font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200 transition-colors duration-500`}>
       
-      {/* THE SECRET LISTENER LIVES HERE */}
-      <EasterEgg isDark={isDark} /> 
-
       <div className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${isDark ? 'opacity-100' : 'opacity-30'}`}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
       </div>
@@ -470,39 +485,51 @@ export default function App() {
         <Route path="/" element={<Home isDark={isDark} setIsDark={setIsDark} devModeActive={devModeActive} />} />
         
         <Route path="/resume" element={
-          <div className="relative z-10 pt-10">
-            <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-10 pt-10">
+              <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/map" element={
-          <div className="relative z-10 pt-20 h-screen">
-            <SocialMap onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-10 pt-20 h-screen">
+              <SocialMap onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/cockpit" element={
-          <div className="relative z-[150] h-screen">
-            <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] h-screen">
+              <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/neuro" element={
-          <div className="relative z-[150] min-h-screen">
-            <NeuroDriver onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <NeuroDriver onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/educator" element={
-          <div className="relative z-[150] min-h-screen">
-            <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/schedule" element={
-          <div className="relative z-[150] min-h-screen">
-            <VisualSchedule onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <VisualSchedule onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/gem" element={
@@ -510,27 +537,35 @@ export default function App() {
         } />
 
         <Route path="/archive" element={
-          <div className="relative z-[150] min-h-screen">
-            <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/signup" element={
-          <div className="relative z-[150] min-h-screen">
-            <SignupPage onBack={handleExit} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <SignupPage onBack={handleExit} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/parent/dashboard" element={
-          <div className="relative z-[150] min-h-screen">
-            <ParentDashboard onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <ParentDashboard onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/track/:token" element={
-          <div className="relative z-[150] min-h-screen">
-            <QuickTrack isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <QuickTrack isDark={isDark} />
+            </div>
+          </Suspense>
         } />
       </Routes>
     </div>

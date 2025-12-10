@@ -82,8 +82,15 @@ export const GeminiService = {
                   // If JSON parsing fails, use default message
               }
               
+              // Check if we're in dev mode for better error messages
+              const isDevMode = typeof window !== 'undefined' && 
+                localStorage.getItem('prismpath_dev_mode') === 'true';
+              
               // Provide helpful error messages
               if (response.status === 500) {
+                  if (isDevMode) {
+                      throw new Error("API server error (500). In dev mode: Make sure 'vercel dev' is running in a separate terminal, or check that GEMINI_API_KEY is set in your .env.local file.");
+                  }
                   throw new Error("API server is not running. Please start the API server with 'vercel dev' in a separate terminal, or check your API configuration.");
               }
               throw new Error(errorMessage);
@@ -93,7 +100,13 @@ export const GeminiService = {
           return { candidates: [{ content: { parts: [{ text: data.result }] } }] };
       } catch (e) {
           // Check if it's a network error (API server not running)
+          const isDevMode = typeof window !== 'undefined' && 
+            localStorage.getItem('prismpath_dev_mode') === 'true';
+          
           if (!e.message || e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('ERR_CONNECTION_REFUSED') || e.message.includes('fetch')) {
+              if (isDevMode) {
+                  throw new Error("API server not running. In dev mode: Run 'npm run dev:api' or 'vercel dev' in a separate terminal. Make sure GEMINI_API_KEY is set in .env.local");
+              }
               throw new Error("API server is not running. Please start the API server with 'vercel dev' in a separate terminal.");
           }
           throw new Error(e.message || "API request failed");

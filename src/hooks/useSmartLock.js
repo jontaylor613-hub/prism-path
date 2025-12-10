@@ -10,13 +10,20 @@ import { showToast } from '../utils/toast';
 
 export function useSmartLock() {
   useEffect(() => {
+    // Check dev mode dynamically in each handler to allow toggling
+    const isDevMode = () => DevModeService.isActive();
+    
     // Skip all protection if dev mode is active
-    if (DevModeService.isActive()) {
+    if (isDevMode()) {
       return;
     }
 
     // Block developer tools keyboard shortcuts
     const handleKeyDown = (e) => {
+      // Always allow in dev mode
+      if (isDevMode()) {
+        return;
+      }
       // Allow productivity keys: Copy, Paste, Cut, Select All
       if (
         (e.ctrlKey || e.metaKey) && 
@@ -67,6 +74,11 @@ export function useSmartLock() {
 
     // Block right-click context menu (except on text elements)
     const handleContextMenu = (e) => {
+      // Always allow right-click in dev mode for debugging
+      if (isDevMode()) {
+        return;
+      }
+      
       const target = e.target;
       const tagName = target.tagName?.toLowerCase();
       
@@ -83,6 +95,11 @@ export function useSmartLock() {
 
     // Disable text selection on certain elements (optional, but can help)
     const handleSelectStart = (e) => {
+      // Always allow selection in dev mode
+      if (isDevMode()) {
+        return;
+      }
+      
       const target = e.target;
       const tagName = target.tagName?.toLowerCase();
       

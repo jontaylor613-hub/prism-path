@@ -2,13 +2,46 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Brain
+  User, ArrowRight, Calendar, FileText, Brain, BarChart3, Zap
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
 import AccommodationGem from '../AccommodationGem';
 import NeuroDriver from '../NeuroDriver';
+import StudentProgressChart from './StudentProgressChart';
+import DashboardBriefing from './DashboardBriefing';
+import CommandBar from './CommandBar';
+
+// Sample demo children for demo mode
+const DEMO_CHILDREN = [
+  { 
+    id: 'demo-1', 
+    name: "Alex M.", 
+    grade: "3rd", 
+    need: "Reading Decoding", 
+    primaryNeed: "Reading Decoding",
+    nextIep: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+    nextEval: "2025-05-20", 
+    next504: "",
+    behaviorPlan: true, 
+    summary: "Sample demo data.",
+    isDemo: true
+  },
+  { 
+    id: 'demo-2', 
+    name: "Jordan K.", 
+    grade: "5th", 
+    need: "Math Calculation", 
+    primaryNeed: "Math Calculation",
+    nextIep: "2025-11-20", 
+    nextEval: "2026-09-01", 
+    next504: "",
+    behaviorPlan: false, 
+    summary: "Sample demo data.",
+    isDemo: true
+  }
+];
 
 // Shared components (simplified versions from TeacherDashboard)
 const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme, type = "button" }) => {
@@ -59,6 +92,7 @@ export default function ParentDashboard({ onBack, isDark }) {
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro'
+  const [demoMode, setDemoMode] = useState(false); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
     name: '',
@@ -90,9 +124,24 @@ export default function ParentDashboard({ onBack, isDark }) {
   // Load students when user is available
   useEffect(() => {
     const loadStudents = async () => {
-      if (!user?.uid) return;
-      
       setLoading(true);
+      
+      // Demo mode: show demo children
+      if (demoMode) {
+        setStudents(DEMO_CHILDREN);
+        if (DEMO_CHILDREN.length === 1) {
+          setSelectedStudent(DEMO_CHILDREN[0]);
+          setActiveView('student');
+        }
+        setLoading(false);
+        return;
+      }
+      
+      if (!user?.uid) {
+        setLoading(false);
+        return;
+      }
+      
       try {
         const studentList = await getStudentsForUser(user.uid, 'parent');
         setStudents(studentList);
@@ -110,7 +159,7 @@ export default function ParentDashboard({ onBack, isDark }) {
     };
     
     loadStudents();
-  }, [user]);
+  }, [user, demoMode]);
 
   const handleAddChild = async () => {
     if (!newChild.name) {
@@ -178,6 +227,25 @@ export default function ParentDashboard({ onBack, isDark }) {
     return (
       <div className={`min-h-screen ${theme.bg} ${theme.text} p-6`}>
         <div className="max-w-7xl mx-auto">
+          {/* Command Bar - Global Navigation */}
+          <CommandBar
+            students={students}
+            onNavigate={(view) => {
+              if (view === 'profile') setActiveView('student');
+              if (view === 'roster') setActiveView('dashboard');
+            }}
+            onAddStudent={() => setIsAddingChild(true)}
+            onDraftEmail={() => setActiveView('gem')}
+            onSelectStudent={(studentId) => {
+              const student = students.find(s => s.id === studentId);
+              if (student) {
+                setSelectedStudent(student);
+                setActiveView('student');
+              }
+            }}
+            isDark={isDark}
+          />
+
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <Button
@@ -192,15 +260,35 @@ export default function ParentDashboard({ onBack, isDark }) {
                 Back to Family
               </Button>
               <h1 className={`text-3xl font-bold ${theme.text}`}>{selectedStudent.name}</h1>
+              {demoMode && (
+                <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
+                  Demo Mode
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                Logout
-              </Button>
+              {!demoMode && (
+                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
+                  Logout
+                </Button>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Morning Briefing Widget */}
+          <div className="mb-6">
+            <DashboardBriefing
+              students={[selectedStudent]}
+              isDark={isDark}
+              onReviewNow={() => {
+                // Scroll to student info or show relevant section
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          </div>
+
+          {/* Premium Features Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <Card className="p-6" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Sparkles className="text-cyan-400" size={24} />
@@ -249,6 +337,14 @@ export default function ParentDashboard({ onBack, isDark }) {
               </div>
             </Card>
           </div>
+
+          {/* Visual Progress Chart - "The Tesla Screen" */}
+          <div className="mb-6">
+            <StudentProgressChart
+              student={selectedStudent}
+              isDark={isDark}
+            />
+          </div>
         </div>
       </div>
     );
@@ -284,6 +380,35 @@ export default function ParentDashboard({ onBack, isDark }) {
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} p-6`}>
       <div className="max-w-7xl mx-auto">
+        {/* Command Bar - Global Navigation */}
+        <CommandBar
+          students={students}
+          onNavigate={(view) => {
+            if (view === 'profile') {
+              if (students.length > 0) {
+                setSelectedStudent(students[0]);
+                setActiveView('student');
+              }
+            }
+            if (view === 'roster') setActiveView('dashboard');
+          }}
+          onAddStudent={() => setIsAddingChild(true)}
+          onDraftEmail={() => {
+            if (students.length > 0) {
+              setSelectedStudent(students[0]);
+              setActiveView('gem');
+            }
+          }}
+          onSelectStudent={(studentId) => {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+              setSelectedStudent(student);
+              setActiveView('student');
+            }
+          }}
+          isDark={isDark}
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -291,15 +416,54 @@ export default function ParentDashboard({ onBack, isDark }) {
             <p className={theme.textMuted}>Manage your children's learning profiles</p>
           </div>
           <div className="flex items-center gap-4">
-            <div className={`${theme.inputBg} px-4 py-2 rounded-lg border ${theme.inputBorder} flex items-center gap-2`}>
-              <User size={18} />
-              <span className={theme.text}>{user.name}</span>
-            </div>
-            <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-              Logout
+            {/* Demo Mode Toggle */}
+            <Button
+              onClick={() => setDemoMode(!demoMode)}
+              variant={demoMode ? "primary" : "secondary"}
+              icon={Zap}
+              theme={theme}
+            >
+              {demoMode ? 'Exit Demo' : 'Try Demo Mode'}
             </Button>
+            {!demoMode && (
+              <>
+                <div className={`${theme.inputBg} px-4 py-2 rounded-lg border ${theme.inputBorder} flex items-center gap-2`}>
+                  <User size={18} />
+                  <span className={theme.text}>{user?.name || 'Parent'}</span>
+                </div>
+                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
+                  Logout
+                </Button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Morning Briefing Widget - Show when in demo mode or has students */}
+        {(demoMode || students.length > 0) && (
+          <div className="mb-8">
+            <DashboardBriefing
+              students={students}
+              isDark={isDark}
+              onReviewNow={() => {
+                // Navigate to first student with upcoming deadline
+                const studentWithDeadline = students.find(s => {
+                  const iepDate = s.nextIep || s.nextIepDate;
+                  if (!iepDate) return false;
+                  const reviewDate = new Date(iepDate);
+                  const now = new Date();
+                  const sevenDaysFromNow = new Date(now);
+                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                  return reviewDate >= now && reviewDate <= sevenDaysFromNow;
+                });
+                if (studentWithDeadline) {
+                  setSelectedStudent(studentWithDeadline);
+                  setActiveView('student');
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Students Grid */}
         {loading ? (
@@ -312,11 +476,20 @@ export default function ParentDashboard({ onBack, isDark }) {
             <Users size={64} className="mx-auto mb-6 opacity-50 text-cyan-400" />
             <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>No children added yet</h2>
             <p className={`${theme.textMuted} mb-6`}>
-              Add your first child to get started with personalized learning support.
+              {demoMode 
+                ? 'Click "Try Demo Mode" to see sample children and explore premium features.'
+                : 'Add your first child to get started with personalized learning support.'}
             </p>
-            <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
-              Add Your First Child
-            </Button>
+            {!demoMode && (
+              <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
+                Add Your First Child
+              </Button>
+            )}
+            {demoMode && (
+              <Button onClick={() => setDemoMode(false)} variant="secondary" theme={theme}>
+                Exit Demo Mode
+              </Button>
+            )}
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -357,7 +530,7 @@ export default function ParentDashboard({ onBack, isDark }) {
         )}
 
         {/* Add Child Button */}
-        {students.length > 0 && (
+        {students.length > 0 && !demoMode && (
           <div className="mt-8 flex justify-center">
             <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
               Add Child
@@ -444,4 +617,3 @@ export default function ParentDashboard({ onBack, isDark }) {
     </div>
   );
 }
-

@@ -382,30 +382,33 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "
         >
           Export PDF
         </Button>
-        <Button
-          onClick={handleSaveToDrive}
-          disabled={isSavingToDrive || !content}
-          variant="secondary"
-          icon={isSavingToDrive ? Loader2 : FileText}
-          theme={theme}
-          className="flex-1"
-        >
-          {isSavingToDrive ? "Saving..." : savedDocLink ? "Saved to Drive" : "Save to Google Drive"}
-        </Button>
-      </div>
-      {savedDocLink && (
-        <div className="mt-2 text-center">
+        {savedDocLink ? (
           <a
             href={savedDocLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-sm ${theme.primaryText || 'text-cyan-600'} hover:underline flex items-center justify-center gap-1`}
+            className={`
+              flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium
+              transition-all ${theme.primaryBg || 'bg-cyan-600'} text-white hover:opacity-90
+              active:scale-95
+            `}
           >
-            <ExternalLink size={14} />
+            <ExternalLink size={16} />
             Open Doc
           </a>
-        </div>
-      )}
+        ) : (
+          <Button
+            onClick={handleSaveToDrive}
+            disabled={isSavingToDrive || !content}
+            variant="secondary"
+            icon={isSavingToDrive ? Loader2 : FileText}
+            theme={theme}
+            className="flex-1"
+          >
+            {isSavingToDrive ? "Saving..." : "Save to Google Drive"}
+          </Button>
+        )}
+      </div>
       <p className={`text-center text-[10px] ${theme.textMuted} mt-2 uppercase tracking-widest`}>Ready for Infinite Campus / IEP Direct</p>
     </div>
   );

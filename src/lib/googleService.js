@@ -199,7 +199,7 @@ export class GoogleIntegration {
    * Create a new Google Doc in Drive
    * @param {string} title - Document title
    * @param {string} content - Document content (markdown will be converted to plain text)
-   * @returns {Promise<{id: string, webViewLink: string}>} Document ID and view link
+   * @returns {Promise<{id: string, webViewLink: string, name: string}>} Document ID, view link, and name
    */
   async createDoc(title, content) {
     // In dev mode, return mock document
@@ -216,63 +216,71 @@ export class GoogleIntegration {
       // Convert markdown to plain text
       const plainText = this.markdownToPlainText(content);
 
-      // Step 1: Create the document metadata
+      // Step 1: Create the document using Google Docs API (creates empty doc)
       const createResponse = await fetch(
-        `${this.baseURL}/drive/v3/files`,
+        'https://docs.googleapis.com/v1/documents',
         {
           method: 'POST',
           headers: this.getHeaders(),
           body: JSON.stringify({
-            name: title,
-            mimeType: 'application/vnd.google-apps.document'
+            title: title
           })
         }
       );
 
       if (!createResponse.ok) {
-        throw new Error(`Google Drive API error: ${createResponse.status}`);
+        const errorData = await createResponse.json().catch(() => ({}));
+        throw new Error(`Google Docs API error: ${errorData.error?.message || createResponse.statusText}`);
       }
 
-      const fileData = await createResponse.json();
-      const documentId = fileData.id;
+      const docData = await createResponse.json();
+      const documentId = docData.documentId;
 
-      // Step 2: Populate the document with content
-      // Note: Google Docs API requires content to be sent in a specific format
-      // For simplicity, we'll use the Drive API's update method with plain text
-      const updateResponse = await fetch(
-        `${this.baseURL}/upload/drive/v3/files/${documentId}?uploadType=multipart`,
+      // Step 2: Get the document to find the end index
+      const getDocResponse = await fetch(
+        `https://docs.googleapis.com/v1/documents/${documentId}`,
         {
-          method: 'PATCH',
-          headers: {
-            ...this.getHeaders(),
-            'Content-Type': 'multipart/related; boundary=foo_bar_baz'
-          },
-          body: this.createMultipartBody(plainText)
-        }
-      );
-
-      // Alternative: Use the Docs API batchUpdate for better formatting
-      // For now, we'll use a simpler approach with the Drive API
-      if (!updateResponse.ok) {
-        // If direct update fails, try using Docs API
-        await this.updateDocContent(documentId, plainText);
-      }
-
-      // Get the web view link
-      const fileResponse = await fetch(
-        `${this.baseURL}/drive/v3/files/${documentId}?fields=webViewLink,name`,
-        {
-          method: 'GET',
           headers: this.getHeaders()
         }
       );
 
-      const fileInfo = await fileResponse.json();
+      if (!getDocResponse.ok) {
+        throw new Error(`Failed to retrieve document: ${getDocResponse.statusText}`);
+      }
 
+      const doc = await getDocResponse.json();
+      // Find the end index - this is where we'll insert content
+      const endIndex = doc.body?.content?.[doc.body.content.length - 1]?.endIndex || 1;
+
+      // Step 3: Insert content using batchUpdate
+      const insertTextResponse = await fetch(
+        `https://docs.googleapis.com/v1/documents/${documentId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            requests: [{
+              insertText: {
+                location: {
+                  index: endIndex - 1
+                },
+                text: plainText
+              }
+            }]
+          })
+        }
+      );
+
+      if (!insertTextResponse.ok) {
+        console.warn('[GoogleIntegration] Failed to insert text, but document was created');
+        // Document is created, content insertion failed - not critical
+      }
+
+      // Return document info with web view link
       return {
         id: documentId,
-        webViewLink: fileInfo.webViewLink || `https://docs.google.com/document/d/${documentId}/edit`,
-        name: fileInfo.name || title
+        webViewLink: `https://docs.google.com/document/d/${documentId}/edit`,
+        name: title
       };
     } catch (error) {
       console.error('[GoogleIntegration] Failed to create document:', error);
@@ -280,68 +288,6 @@ export class GoogleIntegration {
     }
   }
 
-  /**
-   * Update document content using Google Docs API
-   * @private
-   */
-  async updateDocContent(documentId, text) {
-    try {
-      // Split text into paragraphs
-      const paragraphs = text.split('\n\n').filter(p => p.trim());
-
-      const requests = paragraphs.map((paragraph, index) => ({
-        insertText: {
-          location: {
-            index: index > 0 ? 1 : 0
-          },
-          text: paragraph + (index < paragraphs.length - 1 ? '\n\n' : '')
-        }
-      }));
-
-      const response = await fetch(
-        `${this.baseURL}/docs/v1/documents/${documentId}:batchUpdate`,
-        {
-          method: 'POST',
-          headers: this.getHeaders(),
-          body: JSON.stringify({
-            requests: requests
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Google Docs API error: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.warn('[GoogleIntegration] Failed to update document content via Docs API:', error);
-      // This is not critical - document is created, content can be added manually
-    }
-  }
-
-  /**
-   * Create multipart body for file upload
-   * @private
-   */
-  createMultipartBody(text) {
-    const boundary = 'foo_bar_baz';
-    const metadata = JSON.stringify({
-      mimeType: 'text/plain'
-    });
-
-    return [
-      `--${boundary}`,
-      'Content-Type: application/json; charset=UTF-8',
-      '',
-      metadata,
-      `--${boundary}`,
-      'Content-Type: text/plain',
-      '',
-      text,
-      `--${boundary}--`
-    ].join('\r\n');
-  }
 }
 
 /**

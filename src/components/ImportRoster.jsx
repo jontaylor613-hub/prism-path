@@ -5,10 +5,11 @@
  * Integrates with Firebase and mock state via studentData service
  */
 
-import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, CheckCircle, AlertTriangle, Download, X } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { UploadCloud, CheckCircle, AlertTriangle, Download, X, BookOpen, Loader2 } from 'lucide-react';
 import { parseRosterCSV, downloadCSVTemplate } from '../lib/csvParser';
 import { createStudent } from '../studentData';
+import { GoogleIntegration, getGoogleAccessToken, isGoogleIntegrationAvailable } from '../lib/googleService';
 
 export default function ImportRoster({ 
   onImportComplete, 
@@ -16,10 +17,16 @@ export default function ImportRoster({
   user = null,
   theme 
 }) {
+  const [importSource, setImportSource] = useState('csv'); // 'csv' | 'classroom'
   const [isDragging, setIsDragging] = useState(false);
   const [parseResult, setParseResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importStatus, setImportStatus] = useState('idle'); // 'idle' | 'success' | 'error'
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [classroomRoster, setClassroomRoster] = useState(null);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isLoadingRoster, setIsLoadingRoster] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleDragEnter = useCallback((e) => {
@@ -189,8 +196,87 @@ export default function ImportRoster({
     setParseResult(null);
     setImportStatus('idle');
     setIsDragging(false);
+    setClassroomRoster(null);
+    setSelectedCourseId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  // Load Google Classroom courses when source is changed to 'classroom'
+  useEffect(() => {
+    if (importSource === 'classroom' && courses.length === 0 && !isLoadingCourses) {
+      loadCourses();
+    }
+  }, [importSource]);
+
+  // Load roster when a course is selected
+  useEffect(() => {
+    if (selectedCourseId && importSource === 'classroom') {
+      loadCourseRoster(selectedCourseId);
+    }
+  }, [selectedCourseId, importSource]);
+
+  const loadCourses = async () => {
+    setIsLoadingCourses(true);
+    try {
+      const accessToken = await getGoogleAccessToken();
+      const google = new GoogleIntegration(accessToken);
+      const courseList = await google.listCourses();
+      setCourses(courseList);
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+      setParseResult({
+        students: [],
+        errors: ['Failed to load Google Classroom courses. Make sure you are signed in with Google.'],
+        warnings: []
+      });
+      setImportStatus('error');
+    } finally {
+      setIsLoadingCourses(false);
+    }
+  };
+
+  const loadCourseRoster = async (courseId) => {
+    setIsLoadingRoster(true);
+    setClassroomRoster(null);
+    try {
+      const accessToken = await getGoogleAccessToken();
+      const google = new GoogleIntegration(accessToken);
+      const roster = await google.getCourseRoster(courseId);
+      setClassroomRoster(roster);
+      
+      // Convert Google Classroom roster format to our student format
+      const students = roster.map((student) => {
+        const profile = student.profile || {};
+        const name = profile.name || {};
+        const fullName = name.fullName || `${name.givenName || ''} ${name.familyName || ''}`.trim() || profile.emailAddress || 'Unknown';
+        
+        return {
+          name: fullName,
+          email: profile.emailAddress || '',
+          grade: '', // Not available from Classroom API
+          diagnosis: '', // Not available from Classroom API
+          iepGoals: [],
+          accommodations: []
+        };
+      });
+
+      setParseResult({
+        students,
+        errors: [],
+        warnings: students.length === 0 ? ['No students found in this course.'] : []
+      });
+    } catch (error) {
+      console.error('Failed to load roster:', error);
+      setParseResult({
+        students: [],
+        errors: ['Failed to load course roster. Please try again.'],
+        warnings: []
+      });
+      setImportStatus('error');
+    } finally {
+      setIsLoadingRoster(false);
     }
   };
 
@@ -225,22 +311,116 @@ export default function ImportRoster({
         )}
       </div>
 
-      {/* CSV Template Download */}
+      {/* Import Source Toggle */}
       <div className="mb-4">
-        <button
-          onClick={downloadCSVTemplate}
-          className={`flex items-center gap-2 text-sm ${safeTheme.primaryText} hover:underline`}
-        >
-          <Download size={16} />
-          Download CSV Template
-        </button>
-        <p className={`text-xs mt-1 ${safeTheme.textMuted}`}>
-          Use the template to ensure your CSV has the correct format
-        </p>
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => {
+              setImportSource('csv');
+              handleReset();
+            }}
+            className={`
+              flex-1 px-4 py-2 rounded-lg font-medium transition-all
+              ${importSource === 'csv'
+                ? `${safeTheme.primaryBg} text-white`
+                : `${safeTheme.inputBg} ${safeTheme.text} border ${safeTheme.inputBorder} hover:border-cyan-400`
+              }
+            `}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <UploadCloud size={16} />
+              Upload CSV
+            </div>
+          </button>
+          <button
+            onClick={() => {
+              setImportSource('classroom');
+              handleReset();
+            }}
+            disabled={!isGoogleIntegrationAvailable()}
+            className={`
+              flex-1 px-4 py-2 rounded-lg font-medium transition-all
+              ${importSource === 'classroom'
+                ? `${safeTheme.primaryBg} text-white`
+                : `${safeTheme.inputBg} ${safeTheme.text} border ${safeTheme.inputBorder} hover:border-cyan-400`
+              }
+              ${!isGoogleIntegrationAvailable() ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <BookOpen size={16} />
+              Google Classroom
+            </div>
+          </button>
+        </div>
+        {!isGoogleIntegrationAvailable() && (
+          <p className={`text-xs ${safeTheme.textMuted} italic`}>
+            Google Classroom integration requires authentication. Using mock data in dev mode.
+          </p>
+        )}
       </div>
 
-      {/* Drag and Drop Zone */}
-      {!parseResult && (
+      {/* CSV Template Download - Only show for CSV source */}
+      {importSource === 'csv' && (
+        <div className="mb-4">
+          <button
+            onClick={downloadCSVTemplate}
+            className={`flex items-center gap-2 text-sm ${safeTheme.primaryText} hover:underline`}
+          >
+            <Download size={16} />
+            Download CSV Template
+          </button>
+          <p className={`text-xs mt-1 ${safeTheme.textMuted}`}>
+            Use the template to ensure your CSV has the correct format
+          </p>
+        </div>
+      )}
+
+      {/* Google Classroom Course Selection */}
+      {importSource === 'classroom' && !classroomRoster && (
+        <div className="mb-4">
+          {isLoadingCourses ? (
+            <div className="flex flex-col items-center gap-2 p-8">
+              <Loader2 size={32} className="animate-spin text-cyan-600" />
+              <p className={safeTheme.textMuted}>Loading courses...</p>
+            </div>
+          ) : courses.length > 0 ? (
+            <div>
+              <label className={`block text-sm font-medium ${safeTheme.text} mb-2`}>
+                Select a Course
+              </label>
+              <select
+                value={selectedCourseId || ''}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                className={`
+                  w-full ${safeTheme.inputBg} border ${safeTheme.inputBorder} rounded-lg p-3
+                  ${safeTheme.text} focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none
+                `}
+              >
+                <option value="">-- Choose a course --</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name} {course.section ? `(${course.section})` : ''}
+                  </option>
+                ))}
+              </select>
+              {isLoadingRoster && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Loader2 size={16} className="animate-spin text-cyan-600" />
+                  <p className={`text-xs ${safeTheme.textMuted}`}>Loading roster...</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={`p-4 ${safeTheme.inputBg} border ${safeTheme.inputBorder} rounded-lg text-center`}>
+              <p className={safeTheme.textMuted}>No courses found. Make sure you're signed in with Google.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Drag and Drop Zone - Only show for CSV source */}
+      {importSource === 'csv' && !parseResult && (
         <div
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}

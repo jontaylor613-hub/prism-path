@@ -474,20 +474,46 @@ export const getStudentByToken = async (token) => {
 };
 
 // Save progress tracking data point
+// Uses mock data (localStorage) when Firebase is not available
 export const saveProgressData = async (studentId, goalId, value, metadata = {}) => {
   try {
-    const progressRef = doc(collection(db, 'students', studentId, 'progress'));
-    const progressData = {
+    // Try Firebase first if available
+    if (db) {
+      try {
+        const progressRef = doc(collection(db, 'students', studentId, 'progress'));
+        const progressData = {
+          goalId,
+          value,
+          date: serverTimestamp(),
+          ...metadata,
+          createdAt: serverTimestamp()
+        };
+
+        await setDoc(progressRef, progressData);
+        return { id: progressRef.id, ...progressData };
+      } catch (firebaseError) {
+        console.warn('[Progress] Firebase save failed, using mock data:', firebaseError);
+        // Fall through to mock data
+      }
+    }
+    
+    // Mock data storage - store in localStorage for persistence
+    const storageKey = `student_${studentId}_progress`;
+    const existingData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const newEntry = {
+      id: `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       goalId,
       value,
-      date: serverTimestamp(),
+      date: new Date().toISOString(),
       ...metadata,
-      createdAt: serverTimestamp()
+      createdAt: new Date().toISOString()
     };
-
-    await setDoc(progressRef, progressData);
-
-    return { id: progressRef.id, ...progressData };
+    
+    existingData.push(newEntry);
+    localStorage.setItem(storageKey, JSON.stringify(existingData));
+    
+    console.log('[Mock Data] Progress saved:', newEntry);
+    return newEntry;
   } catch (error) {
     console.error('Error saving progress data:', error);
     throw error;

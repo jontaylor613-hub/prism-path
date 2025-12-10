@@ -273,3 +273,4 @@ useEffect(() => {
 4. **Password Validation**: Test weak passwords, verify strength indicator updates
 5. **Auto-Lock**: Wait 15 minutes without activity, verify lock screen appears
 
+

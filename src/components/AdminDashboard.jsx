@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2, Zap } from 'lucide-react';
 import { 
   getUsersBySchool, 
   getStudentsBySchool, 
@@ -15,6 +15,48 @@ import {
 } from '../lib/mockStore';
 import { getTheme } from '../utils';
 
+// Demo data for demo mode
+const DEMO_TEACHERS = [
+  { uid: 'demo-teacher-1', name: 'Ms. Sarah Johnson', email: 'sarah.johnson@demoschool.edu', role: 'teacher', isActive: true },
+  { uid: 'demo-teacher-2', name: 'Mr. Michael Chen', email: 'michael.chen@demoschool.edu', role: 'teacher', isActive: true },
+  { uid: 'demo-teacher-3', name: 'Dr. Emily Rodriguez', email: 'emily.rodriguez@demoschool.edu', role: 'sped', isActive: true }
+];
+
+const DEMO_STUDENTS = [
+  { 
+    id: 'demo-student-1', 
+    name: 'Alex Martinez', 
+    grade: '3rd', 
+    diagnosis: 'ADHD', 
+    assignedTeacherIds: ['demo-teacher-1'],
+    schoolId: 'demo-school'
+  },
+  { 
+    id: 'demo-student-2', 
+    name: 'Jordan Kim', 
+    grade: '5th', 
+    diagnosis: 'Dyslexia', 
+    assignedTeacherIds: ['demo-teacher-2'],
+    schoolId: 'demo-school'
+  },
+  { 
+    id: 'demo-student-3', 
+    name: 'Taylor Smith', 
+    grade: '2nd', 
+    diagnosis: 'Autism Spectrum', 
+    assignedTeacherIds: [],
+    schoolId: 'demo-school'
+  },
+  { 
+    id: 'demo-student-4', 
+    name: 'Morgan Lee', 
+    grade: '4th', 
+    diagnosis: 'Learning Disability', 
+    assignedTeacherIds: ['demo-teacher-3'],
+    schoolId: 'demo-school'
+  }
+];
+
 export default function AdminDashboard({ user, theme, onBack }) {
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
@@ -22,6 +64,7 @@ export default function AdminDashboard({ user, theme, onBack }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   // Use theme from props or default
   const safeTheme = theme || getTheme(false);
@@ -29,9 +72,17 @@ export default function AdminDashboard({ user, theme, onBack }) {
   // Load data on mount
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user, demoMode]);
 
   const loadData = () => {
+    // Demo mode: show demo data
+    if (demoMode) {
+      setTeachers(DEMO_TEACHERS);
+      setStudents(DEMO_STUDENTS);
+      setLoading(false);
+      return;
+    }
+
     if (!user?.schoolId) {
       setLoading(false);
       return;
@@ -62,6 +113,24 @@ export default function AdminDashboard({ user, theme, onBack }) {
 
     setIsAssigning(true);
     try {
+      // Demo mode: simulate assignment
+      if (demoMode) {
+        setTimeout(() => {
+          // Update demo students
+          const updatedStudents = students.map(s => 
+            s.id === selectedStudent.id
+              ? { ...s, assignedTeacherIds: [...(s.assignedTeacherIds || []), selectedTeacherId] }
+              : s
+          );
+          setStudents(updatedStudents);
+          setSelectedStudent(null);
+          setSelectedTeacherId('');
+          alert(`Student "${selectedStudent.name}" has been assigned to teacher. (Demo Mode)`);
+          setIsAssigning(false);
+        }, 500);
+        return;
+      }
+
       // Use the assignStudentToTeacher function from mockStore
       const updatedStudent = assignStudentToTeacher(
         selectedStudent.id,
@@ -119,22 +188,42 @@ export default function AdminDashboard({ user, theme, onBack }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className={`text-2xl font-bold ${safeTheme.text} flex items-center gap-2`}>
-            <GraduationCap className="text-cyan-400" size={28} />
-            Admin Dashboard
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className={`text-2xl font-bold ${safeTheme.text} flex items-center gap-2`}>
+              <GraduationCap className="text-cyan-400" size={28} />
+              Admin Dashboard
+            </h2>
+            {demoMode && (
+              <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
+                Demo Mode
+              </span>
+            )}
+          </div>
           <p className={`text-sm ${safeTheme.textMuted} mt-1`}>
-            Manage staff and student assignments for {user?.schoolId || 'your school'}
+            Manage staff and student assignments for {demoMode ? 'Demo School' : (user?.schoolId || 'your school')}
           </p>
         </div>
-        {onBack && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={onBack}
-            className={`px-4 py-2 rounded-lg ${safeTheme.textMuted} hover:${safeTheme.text} transition-colors`}
+            onClick={() => setDemoMode(!demoMode)}
+            className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+              demoMode
+                ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg'
+                : `${safeTheme.inputBg} ${safeTheme.text} border ${safeTheme.inputBorder} hover:opacity-80`
+            }`}
           >
-            <X size={20} />
+            <Zap size={16} />
+            {demoMode ? 'Exit Demo' : 'Try Demo Mode'}
           </button>
-        )}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className={`px-4 py-2 rounded-lg ${safeTheme.textMuted} hover:${safeTheme.text} transition-colors`}
+            >
+              <X size={20} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Two Column Layout */}

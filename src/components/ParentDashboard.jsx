@@ -84,7 +84,7 @@ const Card = ({ children, className = "", glow = false, theme }) => {
   );
 };
 
-export default function ParentDashboard({ onBack, isDark }) {
+export default function ParentDashboard({ onBack, isDark, initialDemoMode = false }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
@@ -92,7 +92,7 @@ export default function ParentDashboard({ onBack, isDark }) {
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro'
-  const [demoMode, setDemoMode] = useState(false); // Demo mode toggle
+  const [demoMode, setDemoMode] = useState(initialDemoMode); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
     name: '',
@@ -105,8 +105,14 @@ export default function ParentDashboard({ onBack, isDark }) {
 
   const theme = getTheme(isDark);
 
-  // Auth state observer
+  // Auth state observer - skip if in demo mode
   useEffect(() => {
+    if (demoMode) {
+      // In demo mode, set a demo user
+      setUser({ uid: 'demo-parent', name: 'Demo Parent', role: 'parent', isDemo: true });
+      return;
+    }
+    
     const unsubscribe = onAuthChange((userProfile) => {
       if (userProfile && userProfile.role === 'parent') {
         setUser(userProfile);
@@ -119,7 +125,7 @@ export default function ParentDashboard({ onBack, isDark }) {
       }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, demoMode]);
 
   // Load students when user is available
   useEffect(() => {

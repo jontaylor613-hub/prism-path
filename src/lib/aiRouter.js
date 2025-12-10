@@ -108,3 +108,4 @@ export async function routeAIRequest(mode, userPrompt, studentName = null, optio
 // Export mode configurations for reference
 export { AI_MODES };
 
+

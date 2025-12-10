@@ -82,3 +82,4 @@ export default function AutoLock({ isDark, onUnlock, isLocked, setIsLocked }) {
   );
 }
 
+

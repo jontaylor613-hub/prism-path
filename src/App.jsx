@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { 
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
@@ -11,14 +11,14 @@ import {
 // EasterEgg removed for performance optimization
 
 // Lazy load all route components for code splitting
-const ResumeBuilder = lazy(() => import('./ResumeBuilder'));
-const SocialMap = lazy(() => import('./SocialMap'));
-const EmotionalCockpit = lazy(() => import('./EmotionalCockpit'));
-const TeacherDashboard = lazy(() => import('./TeacherDashboard'));
-const NeuroDriver = lazy(() => import('./NeuroDriver'));
-const VisualSchedule = lazy(() => import('./VisualSchedule'));
-const AccommodationGem = lazy(() => import('./AccommodationGem'));
-const ArchiveOfPotentials = lazy(() => import('./ArchiveOfPotentials'));
+const ResumeBuilder = lazy(() => import('./components/ResumeBuilder'));
+const SocialMap = lazy(() => import('./components/SocialMap'));
+const EmotionalCockpit = lazy(() => import('./components/EmotionalCockpit'));
+const TeacherDashboard = lazy(() => import('./components/TeacherDashboard'));
+const NeuroDriver = lazy(() => import('./components/NeuroDriver'));
+const VisualSchedule = lazy(() => import('./components/VisualSchedule'));
+const AccommodationGem = lazy(() => import('./components/AccommodationGem'));
+const ArchiveOfPotentials = lazy(() => import('./components/ArchiveOfPotentials'));
 const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
@@ -28,6 +28,23 @@ import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
 import { onAuthChange } from './auth';
 import { useSmartLock } from './hooks/useSmartLock';
+
+// Wrapper component to handle demo mode for ParentDashboard
+function ParentDashboardWithDemo({ onBack, isDark }) {
+  const [searchParams] = useSearchParams();
+  const demoMode = searchParams.get('demo') === 'true';
+  
+  return <ParentDashboard onBack={onBack} isDark={isDark} initialDemoMode={demoMode} />;
+}
+
+// Wrapper component to handle demo modes for TeacherDashboard
+function TeacherDashboardWithDemo({ onBack, isDark, onToggleTheme }) {
+  const [searchParams] = useSearchParams();
+  const demoParam = searchParams.get('demo');
+  const adminDemo = demoParam === 'admin';
+  
+  return <TeacherDashboard onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} adminDemoMode={adminDemo} />;
+}
 
 // Loading fallback component for Suspense
 const LoadingFallback = ({ isDark = true }) => {
@@ -153,6 +170,23 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             
             <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
             
+            <div className="relative group">
+              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1`}>
+                <Zap size={14} /> Demos <ChevronDown size={12} className="transition-transform group-hover:rotate-180" />
+              </button>
+              <div className={`absolute top-full right-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
+                <Link to="/parent/dashboard?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2`}>
+                  <Heart size={14} className="text-indigo-400" /> Parent Portal Demo
+                </Link>
+                <Link to="/educator?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
+                  <GraduationCap size={14} className="text-cyan-400" /> Educator Portal Demo
+                </Link>
+                <Link to="/educator?demo=admin" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
+                  <GraduationCap size={14} className="text-fuchsia-400" /> Admin Dashboard Demo
+                </Link>
+              </div>
+            </div>
+            
             <div className="relative" ref={studentMenuRef}>
               <button 
                 onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
@@ -201,6 +235,10 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
+             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
+             <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
+             <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
+             <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
@@ -519,7 +557,7 @@ export default function App() {
         <Route path="/educator" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+              <TeacherDashboardWithDemo onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
             </div>
           </Suspense>
         } />
@@ -555,7 +593,7 @@ export default function App() {
         <Route path="/parent/dashboard" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <ParentDashboard onBack={handleExit} isDark={isDark} />
+              <ParentDashboardWithDemo onBack={handleExit} isDark={isDark} />
             </div>
           </Suspense>
         } />

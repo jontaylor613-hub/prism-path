@@ -3,7 +3,7 @@ import {
   Calendar, Clock, Plus, Trash2, Download, Mic, 
   MicOff, ArrowLeft, Layout
 } from 'lucide-react';
-import { getTheme } from './utils';
+import { getTheme } from '../utils';
 
 const BLOCK_COLORS = [
     'bg-red-200 text-red-900 border-red-300',

@@ -148,9 +148,8 @@ async function getStudentData(studentId = null) {
     // This will fail gracefully if integrations aren't connected
     
     // Try to import and use the unified student service if available
-    // Updated path from ../lib/ to ../src/lib/ since we're now in api/ at root
     try {
-      const { getStudentDataForAPI } = await import('../src/lib/studentService.js').catch(() => null);
+      const { getStudentDataForAPI } = await import('../lib/studentService.js').catch(() => null);
       if (getStudentDataForAPI) {
         const data = await getStudentDataForAPI(studentId);
         if (data) return data;
@@ -680,4 +679,3 @@ export default async function handler(req, res) {
     });
   }
 }
-

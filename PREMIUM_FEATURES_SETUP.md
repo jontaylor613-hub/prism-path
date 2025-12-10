@@ -123,3 +123,4 @@ The VoiceObservation component uses the existing `/api/generate` endpoint with:
 - Add keyboard shortcuts to Command Bar
 - Add voice commands to Command Bar
 
+

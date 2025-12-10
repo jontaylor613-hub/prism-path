@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // --- THE FIX: Import the brain ---
-import { GeminiService } from './utils';
+import { GeminiService } from '../utils';
 import ArchiveOfPotentials from './ArchiveOfPotentials';
 
 export default function ResumeBuilder({ onBack, isLowStim }) {

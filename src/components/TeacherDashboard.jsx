@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 
 // --- IMPORTS ---
-import { ComplianceService, GeminiService, getTheme } from './utils';
-import { signUp, signIn, onAuthChange, logout, ROLES, getCurrentUserProfile } from './auth';
+import { ComplianceService, GeminiService, getTheme } from '../utils';
+import { signUp, signIn, onAuthChange, logout, ROLES, getCurrentUserProfile } from '../auth';
 import AccommodationGem from './AccommodationGem';
 import { 
   getStudentsForUser, 
@@ -23,9 +23,10 @@ import {
   get504Accommodations,
   updateStudent,
   saveIepSummary
-} from './studentData';
-import { ChatHistoryService } from './chatHistory';
-import { DevModeService } from './devMode';
+} from '../studentData';
+import { ChatHistoryService } from '../chatHistory';
+import { DevModeService } from '../devMode';
+import AdminDashboard from './AdminDashboard';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -1210,7 +1211,7 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness'].map((tab) => {
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
               const isGem = tab === 'Gem';
               const isWellness = tab === 'Wellness';
               return (
@@ -1916,6 +1917,17 @@ Format the summary clearly with sections. Only include information that is actua
             <BurnoutCheck theme={theme} />
         )}
 
+        {/* --- ADMIN TAB (NEW) --- */}
+        {activeTab === 'admin' && user?.role === 'admin' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+                <AdminDashboard 
+                    user={user} 
+                    theme={theme} 
+                    onBack={() => setActiveTab('profile')} 
+                />
+            </div>
+        )}
+
         {/* --- GEM TAB (NEW) --- */}
         {activeTab === 'gem' && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
@@ -2393,10 +2405,42 @@ const LoginScreen = ({ onLogin, onBack }) => {
   );
 };
 
-export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
+export default function TeacherDashboard({ onBack, isDark, onToggleTheme, adminDemoMode = false }) {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Check for demo mode from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const demoParam = urlParams.get('demo');
+    
+    // If admin demo mode, set demo admin user
+    if (adminDemoMode || demoParam === 'admin') {
+      setUser({
+        uid: 'demo-admin',
+        name: 'Demo Administrator',
+        email: 'admin@demoschool.edu',
+        role: 'admin',
+        schoolId: 'demo-school',
+        isDemo: true
+      });
+      return;
+    }
+    
+    // If regular educator demo mode, set demo teacher user
+    if (demoParam === 'true') {
+      setUser({
+        uid: 'demo-teacher',
+        name: 'Demo Educator',
+        email: 'demo@prismpath.com',
+        role: 'sped',
+        school: 'Demo School',
+        schoolDistrict: 'Demo District',
+        schoolId: 'demo-school',
+        isDemo: true
+      });
+      return;
+    }
+    
     // Check if user is already logged in
     const unsubscribe = onAuthChange((userProfile) => {
       if (userProfile) {
@@ -2407,7 +2451,7 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [adminDemoMode]);
 
   const handleLogout = async () => {
     try {

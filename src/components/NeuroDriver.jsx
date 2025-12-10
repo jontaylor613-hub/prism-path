@@ -4,7 +4,7 @@ import {
   CloudRain, Trees, Coffee, Music, VolumeX, 
   Play, Pause, Plus, Trash2, ArrowLeft, Star, Layout, Pointer, Target
 } from 'lucide-react';
-import { getTheme, GeminiService } from './utils';
+import { getTheme, GeminiService } from '../utils';
 
 // --- INTERNAL AUDIO ENGINE ---
 const DriverAudio = {

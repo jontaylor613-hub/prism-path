@@ -6,7 +6,7 @@ import {
   Loader2, Send, Trash2, Wand2, FileUp, Volume2, VolumeX, Plus, 
   MessageSquare, User, Clock, Printer, Download, ExternalLink
 } from 'lucide-react';
-import { GeminiService, getTheme } from './utils';
+import { GeminiService, getTheme } from '../utils';
 import { ChatHistoryService } from './chatHistory';
 
 export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null }) {

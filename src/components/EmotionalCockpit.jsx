@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 // FIX: Importing services from the correctly exported utility file
-import { getTheme } from './utils'; 
+import { getTheme } from '../utils'; 
 
 // --- INTERNAL AUDIO SYNTHESIZER ---
 const CockpitAudio = {

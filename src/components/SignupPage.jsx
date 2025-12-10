@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Zap } from 'lucide-react';
 import { signUp, signIn, getCurrentUserProfile } from '../auth';
 import { getTheme } from '../utils';
 import { validatePassword } from '../lib/passwordValidator';
@@ -210,6 +210,20 @@ export default function SignupPage({ onBack }) {
             {loading ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
+        
+        {/* Demo Mode Button - Only show for parents */}
+        {isParent && (
+          <div className="mt-6 pt-6 border-t border-slate-700/50">
+            <button 
+              onClick={() => navigate('/parent/dashboard?demo=true')}
+              className="w-full px-4 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+            >
+              <Zap size={16} className="text-cyan-400" />
+              Try Demo Mode (No Account Required)
+            </button>
+            <p className="text-[10px] text-slate-500 mt-2 text-center">Perfect for exploring the platform</p>
+          </div>
+        )}
         
         <div className="mt-6 text-center">
           <button

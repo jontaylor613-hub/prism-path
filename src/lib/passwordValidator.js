@@ -93,3 +93,4 @@ export function getPasswordStrength(password) {
   return strengthMap[validation.strength] || strengthMap.weak;
 }
 
+

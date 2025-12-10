@@ -111,3 +111,4 @@ export function useSmartLock() {
   }, []); // Empty deps - only run once on mount
 }
 
+

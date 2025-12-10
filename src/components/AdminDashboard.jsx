@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2, Zap } from 'lucide-react';
+import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2, Zap, UploadCloud } from 'lucide-react';
 import { 
   getUsersBySchool, 
   getStudentsBySchool, 
@@ -14,6 +14,7 @@ import {
   getUserById 
 } from '../lib/mockStore';
 import { getTheme } from '../utils';
+import ImportRoster from './features/ImportRoster';
 
 // Demo data for demo mode
 const DEMO_TEACHERS = [
@@ -65,6 +66,7 @@ export default function AdminDashboard({ user, theme, onBack }) {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [showImportRoster, setShowImportRoster] = useState(false);
 
   // Use theme from props or default
   const safeTheme = theme || getTheme(false);
@@ -224,6 +226,39 @@ export default function AdminDashboard({ user, theme, onBack }) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Import Roster Section */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowImportRoster(!showImportRoster)}
+          className={`w-full px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+            showImportRoster
+              ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg'
+              : `${safeTheme.inputBg} ${safeTheme.text} border ${safeTheme.inputBorder} hover:opacity-80`
+          }`}
+        >
+          <UploadCloud size={20} />
+          {showImportRoster ? 'Hide Import' : 'Import Students from CSV'}
+        </button>
+        
+        {showImportRoster && (
+          <div className="mt-4">
+            <ImportRoster
+              user={user}
+              theme={safeTheme}
+              onImportComplete={(importedStudents) => {
+                // Refresh the students list
+                loadData();
+                setShowImportRoster(false);
+              }}
+              onStudentsUpdate={() => {
+                // Refresh the students list
+                loadData();
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Two Column Layout */}

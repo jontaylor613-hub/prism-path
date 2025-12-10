@@ -27,6 +27,7 @@ import {
 import { ChatHistoryService } from '../chatHistory';
 import { DevModeService } from '../devMode';
 import AdminDashboard from './AdminDashboard';
+import DashboardBriefing from './DashboardBriefing';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -1260,6 +1261,30 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
         ) : (
           <>
+            {/* Morning Briefing Widget - Teslafication Project */}
+            {displayedStudents.length > 0 && (
+              <DashboardBriefing
+                students={displayedStudents}
+                isDark={isDark}
+                onReviewNow={() => {
+                  // Navigate to first student with upcoming deadline
+                  const studentWithDeadline = displayedStudents.find(s => {
+                    const iepDate = s.nextIep || s.nextIepDate;
+                    if (!iepDate) return false;
+                    const reviewDate = new Date(iepDate);
+                    const now = new Date();
+                    const sevenDaysFromNow = new Date(now);
+                    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                    return reviewDate >= now && reviewDate <= sevenDaysFromNow;
+                  });
+                  if (studentWithDeadline) {
+                    setCurrentStudentId(studentWithDeadline.id);
+                    setActiveTab('profile');
+                  }
+                }}
+              />
+            )}
+
             <div className="flex items-center justify-between">
                 <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide flex-1 mr-4">
                 {displayedStudents.length === 0 ? (

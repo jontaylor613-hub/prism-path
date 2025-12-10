@@ -2,15 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Brain, BarChart3, Zap
+  User, ArrowRight, Calendar, FileText, Zap
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
 import AccommodationGem from './AccommodationGem';
-import NeuroDriver from './NeuroDriver';
-import StudentProgressChart from './StudentProgressChart';
-import DashboardBriefing from './DashboardBriefing';
 import CommandBar from './CommandBar';
 
 // Sample demo children for demo mode
@@ -281,75 +278,45 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
             </div>
           </div>
 
-          {/* Morning Briefing Widget */}
-          <div className="mb-6">
-            <DashboardBriefing
-              students={[selectedStudent]}
-              isDark={isDark}
-              onReviewNow={() => {
-                // Scroll to student info or show relevant section
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          </div>
 
-          {/* Premium Features Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Main Feature: IEP Upload and Explanation */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <Card className="p-6" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
-                <Sparkles className="text-cyan-400" size={24} />
-                Accommodation Assistant
+                <FileText className="text-cyan-400" size={24} />
+                Upload IEP Document
               </h2>
               <p className={`${theme.textMuted} mb-4`}>
-                Get AI-powered accommodation suggestions for {selectedStudent.name}.
+                Upload your child's IEP or 504 plan to get a plain English explanation of what it means and how it helps your child.
               </p>
               <Button
                 onClick={() => setActiveView('gem')}
                 className="w-full"
                 theme={theme}
               >
-                Open Assistant
+                Upload & Explain IEP
               </Button>
             </Card>
 
             <Card className="p-6" theme={theme}>
-              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
-                <Brain className="text-amber-400" size={24} />
-                Neuro Driver
-              </h2>
-              <p className={`${theme.textMuted} mb-4`}>
-                Task management and focus tools.
-              </p>
-              <Button
-                onClick={() => setActiveView('neuro')}
-                className="w-full"
-                theme={theme}
-              >
-                Open Neuro Driver
-              </Button>
-            </Card>
-
-            <Card className="p-6" theme={theme}>
-              <h2 className={`text-xl font-bold ${theme.text} mb-4`}>Student Info</h2>
-              <div className="space-y-2">
+              <h2 className={`text-xl font-bold ${theme.text} mb-4`}>Child Information</h2>
+              <div className="space-y-3">
+                <div>
+                  <span className={`text-xs uppercase ${theme.textMuted}`}>Name</span>
+                  <p className={`${theme.text} font-medium`}>{selectedStudent.name}</p>
+                </div>
                 <div>
                   <span className={`text-xs uppercase ${theme.textMuted}`}>Grade</span>
-                  <p className={theme.text}>{selectedStudent.grade || 'N/A'}</p>
+                  <p className={theme.text}>{selectedStudent.grade || 'Not specified'}</p>
                 </div>
-                <div>
-                  <span className={`text-xs uppercase ${theme.textMuted}`}>Primary Need</span>
-                  <p className={theme.text}>{selectedStudent.primaryNeed || selectedStudent.need || 'N/A'}</p>
-                </div>
+                {(selectedStudent.primaryNeed || selectedStudent.need) && (
+                  <div>
+                    <span className={`text-xs uppercase ${theme.textMuted}`}>Primary Need</span>
+                    <p className={theme.text}>{selectedStudent.primaryNeed || selectedStudent.need}</p>
+                  </div>
+                )}
               </div>
             </Card>
-          </div>
-
-          {/* Visual Progress Chart - "The Tesla Screen" */}
-          <div className="mb-6">
-            <StudentProgressChart
-              student={selectedStudent}
-              isDark={isDark}
-            />
           </div>
         </div>
       </div>
@@ -370,17 +337,6 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
     );
   }
 
-  // Neuro Driver View
-  if (activeView === 'neuro' && selectedStudent) {
-    return (
-      <div className="min-h-screen">
-        <NeuroDriver
-          onBack={() => setActiveView('student')}
-          isDark={isDark}
-        />
-      </div>
-    );
-  }
 
   // Main Dashboard View
   return (
@@ -445,31 +401,6 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
           </div>
         </div>
 
-        {/* Morning Briefing Widget - Show when in demo mode or has students */}
-        {(demoMode || students.length > 0) && (
-          <div className="mb-8">
-            <DashboardBriefing
-              students={students}
-              isDark={isDark}
-              onReviewNow={() => {
-                // Navigate to first student with upcoming deadline
-                const studentWithDeadline = students.find(s => {
-                  const iepDate = s.nextIep || s.nextIepDate;
-                  if (!iepDate) return false;
-                  const reviewDate = new Date(iepDate);
-                  const now = new Date();
-                  const sevenDaysFromNow = new Date(now);
-                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-                  return reviewDate >= now && reviewDate <= sevenDaysFromNow;
-                });
-                if (studentWithDeadline) {
-                  setSelectedStudent(studentWithDeadline);
-                  setActiveView('student');
-                }
-              }}
-            />
-          </div>
-        )}
 
         {/* Students Grid */}
         {loading ? (

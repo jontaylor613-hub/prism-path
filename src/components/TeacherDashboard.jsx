@@ -474,7 +474,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [chatHistories, setChatHistories] = useState([]);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editStudentData, setEditStudentData] = useState({});
-  const [sortBy, setSortBy] = useState('iep'); // Default to sorting by IEP due date
+  const [sortBy, setSortBy] = useState('dueDate'); // Default to sorting by upcoming due date
   
   // Track demo mode student additions (localStorage, not saved)
   const getDemoStudentCount = () => {
@@ -567,26 +567,52 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       : students.filter(s => !SAMPLE_STUDENTS.some(sample => sample.id === s.id));
     
     // Sort by selected criteria
-    if (sortBy === 'iep') {
+    if (sortBy === 'dueDate') {
+      // Sort by upcoming due date (IEP or Eval, whichever is sooner)
       filtered = [...filtered].sort((a, b) => {
-        const dateA = a.nextIep || a.nextIepDate || '';
-        const dateB = b.nextIep || b.nextIepDate || '';
+        const getEarliestDate = (student) => {
+          const dates = [];
+          if (student.nextIep || student.nextIepDate) dates.push(new Date(student.nextIep || student.nextIepDate));
+          if (student.nextEval || student.nextEvalDate) dates.push(new Date(student.nextEval || student.nextEvalDate));
+          if (dates.length === 0) return null;
+          return new Date(Math.min(...dates.map(d => d.getTime())));
+        };
+        const dateA = getEarliestDate(a);
+        const dateB = getEarliestDate(b);
         if (!dateA && !dateB) return 0;
         if (!dateA) return 1;
         if (!dateB) return -1;
-        return new Date(dateA) - new Date(dateB);
+        return dateA - dateB;
       });
-    } else if (sortBy === '504') {
+    } else if (sortBy === 'firstName') {
+      // Sort by first name
       filtered = [...filtered].sort((a, b) => {
-        const dateA = a.next504 || a.next504Date || '';
-        const dateB = b.next504 || b.next504Date || '';
-        if (!dateA && !dateB) return 0;
-        if (!dateA) return 1;
-        if (!dateB) return -1;
-        return new Date(dateA) - new Date(dateB);
+        const firstNameA = a.name.split(' ')[0] || a.name;
+        const firstNameB = b.name.split(' ')[0] || b.name;
+        return firstNameA.localeCompare(firstNameB);
+      });
+    } else if (sortBy === 'lastName') {
+      // Sort by last name
+      filtered = [...filtered].sort((a, b) => {
+        const namePartsA = a.name.split(' ');
+        const namePartsB = b.name.split(' ');
+        const lastNameA = namePartsA.length > 1 ? namePartsA[namePartsA.length - 1] : namePartsA[0];
+        const lastNameB = namePartsB.length > 1 ? namePartsB[namePartsB.length - 1] : namePartsB[0];
+        return lastNameA.localeCompare(lastNameB);
+      });
+    } else if (sortBy === 'grade') {
+      // Sort by grade level
+      filtered = [...filtered].sort((a, b) => {
+        const gradeA = a.grade || '';
+        const gradeB = b.grade || '';
+        // Extract numeric grade if possible (e.g., "3rd" -> 3, "5th" -> 5)
+        const numA = parseInt(gradeA) || 0;
+        const numB = parseInt(gradeB) || 0;
+        if (numA !== numB) return numA - numB;
+        return gradeA.localeCompare(gradeB);
       });
     } else {
-      // Sort by name
+      // Default: sort by name
       filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
     }
     
@@ -1562,30 +1588,15 @@ Format the summary clearly with sections. Only include information that is actua
                            {isUploading ? "Analyzing..." : "Upload"}
                          </Button>
                        </div>
-                       <Button 
-                         variant="secondary" 
-                         onClick={() => setShowDocumentsViewer(true)}
-                         icon={FileText}
-                         theme={theme}
-                         title="View uploaded documents"
-                       >
-                         Documents ({studentDocuments.length})
-                       </Button>
                      </div>
                      <p className={`text-[10px] ${theme.textMuted} text-right`}>Uploaded documents are analyzed and automatically added to the Student Summary</p>
                    </div>
                  </div>
-                 <div className={`grid gap-4 ${(activeStudent.nextIep || activeStudent.nextIepDate) && (activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-3' : (activeStudent.nextIep || activeStudent.nextIepDate || activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                 <div className={`grid gap-4 ${(activeStudent.nextIep || activeStudent.nextIepDate) && (activeStudent.nextEval || activeStudent.nextEvalDate) ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {(activeStudent.nextIep || activeStudent.nextIepDate) && (
                       <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
                         <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).color}`}></div>
                         <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep || activeStudent.nextIepDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text}</Badge>
-                      </div>
-                    )}
-                    {(activeStudent.next504 || activeStudent.next504Date) && (
-                      <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                        <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).color}`}></div>
-                        <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>504 Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.next504 || activeStudent.next504Date || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text}</Badge>
                       </div>
                     )}
                     {(activeStudent.nextEval || activeStudent.nextEvalDate) && (
@@ -1601,22 +1612,33 @@ Format the summary clearly with sections. Only include information that is actua
                    <h3 className={`text-lg font-bold ${theme.text} flex items-center gap-2`}>
                      <BarChart3 className="text-cyan-400"/> Student Summary
                    </h3>
-                   <Button 
-                     onClick={() => {
-                       const summary = studentSummary || activeStudent.summary || '';
-                       if (summary) {
-                         navigator.clipboard.writeText(summary);
-                         alert('Summary copied to clipboard!');
-                       }
-                     }}
-                     variant="secondary"
-                     icon={Copy}
-                     className="text-xs"
-                     theme={theme}
-                     disabled={!studentSummary && !activeStudent.summary}
-                   >
-                     Copy
-                   </Button>
+                   <div className="flex gap-2">
+                     <Button 
+                       variant="secondary" 
+                       onClick={() => setShowDocumentsViewer(true)}
+                       icon={FileText}
+                       theme={theme}
+                       title="View uploaded documents"
+                     >
+                       Documents ({studentDocuments.length})
+                     </Button>
+                     <Button 
+                       onClick={() => {
+                         const summary = studentSummary || activeStudent.summary || '';
+                         if (summary) {
+                           navigator.clipboard.writeText(summary);
+                           alert('Summary copied to clipboard!');
+                         }
+                       }}
+                       variant="secondary"
+                       icon={Copy}
+                       className="text-xs"
+                       theme={theme}
+                       disabled={!studentSummary && !activeStudent.summary}
+                     >
+                       Copy
+                     </Button>
+                   </div>
                  </div>
                  <div className={`${theme.inputBg} rounded-xl p-4 border ${theme.cardBorder} max-h-[400px] overflow-y-auto`}>
                    {(() => {
@@ -2313,9 +2335,10 @@ Format the summary clearly with sections. Only include information that is actua
                     onChange={(e) => setSortBy(e.target.value)}
                     className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg px-3 py-2 ${theme.text} outline-none focus:border-cyan-500 text-sm`}
                   >
-                    <option value="name">Sort by Name</option>
-                    <option value="iep">Sort by IEP Due Date</option>
-                    <option value="504">Sort by 504 Due Date</option>
+                    <option value="dueDate">Sort by Upcoming Due Date</option>
+                    <option value="firstName">Sort by First Name</option>
+                    <option value="lastName">Sort by Last Name</option>
+                    <option value="grade">Sort by Grade Level</option>
                   </select>
                   <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
                     Add Student
@@ -2345,7 +2368,6 @@ Format the summary clearly with sections. Only include information that is actua
                         <th className="p-4">Grade</th>
                         <th className="p-4">Primary Need</th>
                         <th className="p-4">IEP Due Date</th>
-                        <th className="p-4">504 Due Date</th>
                         <th className="p-4">Evaluation Due</th>
                         <th className="p-4">Actions</th>
                       </tr>
@@ -2354,7 +2376,6 @@ Format the summary clearly with sections. Only include information that is actua
                       {displayedStudents.map((student) => {
                         const iepStatus = ComplianceService.getStatus(student.nextIep || student.nextIepDate);
                         const evalStatus = ComplianceService.getStatus(student.nextEval || student.nextEvalDate);
-                        const plan504Status = ComplianceService.getStatus(student.next504 || student.next504Date);
                         
                         return (
                           <tr key={student.id} className={`hover:${theme.inputBg} transition-colors`}>
@@ -2378,18 +2399,6 @@ Format the summary clearly with sections. Only include information that is actua
                                 </div>
                               ) : (
                                 <span className={theme.textMuted}>No IEP</span>
-                              )}
-                            </td>
-                            <td className="p-4">
-                              {student.next504 || student.next504Date ? (
-                                <div className="flex flex-col gap-1 min-w-[120px]">
-                                  <span className={`${theme.text} whitespace-nowrap`}>{student.next504 || student.next504Date}</span>
-                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark} className="w-fit">
-                                    {plan504Status.text}
-                                  </Badge>
-                                </div>
-                              ) : (
-                                <span className={theme.textMuted}>No 504</span>
                               )}
                             </td>
                             <td className="p-4">

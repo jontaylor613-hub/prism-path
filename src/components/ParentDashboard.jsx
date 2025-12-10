@@ -7,8 +7,8 @@ import {
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
-import AccommodationGem from '../AccommodationGem';
-import NeuroDriver from '../NeuroDriver';
+import AccommodationGem from './AccommodationGem';
+import NeuroDriver from './NeuroDriver';
 import StudentProgressChart from './StudentProgressChart';
 import DashboardBriefing from './DashboardBriefing';
 import CommandBar from './CommandBar';

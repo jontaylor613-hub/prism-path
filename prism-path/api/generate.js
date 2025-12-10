@@ -4,53 +4,59 @@
  * Handles 4 distinct AI modes with proper isolation and mock data fallback
  * Fixes: Stale state, looping issues, and integration failures
  * 
- * Uses unified studentService that automatically tries Firebase and falls back to mock store
+ * Architecture:
+ * - Router pattern with switch statement on 'mode' parameter
+ * - All context variables instantiated inside request handler (prevents stale state)
+ * - Mock data fallback when Firebase/Google integrations fail
  */
 
 // ============================================================================
-// STUDENT DATA ACCESS (Unified Service - Firebase + Mock Fallback)
+// MOCK DATA LAYER (Fallback when integrations fail)
 // ============================================================================
 
-// For serverless API routes, we use a simplified approach
-// The unified service will be used by frontend components
-// Here we provide a lightweight version that works in serverless context
+function getMockStudentData() {
+  return {
+    name: "Alex",
+    grade: "5",
+    diagnosis: "ADHD",
+    accommodations: ["Extended time", "Chunking", "Movement breaks"],
+    strengths: ["Creative problem solving", "Strong verbal skills"],
+    needs: ["Focus support", "Organization strategies", "Time management"],
+    impact: "Difficulty maintaining attention during independent work, affecting completion rates"
+  };
+}
+
+// ============================================================================
+// STUDENT DATA ACCESS (Firebase + Mock Fallback)
+// ============================================================================
 
 async function getStudentData(studentId = null) {
+  // CRITICAL: Always return fresh data - never cache across requests
+  // This prevents stale state bugs where previous student data persists
+  
   try {
-    // Try to use unified service if available (for future Firebase integration)
-    // In serverless context, we'll use a simplified version
-    // The full service with Firebase will be used by frontend components
+    // Attempt to fetch from Firebase/Google services
+    // This will fail gracefully if integrations aren't connected
     
-    // For now, return mock data that matches the structure expected by AI handlers
-    // When Firebase is connected, this can be updated to fetch from Firebase
-    // or call the unified service if it's accessible in serverless context
+    // Try to import and use the unified student service if available
+    try {
+      const { getStudentDataForAPI } = await import('../lib/studentService.js').catch(() => null);
+      if (getStudentDataForAPI) {
+        const data = await getStudentDataForAPI(studentId);
+        if (data) return data;
+      }
+    } catch (importError) {
+      // Service not available, continue to mock fallback
+      console.warn("Student service import failed, using mock data:", importError.message);
+    }
     
-    return {
-      name: "Alex",
-      grade: "5",
-      diagnosis: "ADHD",
-      accommodations: ["Extended time", "Chunking", "Movement breaks"],
-      strengths: ["Creative problem solving", "Strong verbal skills"],
-      needs: ["Focus support", "Organization strategies", "Time management"],
-      impact: "Difficulty maintaining attention during independent work, affecting completion rates"
-    };
-    
-    // TODO: When Firebase is fully connected, uncomment and use:
-    // const { getStudentDataForAPI } = await import('../lib/studentService.js');
-    // return await getStudentDataForAPI(studentId);
+    // Fallback to mock data if Firebase/Google integrations fail
+    console.info("Using mock student data (Firebase integration not available)");
+    return getMockStudentData();
     
   } catch (error) {
-    console.warn("Student data fetch failed, using default mock data:", error.message);
-    // Final fallback
-    return {
-      name: "Alex",
-      grade: "5",
-      diagnosis: "ADHD",
-      accommodations: ["Extended time", "Chunking", "Movement breaks"],
-      strengths: ["Creative problem solving", "Strong verbal skills"],
-      needs: ["Focus support", "Organization strategies", "Time management"],
-      impact: "Difficulty maintaining attention during independent work, affecting completion rates"
-    };
+    console.warn("Student data fetch failed, using mock fallback:", error.message);
+    return getMockStudentData();
   }
 }
 
@@ -142,17 +148,31 @@ async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, st
   // Build user prompt with context
   let prompt = userInput || '';
   
+  // Get fresh student data if not provided (ensures no stale state)
+  let currentStudentData = studentData;
+  if (!currentStudentData) {
+    try {
+      currentStudentData = await getStudentData();
+    } catch (error) {
+      // Continue without student data - not critical for this mode
+    }
+  }
+  
   // Add student context if available
-  if (studentData) {
-    prompt = `Student: ${studentData.name}, Grade ${studentData.grade}, Age 6-26. ${prompt}`;
+  if (currentStudentData) {
+    prompt = `Student: ${currentStudentData.name}, Grade ${currentStudentData.grade}, Age 6-26. ${prompt}`;
   }
   
   // Add session history context if provided
-  if (sessionHistory && sessionHistory.length > 0) {
-    const recentContext = sessionHistory.slice(-3).map(msg => 
-      `${msg.role}: ${msg.content}`
-    ).join('\n');
-    prompt = `Previous conversation:\n${recentContext}\n\nCurrent request: ${prompt}`;
+  if (sessionHistory && Array.isArray(sessionHistory) && sessionHistory.length > 0) {
+    const recentContext = sessionHistory.slice(-3).map(msg => {
+      const role = msg.role || 'user';
+      const content = msg.content || msg.message || '';
+      return `${role}: ${content}`;
+    }).join('\n');
+    if (recentContext.trim()) {
+      prompt = `Previous conversation:\n${recentContext}\n\nCurrent request: ${prompt}`;
+    }
   }
   
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
@@ -161,51 +181,70 @@ async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, st
 /**
  * Mode B: "accommodation_gem" - Curriculum Differentiator
  * High intelligence + vision for analyzing documents and providing accommodations
- * FIX: Check for fileData/userInput first - don't show welcome if data exists
+ * CRITICAL FIX: Check for fileData/userInput first - don't show welcome if data exists
  */
 async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistory, studentData) {
   const model = 'gemini-1.5-pro'; // High Intelligence + Vision
   
   const systemInstruction = `You are an expert curriculum differentiator. Analyze the provided image/PDF or text. Output specific differentiated instructions and modifications based on the learner's needs.`;
   
-  // CRITICAL FIX: Check if fileData or userInput exists - if yes, process immediately
-  const hasData = (fileData && fileData.length > 0) || (userInput && userInput.trim().length > 0);
+  // CRITICAL FIX: Properly check if data exists
+  // Check for actual file data (not just empty array)
+  const hasFiles = fileData && Array.isArray(fileData) && fileData.length > 0 && 
+    fileData.some(file => (file.data || file.content));
   
-  if (!hasData) {
-    // Only show welcome if no data provided
+  // Check for actual user input (not just whitespace)
+  const hasInput = userInput && typeof userInput === 'string' && userInput.trim().length > 0;
+  
+  // Only show welcome message if NO data is provided
+  if (!hasFiles && !hasInput) {
     return "Welcome! Please upload a document, image, or describe the learning material you'd like me to differentiate.";
   }
   
-  // Build user prompt
+  // If we have data, process immediately (prevents looping bug)
   let prompt = '';
   
+  // CRITICAL: Get fresh student data for each request (prevents stale state)
+  let currentStudentData = studentData;
+  if (!currentStudentData) {
+    try {
+      currentStudentData = await getStudentData();
+    } catch (error) {
+      console.warn("Could not fetch student data for accommodation_gem:", error.message);
+    }
+  }
+  
   // Add student profile context if available
-  if (studentData) {
+  if (currentStudentData) {
     prompt += `Student Profile:\n`;
-    prompt += `- Name: ${studentData.name}\n`;
-    prompt += `- Grade: ${studentData.grade}\n`;
-    prompt += `- Diagnosis: ${studentData.diagnosis}\n`;
-    if (studentData.accommodations) {
-      prompt += `- Accommodations: ${studentData.accommodations.join(', ')}\n`;
+    prompt += `- Name: ${currentStudentData.name}\n`;
+    prompt += `- Grade: ${currentStudentData.grade}\n`;
+    prompt += `- Diagnosis: ${currentStudentData.diagnosis}\n`;
+    if (currentStudentData.accommodations && currentStudentData.accommodations.length > 0) {
+      prompt += `- Accommodations: ${currentStudentData.accommodations.join(', ')}\n`;
     }
     prompt += `\n`;
   }
   
   // Add user input
-  if (userInput && userInput.trim().length > 0) {
-    prompt += `Request: ${userInput}\n\n`;
+  if (hasInput) {
+    prompt += `Request: ${userInput.trim()}\n\n`;
   }
   
-  // Add session history for context
-  if (sessionHistory && sessionHistory.length > 0) {
-    const recentContext = sessionHistory.slice(-5).map(msg => 
-      `${msg.role}: ${msg.content}`
-    ).join('\n');
-    prompt += `Conversation history:\n${recentContext}\n\n`;
+  // Add session history for context (limit to recent messages to avoid token limits)
+  if (sessionHistory && Array.isArray(sessionHistory) && sessionHistory.length > 0) {
+    const recentContext = sessionHistory.slice(-5).map(msg => {
+      const role = msg.role || 'user';
+      const content = msg.content || msg.message || '';
+      return `${role}: ${content}`;
+    }).join('\n');
+    if (recentContext.trim()) {
+      prompt += `Conversation history:\n${recentContext}\n\n`;
+    }
   }
   
-  // Files are handled in callGeminiAPI, but add instruction
-  if (fileData && fileData.length > 0) {
+  // Files are handled in callGeminiAPI, but add instruction if files exist
+  if (hasFiles) {
     prompt += `Please analyze the uploaded document(s) and provide specific differentiated instructions and accommodations based on the student's profile above.`;
   }
   
@@ -215,17 +254,28 @@ async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistor
 /**
  * Mode C: "iep_builder" - Special Education Case Manager
  * Complex reasoning for professional IEP documents
+ * CRITICAL FIX: Always get fresh student data to prevent stale state
  */
 async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, studentData) {
   const model = 'gemini-1.5-pro'; // Complex Reasoning
   
   const systemInstruction = `You are a Special Education Case Manager. Draft professional, objective behavior goals, BIPs, and parent emails. Use formal educational terminology suitable for legal documents. Do not use slang.`;
   
+  // CRITICAL FIX: Always get fresh student data for each request (prevents stale state bug)
+  // Even if studentData is passed in, fetch fresh to ensure we're not using cached data
+  let currentStudentData = studentData;
+  try {
+    currentStudentData = await getStudentData();
+  } catch (error) {
+    console.warn("Could not fetch fresh student data for iep_builder:", error.message);
+    // Use passed studentData as fallback
+    if (!currentStudentData) {
+      currentStudentData = studentData;
+    }
+  }
+  
   // Build user prompt with student data
   let prompt = '';
-  
-  // CRITICAL FIX: Always get fresh student data for each request (prevents stale state)
-  const currentStudentData = await getStudentData();
   
   if (currentStudentData) {
     prompt += `Student Information:\n`;
@@ -246,17 +296,21 @@ async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, stu
   
   // Add user input
   if (userInput && userInput.trim().length > 0) {
-    prompt += `Request: ${userInput}`;
+    prompt += `Request: ${userInput.trim()}`;
   } else {
     prompt += `Please draft appropriate IEP documentation based on the student information above.`;
   }
   
   // Add session history
-  if (sessionHistory && sessionHistory.length > 0) {
-    const recentContext = sessionHistory.slice(-5).map(msg => 
-      `${msg.role}: ${msg.content}`
-    ).join('\n');
-    prompt = `Previous context:\n${recentContext}\n\n${prompt}`;
+  if (sessionHistory && Array.isArray(sessionHistory) && sessionHistory.length > 0) {
+    const recentContext = sessionHistory.slice(-5).map(msg => {
+      const role = msg.role || 'user';
+      const content = msg.content || msg.message || '';
+      return `${role}: ${content}`;
+    }).join('\n');
+    if (recentContext.trim()) {
+      prompt = `Previous context:\n${recentContext}\n\n${prompt}`;
+    }
   }
   
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
@@ -271,15 +325,25 @@ async function handleInstantAccommodation(apiKey, userInput, fileData, sessionHi
   
   const systemInstruction = `You are an inclusion specialist. Provide exactly 3 bullet points of immediate accommodation strategies based on the student's diagnosis/struggle.`;
   
+  // Get fresh student data if not provided (ensures no stale state)
+  let currentStudentData = studentData;
+  if (!currentStudentData) {
+    try {
+      currentStudentData = await getStudentData();
+    } catch (error) {
+      // Continue without student data
+    }
+  }
+  
   // Build user prompt
   let prompt = '';
   
-  if (studentData) {
-    prompt += `Student: ${studentData.name}, Grade ${studentData.grade}, Diagnosis: ${studentData.diagnosis}. `;
+  if (currentStudentData) {
+    prompt += `Student: ${currentStudentData.name}, Grade ${currentStudentData.grade}, Diagnosis: ${currentStudentData.diagnosis}. `;
   }
   
   if (userInput && userInput.trim().length > 0) {
-    prompt += userInput;
+    prompt += userInput.trim();
   } else {
     prompt += `Provide immediate accommodation strategies.`;
   }
@@ -337,6 +401,7 @@ export default async function handler(req, res) {
   }
 
   // 3. Parse Input - CRITICAL: All variables instantiated inside handler (prevents stale state)
+  // Each request gets fresh variables - no shared state between requests
   let mode = null;
   let userInput = '';
   let fileData = [];
@@ -346,25 +411,57 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     
-    // New router pattern parameters
-    mode = body.mode || body.type || 'accommodation_gem'; // Fallback for backward compatibility
-    userInput = body.userInput || body.prompt || body.message || '';
+    // BACKWARD COMPATIBILITY: Handle both new router pattern and old format
+    // New format: { mode, userInput, fileData, sessionHistory, studentId }
+    // Old format: { prompt, files } - defaults to accommodation_gem mode
+    
+    // Detect mode (new format has explicit mode, old format doesn't)
+    mode = body.mode || body.type || null;
+    
+    // If no mode specified, try to infer from other fields or default
+    if (!mode) {
+      // Check if this looks like a specific request type
+      if (body.task || body.behavior) {
+        mode = 'neuro_driver';
+      } else if (body.translate || body.targetLanguage) {
+        mode = 'translator';
+      } else {
+        // Default to accommodation_gem for old format compatibility
+        mode = 'accommodation_gem';
+      }
+    }
+    
+    // Extract user input (support multiple formats)
+    userInput = body.userInput || body.prompt || body.message || body.text || '';
+    
+    // Extract file data (support multiple field names)
     fileData = body.fileData || body.files || [];
-    sessionHistory = body.sessionHistory || body.history || [];
-    studentId = body.studentId || null;
+    
+    // Extract session history
+    sessionHistory = body.sessionHistory || body.history || body.conversationHistory || [];
+    
+    // Extract student ID
+    studentId = body.studentId || body.student_id || null;
     
     // Validate mode
     const validModes = ['neuro_driver', 'accommodation_gem', 'iep_builder', 'instant_accommodation', 'translator'];
     if (!validModes.includes(mode)) {
       return res.status(400).json({ 
-        error: `Invalid mode. Must be one of: ${validModes.join(', ')}` 
+        error: `Invalid mode "${mode}". Must be one of: ${validModes.join(', ')}` 
       });
     }
     
     // Validate that we have some input
-    if (!userInput && (!fileData || fileData.length === 0)) {
+    // Check for actual content (not just empty strings or empty arrays)
+    const hasInput = userInput && typeof userInput === 'string' && userInput.trim().length > 0;
+    const hasFiles = fileData && Array.isArray(fileData) && fileData.length > 0 && 
+      fileData.some(file => (file.data || file.content));
+    
+    // Some modes can work without input (like accommodation_gem showing welcome)
+    // But most require some input
+    if (!hasInput && !hasFiles && mode !== 'accommodation_gem') {
       return res.status(400).json({ 
-        error: "userInput or fileData is required" 
+        error: "userInput or fileData is required for this mode" 
       });
     }
   } catch (e) {
@@ -373,12 +470,13 @@ export default async function handler(req, res) {
 
   // 4. Get Student Data (with mock fallback)
   // CRITICAL: Always fetch fresh data per request (prevents stale state bug)
+  // Note: Some handlers will fetch fresh data again to ensure no caching issues
   let studentData = null;
   try {
     studentData = await getStudentData(studentId);
   } catch (error) {
     console.warn("Student data fetch failed, continuing with null:", error.message);
-    // Continue without student data - some modes can work without it
+    // Continue without student data - handlers will use mock fallback if needed
   }
 
   // 5. Route to appropriate handler based on mode

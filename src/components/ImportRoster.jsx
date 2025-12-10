@@ -1,78 +1,14 @@
 /**
- * CSV Roster Import Component (Updated with Google Classroom Integration)
+ * CSV Roster Import Component
  * 
- * File: /components/ImportRoster.jsx
- * 
- * Allows teachers to bulk-upload student data via CSV file or import from Google Classroom
- * Works with both Firebase and mock store via unified studentService
+ * Allows teachers to bulk-upload student data via CSV file
+ * Integrates with Firebase and mock state via studentData service
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, CheckCircle, AlertTriangle, Download, X, GraduationCap, Loader2 } from 'lucide-react';
-import { GoogleIntegration, getGoogleAccessToken, isGoogleIntegrationAvailable } from '../lib/googleService';
-import { DevModeService } from '../devMode';
-
-// NOTE: Import paths for csvParser and studentService need to be adjusted based on your project structure
-// The original component uses: import from '../../lib/csvParser' and '../../lib/studentService'
-// If these files are in a different location, update the paths below
-
-// Try to import CSV parser - adjust path as needed
-let parseRosterCSV, downloadCSVTemplate, importStudentsFromCSV;
-
-// Dynamic import helper - will be called when needed
-const loadDependencies = async () => {
-  // Try importing from common locations (adjust these paths to match your structure)
-  const csvPaths = [
-    '../../prism-path/lib/csvParser.js',
-    '../lib/csvParser.js',
-    '../../lib/csvParser.js'
-  ];
-  
-  const servicePaths = [
-    '../../prism-path/lib/studentService.js',
-    '../lib/studentService.js',
-    '../../lib/studentService.js'
-  ];
-
-  // Load CSV parser
-  for (const path of csvPaths) {
-    try {
-      const csvModule = await import(/* @vite-ignore */ path);
-      parseRosterCSV = csvModule.parseRosterCSV;
-      downloadCSVTemplate = csvModule.downloadCSVTemplate;
-      break;
-    } catch (e) {
-      // Continue to next path
-    }
-  }
-
-  // Load student service
-  for (const path of servicePaths) {
-    try {
-      const serviceModule = await import(/* @vite-ignore */ path);
-      importStudentsFromCSV = serviceModule.importStudentsFromCSV;
-      break;
-    } catch (e) {
-      // Continue to next path
-    }
-  }
-
-  // Fallback if imports fail
-  if (!parseRosterCSV) {
-    parseRosterCSV = async () => {
-      throw new Error('CSV parser not found. Please ensure csvParser.js is available.');
-    };
-    downloadCSVTemplate = () => {
-      alert('CSV template download requires csvParser.js to be configured.');
-    };
-  }
-
-  if (!importStudentsFromCSV) {
-    importStudentsFromCSV = async () => {
-      throw new Error('Student service not found. Please ensure studentService.js is available.');
-    };
-  }
-};
+import React, { useState, useRef, useCallback } from 'react';
+import { UploadCloud, CheckCircle, AlertTriangle, Download, X } from 'lucide-react';
+import { parseRosterCSV, downloadCSVTemplate } from '../lib/csvParser';
+import { createStudent } from '../studentData';
 
 export default function ImportRoster({ 
   onImportComplete, 
@@ -80,117 +16,11 @@ export default function ImportRoster({
   user = null,
   theme 
 }) {
-  const [importSource, setImportSource] = useState('csv'); // 'csv' | 'classroom'
   const [isDragging, setIsDragging] = useState(false);
   const [parseResult, setParseResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importStatus, setImportStatus] = useState('idle'); // 'idle' | 'success' | 'error'
   const fileInputRef = useRef(null);
-  
-  // Google Classroom state
-  const [courses, setCourses] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-  const [googleError, setGoogleError] = useState(null);
-
-  // Initialize dependencies on mount
-  useEffect(() => {
-    loadDependencies();
-  }, []);
-
-  // Load courses when switching to Classroom mode
-  useEffect(() => {
-    if (importSource === 'classroom') {
-      loadCourses();
-    } else {
-      setCourses([]);
-      setSelectedCourseId('');
-      setGoogleError(null);
-    }
-  }, [importSource]);
-
-  const loadCourses = async () => {
-    setIsLoadingCourses(true);
-    setGoogleError(null);
-    
-    try {
-      const accessToken = await getGoogleAccessToken();
-      const google = new GoogleIntegration(accessToken);
-      const courseList = await google.listCourses();
-      setCourses(courseList);
-      
-      if (courseList.length > 0) {
-        setSelectedCourseId(courseList[0].id);
-      }
-    } catch (error) {
-      console.error('Error loading courses:', error);
-      setGoogleError('Failed to load courses. Using mock data for testing.');
-      // Still set mock courses for UI testing
-      const google = new GoogleIntegration(null);
-      const mockCourses = google.getMockCourses();
-      setCourses(mockCourses);
-      if (mockCourses.length > 0) {
-        setSelectedCourseId(mockCourses[0].id);
-      }
-    } finally {
-      setIsLoadingCourses(false);
-    }
-  };
-
-  const handleImportFromClassroom = async () => {
-    if (!selectedCourseId) {
-      setImportStatus('error');
-      setParseResult({
-        students: [],
-        errors: ['Please select a course'],
-        warnings: []
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    setImportStatus('idle');
-    setParseResult(null);
-
-    try {
-      const accessToken = await getGoogleAccessToken();
-      const google = new GoogleIntegration(accessToken);
-      const roster = await google.getCourseRoster(selectedCourseId);
-
-      // Convert Google Classroom roster to our student format
-      const students = roster.map((student, index) => {
-        const profile = student.profile || {};
-        const name = profile.name || {};
-        const fullName = name.fullName || `${name.givenName || ''} ${name.familyName || ''}`.trim() || `Student ${index + 1}`;
-        
-        return {
-          name: fullName,
-          grade: '', // Google Classroom doesn't provide grade - user will need to fill
-          diagnosis: '', // User will need to fill
-          iepGoals: [],
-          accommodations: [],
-          email: profile.emailAddress || ''
-        };
-      });
-
-      setParseResult({
-        students: students,
-        errors: [],
-        warnings: students.length === 0 
-          ? ['No students found in this course']
-          : ['Note: Grade and Diagnosis fields need to be filled manually']
-      });
-    } catch (error) {
-      setImportStatus('error');
-      setParseResult({
-        students: [],
-        errors: [error.message || 'Failed to import from Google Classroom'],
-        warnings: []
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleDragEnter = useCallback((e) => {
     e.preventDefault();
@@ -248,56 +78,99 @@ export default function ImportRoster({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (importSource === 'csv') {
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) {
-        await processFile(files[0]);
-      }
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      await processFile(files[0]);
     }
-  }, [importSource]);
+  }, []);
 
   const handleFileSelect = useCallback(async (e) => {
-    if (importSource === 'csv') {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        await processFile(files[0]);
-      }
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      await processFile(files[0]);
     }
-  }, [importSource]);
+  }, []);
 
   const handleConfirmImport = async () => {
     if (!parseResult || parseResult.students.length === 0) {
       return;
     }
 
+    if (parseResult.errors.length > 0) {
+      return; // Don't import if there are errors
+    }
+
     setIsProcessing(true);
     try {
-      // Use unified service (tries Firebase, falls back to mock)
-      const importedStudents = await importStudentsFromCSV(
-        parseResult.students,
-        user?.uid || null,
-        user?.role || 'admin'
-      );
-      
-      // Notify parent components
-      if (onImportComplete) {
-        onImportComplete(importedStudents);
-      }
-      
-      if (onStudentsUpdate) {
-        onStudentsUpdate(importedStudents);
-      }
-      
-      setImportStatus('success');
-      
-      // Clear the preview after a short delay
-      setTimeout(() => {
-        setParseResult(null);
-        setImportStatus('idle');
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+      const importedStudents = [];
+      const errors = [];
+
+      // Import each student using the studentData service
+      for (const studentData of parseResult.students) {
+        try {
+          // Map CSV data to the format expected by createStudent
+          const studentRecord = {
+            name: studentData.name,
+            grade: studentData.grade,
+            need: studentData.diagnosis, // Map diagnosis to 'need' field
+            // Store IEP goals and accommodations in a way that can be retrieved later
+            // These will need to be stored separately if your studentData structure requires it
+          };
+
+          // Create student via Firebase/mock service
+          const createdStudent = await createStudent(
+            studentRecord,
+            user?.uid || 'system',
+            user?.role || 'teacher'
+          );
+
+          // If IEP goals or accommodations exist, we might need to update the student record
+          // This depends on your studentData structure - you may need to extend createStudent
+          // to accept these fields, or update them separately
+          if (studentData.iepGoals && studentData.iepGoals.length > 0) {
+            // Store IEP goals - you may need to call an update function or extend createStudent
+            console.log(`IEP Goals for ${studentData.name}:`, studentData.iepGoals);
+          }
+
+          if (studentData.accommodations && studentData.accommodations.length > 0) {
+            // Store accommodations - you may need to call an update function or extend createStudent
+            console.log(`Accommodations for ${studentData.name}:`, studentData.accommodations);
+          }
+
+          importedStudents.push(createdStudent);
+        } catch (error) {
+          errors.push(`Failed to import ${studentData.name}: ${error.message}`);
+          console.error(`Error importing student ${studentData.name}:`, error);
         }
-      }, 2000);
+      }
+
+      if (errors.length > 0) {
+        setParseResult({
+          ...parseResult,
+          errors: [...(parseResult.errors || []), ...errors]
+        });
+        setImportStatus('error');
+      } else {
+        setImportStatus('success');
+        
+        // Notify parent components
+        if (onImportComplete) {
+          onImportComplete(importedStudents);
+        }
+        
+        if (onStudentsUpdate) {
+          onStudentsUpdate(importedStudents);
+        }
+
+        // Clear the preview after a short delay
+        setTimeout(() => {
+          setParseResult(null);
+          setImportStatus('idle');
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }, 2000);
+      }
     } catch (error) {
       setImportStatus('error');
       setParseResult({
@@ -312,10 +185,6 @@ export default function ImportRoster({
     }
   };
 
-  const handleDownloadTemplate = () => {
-    downloadCSVTemplate();
-  };
-
   const handleReset = () => {
     setParseResult(null);
     setImportStatus('idle');
@@ -327,16 +196,28 @@ export default function ImportRoster({
 
   const previewStudents = parseResult?.students.slice(0, 5) || [];
 
+  // Use theme from props or default
+  const safeTheme = theme || {
+    cardBg: 'bg-white/80 backdrop-blur-xl',
+    cardBorder: 'border border-slate-200',
+    text: 'text-slate-800',
+    textMuted: 'text-slate-500',
+    primaryText: 'text-cyan-600',
+    primaryBg: 'bg-cyan-600',
+    inputBg: 'bg-white',
+    inputBorder: 'border-slate-300'
+  };
+
   return (
-    <div className={`w-full ${theme?.cardBg || 'bg-white/80 backdrop-blur-xl'} ${theme?.cardBorder || 'border border-slate-200'} rounded-lg p-6 shadow-lg`}>
+    <div className={`w-full ${safeTheme.cardBg} ${safeTheme.cardBorder} rounded-lg p-6 shadow-lg`}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-xl font-semibold ${theme?.text || 'text-slate-800'}`}>
+        <h3 className={`text-xl font-semibold ${safeTheme.text}`}>
           Import Student Roster
         </h3>
         {parseResult && (
           <button
             onClick={handleReset}
-            className={`p-1 rounded ${theme?.textMuted || 'text-slate-500'} hover:${theme?.text || 'text-slate-800'}`}
+            className={`p-1 rounded ${safeTheme.textMuted} hover:${safeTheme.text}`}
             aria-label="Reset"
           >
             <X size={20} />
@@ -344,116 +225,22 @@ export default function ImportRoster({
         )}
       </div>
 
-      {/* Import Source Toggle */}
+      {/* CSV Template Download */}
       <div className="mb-4">
-        <label className={`block text-xs font-bold ${theme?.textMuted || 'text-slate-500'} uppercase mb-2`}>
-          Import Source
-        </label>
-        <div className={`flex gap-2 p-1 ${theme?.inputBg || 'bg-slate-100'} rounded-lg`}>
-          <button
-            onClick={() => setImportSource('csv')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-              importSource === 'csv'
-                ? `${theme?.primaryText || 'text-white'} ${theme?.primaryBg || 'bg-cyan-600'} shadow-md`
-                : `${theme?.textMuted || 'text-slate-600'} hover:${theme?.text || 'text-slate-800'}`
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <UploadCloud size={16} />
-              Upload CSV
-            </div>
-          </button>
-          <button
-            onClick={() => setImportSource('classroom')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-              importSource === 'classroom'
-                ? `${theme?.primaryText || 'text-white'} ${theme?.primaryBg || 'bg-cyan-600'} shadow-md`
-                : `${theme?.textMuted || 'text-slate-600'} hover:${theme?.text || 'text-slate-800'}`
-            }`}
-            disabled={!isGoogleIntegrationAvailable() && !DevModeService.isActive()}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <GraduationCap size={16} />
-              Google Classroom
-            </div>
-          </button>
-        </div>
-        {importSource === 'classroom' && (!isGoogleIntegrationAvailable() && !DevModeService.isActive()) && (
-          <p className={`text-xs mt-2 ${theme?.textMuted || 'text-slate-500'}`}>
-            Google integration not available. Enable in settings or use dev mode.
-          </p>
-        )}
+        <button
+          onClick={downloadCSVTemplate}
+          className={`flex items-center gap-2 text-sm ${safeTheme.primaryText} hover:underline`}
+        >
+          <Download size={16} />
+          Download CSV Template
+        </button>
+        <p className={`text-xs mt-1 ${safeTheme.textMuted}`}>
+          Use the template to ensure your CSV has the correct format
+        </p>
       </div>
 
-      {/* Google Classroom Course Selection */}
-      {importSource === 'classroom' && (
-        <div className="mb-4 space-y-3">
-          {isLoadingCourses ? (
-            <div className="flex items-center justify-center gap-2 py-4">
-              <Loader2 size={20} className="animate-spin text-cyan-600" />
-              <span className={theme?.textMuted || 'text-slate-500'}>Loading courses...</span>
-            </div>
-          ) : (
-            <>
-              <div>
-                <label className={`block text-xs font-bold ${theme?.textMuted || 'text-slate-500'} uppercase mb-2`}>
-                  Select Course
-                </label>
-                <select
-                  value={selectedCourseId}
-                  onChange={(e) => setSelectedCourseId(e.target.value)}
-                  className={`w-full ${theme?.inputBg || 'bg-white'} border ${theme?.inputBorder || 'border-slate-300'} rounded-lg p-3 ${theme?.text || 'text-slate-800'} outline-none focus:border-cyan-500`}
-                >
-                  {courses.length === 0 ? (
-                    <option value="">No courses available</option>
-                  ) : (
-                    courses.map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.name} {course.section ? `(${course.section})` : ''}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <button
-                onClick={handleImportFromClassroom}
-                disabled={!selectedCourseId || isProcessing}
-                className={`w-full py-3 px-4 rounded-lg font-semibold transition-all ${
-                  !selectedCourseId || isProcessing
-                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                    : 'bg-cyan-600 text-white hover:bg-cyan-700 active:scale-95'
-                }`}
-              >
-                {isProcessing ? 'Importing...' : 'Import Roster from Course'}
-              </button>
-              {googleError && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs text-amber-800">{googleError}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* CSV Template Download (only for CSV mode) */}
-      {importSource === 'csv' && (
-        <div className="mb-4">
-          <button
-            onClick={handleDownloadTemplate}
-            className={`flex items-center gap-2 text-sm ${theme?.primaryText || 'text-cyan-600'} hover:underline`}
-          >
-            <Download size={16} />
-            Download CSV Template
-          </button>
-          <p className={`text-xs mt-1 ${theme?.textMuted || 'text-slate-500'}`}>
-            Use the template to ensure your CSV has the correct format
-          </p>
-        </div>
-      )}
-
-      {/* Drag and Drop Zone (only for CSV mode) */}
-      {importSource === 'csv' && !parseResult && (
+      {/* Drag and Drop Zone */}
+      {!parseResult && (
         <div
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
@@ -463,7 +250,7 @@ export default function ImportRoster({
             border-2 border-dashed rounded-lg p-8 text-center transition-all
             ${isDragging 
               ? 'border-cyan-500 bg-cyan-50/50' 
-              : theme?.cardBorder || 'border-slate-300'
+              : safeTheme.cardBorder || 'border-slate-300'
             }
             ${isProcessing ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-cyan-400'}
           `}
@@ -480,21 +267,21 @@ export default function ImportRoster({
           {isProcessing ? (
             <div className="flex flex-col items-center gap-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
-              <p className={theme?.textMuted || 'text-slate-500'}>Processing CSV...</p>
+              <p className={safeTheme.textMuted}>Processing CSV...</p>
             </div>
           ) : (
             <>
               <UploadCloud 
                 size={48} 
-                className={`mx-auto mb-4 ${isDragging ? 'text-cyan-500' : theme?.textMuted || 'text-slate-400'}`} 
+                className={`mx-auto mb-4 ${isDragging ? 'text-cyan-500' : safeTheme.textMuted || 'text-slate-400'}`} 
               />
-              <p className={`text-lg font-medium mb-2 ${theme?.text || 'text-slate-800'}`}>
+              <p className={`text-lg font-medium mb-2 ${safeTheme.text}`}>
                 Drag and drop your CSV file here
               </p>
-              <p className={`text-sm ${theme?.textMuted || 'text-slate-500'}`}>
+              <p className={`text-sm ${safeTheme.textMuted}`}>
                 or click to browse
               </p>
-              <p className={`text-xs mt-2 ${theme?.textMuted || 'text-slate-400'}`}>
+              <p className={`text-xs mt-2 ${safeTheme.textMuted}`}>
                 Required columns: Student Name, Grade, Diagnosis, IEP Goals, Accommodations
               </p>
             </>
@@ -520,7 +307,7 @@ export default function ImportRoster({
       )}
 
       {/* Warnings */}
-      {parseResult && parseResult.warnings.length > 0 && (
+      {parseResult && parseResult.warnings && parseResult.warnings.length > 0 && (
         <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-start gap-2">
             <AlertTriangle size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
@@ -551,31 +338,31 @@ export default function ImportRoster({
       {/* Preview Table */}
       {parseResult && parseResult.students.length > 0 && parseResult.errors.length === 0 && (
         <div className="mb-4">
-          <h4 className={`font-semibold mb-3 ${theme?.text || 'text-slate-800'}`}>
+          <h4 className={`font-semibold mb-3 ${safeTheme.text}`}>
             Preview ({parseResult.students.length} student{parseResult.students.length !== 1 ? 's' : ''} found)
           </h4>
           
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className={`border-b ${theme?.cardBorder || 'border-slate-200'}`}>
-                  <th className={`text-left p-2 font-semibold ${theme?.text || 'text-slate-800'}`}>Name</th>
-                  <th className={`text-left p-2 font-semibold ${theme?.text || 'text-slate-800'}`}>Grade</th>
-                  <th className={`text-left p-2 font-semibold ${theme?.text || 'text-slate-800'}`}>Diagnosis</th>
-                  <th className={`text-left p-2 font-semibold ${theme?.text || 'text-slate-800'}`}>IEP Goals</th>
-                  <th className={`text-left p-2 font-semibold ${theme?.text || 'text-slate-800'}`}>Accommodations</th>
+                <tr className={`border-b ${safeTheme.cardBorder || 'border-slate-200'}`}>
+                  <th className={`text-left p-2 font-semibold ${safeTheme.text}`}>Name</th>
+                  <th className={`text-left p-2 font-semibold ${safeTheme.text}`}>Grade</th>
+                  <th className={`text-left p-2 font-semibold ${safeTheme.text}`}>Diagnosis</th>
+                  <th className={`text-left p-2 font-semibold ${safeTheme.text}`}>IEP Goals</th>
+                  <th className={`text-left p-2 font-semibold ${safeTheme.text}`}>Accommodations</th>
                 </tr>
               </thead>
               <tbody>
                 {previewStudents.map((student, index) => (
                   <tr 
                     key={index} 
-                    className={`border-b ${theme?.cardBorder || 'border-slate-100'}`}
+                    className={`border-b ${safeTheme.cardBorder || 'border-slate-100'}`}
                   >
-                    <td className={`p-2 ${theme?.text || 'text-slate-800'}`}>{student.name}</td>
-                    <td className={`p-2 ${theme?.textMuted || 'text-slate-600'}`}>{student.grade || '—'}</td>
-                    <td className={`p-2 ${theme?.textMuted || 'text-slate-600'}`}>{student.diagnosis || '—'}</td>
-                    <td className={`p-2 ${theme?.textMuted || 'text-slate-600'}`}>
+                    <td className={`p-2 ${safeTheme.text}`}>{student.name}</td>
+                    <td className={`p-2 ${safeTheme.textMuted || 'text-slate-600'}`}>{student.grade || '—'}</td>
+                    <td className={`p-2 ${safeTheme.textMuted || 'text-slate-600'}`}>{student.diagnosis || '—'}</td>
+                    <td className={`p-2 ${safeTheme.textMuted || 'text-slate-600'}`}>
                       {student.iepGoals && student.iepGoals.length > 0 ? (
                         <ul className="list-disc list-inside">
                           {student.iepGoals.slice(0, 2).map((goal, i) => (
@@ -591,7 +378,7 @@ export default function ImportRoster({
                         <span className="text-slate-400">None</span>
                       )}
                     </td>
-                    <td className={`p-2 ${theme?.textMuted || 'text-slate-600'}`}>
+                    <td className={`p-2 ${safeTheme.textMuted || 'text-slate-600'}`}>
                       {student.accommodations && student.accommodations.length > 0 ? (
                         <span className="text-xs">
                           {student.accommodations.slice(0, 2).join(', ')}
@@ -607,7 +394,7 @@ export default function ImportRoster({
             </table>
             
             {parseResult.students.length > 5 && (
-              <p className={`text-xs mt-2 text-center ${theme?.textMuted || 'text-slate-500'}`}>
+              <p className={`text-xs mt-2 text-center ${safeTheme.textMuted}`}>
                 Showing first 5 of {parseResult.students.length} students
               </p>
             )}
@@ -634,4 +421,3 @@ export default function ImportRoster({
     </div>
   );
 }
-

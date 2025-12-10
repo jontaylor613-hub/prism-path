@@ -32,6 +32,8 @@ import GoalInput from './components/GoalInput';
 import OnboardingTour from './components/OnboardingTour';
 import A11yMenu from './components/A11yMenu';
 import CrisisMode from './components/CrisisMode';
+import ImportRoster from './components/ImportRoster';
+import AdminDashboard from './components/AdminDashboard';
 import { translateContent } from './utils/translator';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
@@ -413,6 +415,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [loading, setLoading] = useState(true);
   const [selectedStudentForGem, setSelectedStudentForGem] = useState(null);
   const [chatHistories, setChatHistories] = useState([]);
+  const [showImportRoster, setShowImportRoster] = useState(false);
+  const [generateProfile, setGenerateProfile] = useState(false);
+  const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
   
   // Track demo mode student additions (localStorage, not saved)
   const getDemoStudentCount = () => {
@@ -598,23 +603,76 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         setStudents([...students, student]);
         setIsAddingStudent(false);
         setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+        setGenerateProfile(false);
         setCurrentStudentId(student.id);
         incrementDemoStudentCount();
         return;
       }
       
       try {
+        // Auto-tag security: Set schoolId and assignedTeacherIds
+        // Get user's schoolId (from mockStore or user object)
+        let schoolId = user.schoolId || '';
+        
+        // If using mockStore, try to get user's school
+        try {
+          const { getUserById } = await import('./lib/mockStore');
+          const userData = getUserById(user.uid);
+          if (userData?.schoolId) {
+            schoolId = userData.schoolId;
+          }
+        } catch (e) {
+          // Fallback if mockStore not available
+          console.warn('Could not get schoolId from mockStore:', e);
+        }
+
+        let learnerProfile = null;
+        
+        // AI Auto-Fill: Generate learner profile if requested
+        if (generateProfile && newStudent.need) {
+          setIsGeneratingProfile(true);
+          try {
+            // Use instant_accommodation mode or accommodation_gem
+            const aiPrompt = `Based on the diagnosis "${newStudent.need}", generate a 1-paragraph learner profile and 3 recommended accommodations.`;
+            
+            // Call AI service via the API route
+            const response = await fetch('/api/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: 'instant_accommodation',
+                userInput: aiPrompt,
+                fileData: []
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              learnerProfile = data.result || null;
+            }
+          } catch (error) {
+            console.error('Error generating learner profile:', error);
+            // Continue without profile - don't block student creation
+          } finally {
+            setIsGeneratingProfile(false);
+          }
+        }
+
         const studentData = {
           name: newStudent.name,
           grade: newStudent.grade,
-          need: newStudent.need,
+          need: newStudent.need, // This is the diagnosis field
+          diagnosis: newStudent.need, // Also set diagnosis field for consistency
           nextIep: newStudent.nextIep,
           nextEval: newStudent.nextEval,
-          next504: newStudent.next504
+          next504: newStudent.next504,
+          schoolId: schoolId, // Auto-tag with teacher's school
+          assignedTeacherIds: [user.uid], // Auto-assign to self
+          learnerProfile: learnerProfile // AI-generated profile if requested
         };
         
         const createdStudent = await createStudent(studentData, user.uid, user.role);
-        // Reload students from Firebase to get the updated list
+        // Reload students from Firebase/mockStore to get the updated list
         const firebaseStudents = await getStudentsForUser(user.uid, user.role);
         const allStudents = showSamples 
           ? [...SAMPLE_STUDENTS, ...firebaseStudents]
@@ -857,7 +915,17 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness'].map((tab) => {
+            {[
+              'Profile', 
+              'Identify', 
+              'Develop', 
+              'Monitor', 
+              'Behavior', 
+              'Gem', 
+              'Roster', 
+              ...(user?.role === 'admin' ? ['Admin'] : []),
+              'Wellness'
+            ].map((tab) => {
               const isGem = tab === 'Gem';
               const isWellness = tab === 'Wellness';
               return (
@@ -1353,24 +1421,102 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
             </div>
         )}
 
+        {/* --- ADMIN TAB --- */}
+        {activeTab === 'admin' && user?.role === 'admin' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4">
+            <AdminDashboard 
+              user={user}
+              theme={theme}
+              onBack={() => setActiveTab('profile')}
+            />
+          </div>
+        )}
+
         {/* --- ROSTER TAB (NEW) --- */}
         {activeTab === 'roster' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
-            <Card className="p-6" theme={theme}>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
-                  <Users className="text-cyan-400" size={24} />
-                  Student Roster
-                </h2>
-                <Button 
-                  onClick={() => setIsAddingStudent(true)} 
-                  icon={Plus} 
+            {/* Import Roster Component */}
+            {showImportRoster ? (
+              <Card className="p-6" theme={theme}>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
+                    <UploadCloud className="text-cyan-400" size={24} />
+                    Import Student Roster
+                  </h2>
+                  <Button 
+                    onClick={() => setShowImportRoster(false)} 
+                    icon={X} 
+                    variant="secondary"
+                    theme={theme}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <ImportRoster
+                  onImportComplete={async (importedStudents) => {
+                    // Reload students from Firebase/mock store
+                    try {
+                      if (user?.uid) {
+                        const updatedStudents = await getStudentsForUser(user.uid, user.role);
+                        const allStudents = showSamples 
+                          ? [...SAMPLE_STUDENTS, ...updatedStudents]
+                          : updatedStudents;
+                        setStudents(allStudents);
+                        
+                        // Select first imported student if available
+                        if (importedStudents.length > 0 && importedStudents[0].id) {
+                          setCurrentStudentId(importedStudents[0].id);
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error reloading students after import:', error);
+                    }
+                    setShowImportRoster(false);
+                  }}
+                  onStudentsUpdate={async (importedStudents) => {
+                    // Same as onImportComplete
+                    try {
+                      if (user?.uid) {
+                        const updatedStudents = await getStudentsForUser(user.uid, user.role);
+                        const allStudents = showSamples 
+                          ? [...SAMPLE_STUDENTS, ...updatedStudents]
+                          : updatedStudents;
+                        setStudents(allStudents);
+                      }
+                    } catch (error) {
+                      console.error('Error updating students after import:', error);
+                    }
+                  }}
+                  user={user}
                   theme={theme}
-                  data-tour="add-student"
-                >
-                  Add Student
-                </Button>
-              </div>
+                />
+              </Card>
+            ) : (
+              <Card className="p-6" theme={theme}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
+                    <Users className="text-cyan-400" size={24} />
+                    Student Roster
+                  </h2>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => setShowImportRoster(true)} 
+                      icon={UploadCloud} 
+                      variant="secondary"
+                      theme={theme}
+                    >
+                      Import CSV
+                    </Button>
+                    <Button 
+                      onClick={() => setIsAddingStudent(true)} 
+                      icon={Plus} 
+                      theme={theme}
+                      data-tour="add-student"
+                    >
+                      Add Student
+                    </Button>
+                  </div>
+                </div>
               
               {loading ? (
                 <div className={`text-center py-12 ${theme.textMuted}`}>
@@ -1563,9 +1709,48 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       />
                     </div>
                   </div>
+                  {/* AI Auto-Fill Checkbox */}
+                  <div className="flex items-center gap-2 p-3 rounded-lg border border-cyan-200 bg-cyan-50/50">
+                    <input
+                      type="checkbox"
+                      id="generateProfile"
+                      checked={generateProfile}
+                      onChange={(e) => setGenerateProfile(e.target.checked)}
+                      className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
+                      disabled={isGeneratingProfile || !newStudent.need}
+                    />
+                    <label htmlFor="generateProfile" className={`text-sm ${theme.text} cursor-pointer`}>
+                      {isGeneratingProfile ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="animate-spin text-cyan-600" size={16} />
+                          Generating learner profile...
+                        </span>
+                      ) : (
+                        <span>
+                          <Sparkles className="inline mr-1 text-cyan-600" size={14} />
+                          Generate Draft Learner Profile? (AI will create a profile based on diagnosis)
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                  {!newStudent.need && generateProfile && (
+                    <p className={`text-xs ${theme.textMuted} -mt-2`}>
+                      Enter a diagnosis/need above to enable AI profile generation.
+                    </p>
+                  )}
+                  
                   <div className="pt-4 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => setIsAddingStudent(false)} theme={theme}>Cancel</Button>
-                    <Button onClick={handleAddStudent} theme={theme}>Save</Button>
+                    <Button variant="ghost" onClick={() => {
+                      setIsAddingStudent(false);
+                      setGenerateProfile(false);
+                    }} theme={theme}>Cancel</Button>
+                    <Button 
+                      onClick={handleAddStudent} 
+                      theme={theme}
+                      disabled={isGeneratingProfile}
+                    >
+                      {isGeneratingProfile ? 'Generating...' : 'Save'}
+                    </Button>
                   </div>
                 </div>
               </Card>

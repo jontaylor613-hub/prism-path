@@ -3,6 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { signUp, signIn, getCurrentUserProfile } from '../auth';
 import { getTheme } from '../utils';
+import { validatePassword } from '../lib/passwordValidator';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
 
 // Shared Button component (simplified version)
 const Button = ({ children, onClick, disabled, className = '', theme, type = 'button' }) => (
@@ -25,6 +27,7 @@ export default function SignupPage({ onBack }) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordErrors, setPasswordErrors] = useState([]);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -36,10 +39,29 @@ export default function SignupPage({ onBack }) {
 
   const theme = getTheme(true);
 
+  // Real-time password validation
+  useEffect(() => {
+    if (formData.password) {
+      const validation = validatePassword(formData.password);
+      setPasswordErrors(validation.errors);
+    } else {
+      setPasswordErrors([]);
+    }
+  }, [formData.password]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Validate password before submission
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.valid) {
+      setError('Please fix password requirements before submitting.');
+      setPasswordErrors(passwordValidation.errors);
+      setLoading(false);
+      return;
+    }
 
     try {
       // Prepare signup data
@@ -161,11 +183,21 @@ export default function SignupPage({ onBack }) {
               required
               value={formData.password}
               onChange={e => setFormData({...formData, password: e.target.value})}
-              minLength={6}
-              className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`}
-              placeholder="••••••••"
+              minLength={12}
+              className={`w-full ${theme.inputBg} border ${passwordErrors.length > 0 ? 'border-red-500' : theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none focus:border-cyan-500`}
+              placeholder="••••••••••••"
             />
-            <p className={`text-xs ${theme.textMuted} mt-1`}>Minimum 6 characters</p>
+            <p className={`text-xs ${theme.textMuted} mt-1`}>Minimum 12 characters with uppercase, lowercase, numbers, and symbols</p>
+            <PasswordStrengthIndicator password={formData.password} isDark={true} />
+            {passwordErrors.length > 0 && (
+              <ul className={`mt-2 text-xs text-red-400 space-y-1`}>
+                {passwordErrors.map((err, idx) => (
+                  <li key={idx} className="flex items-center gap-1">
+                    <span>•</span> {err}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           
           {error && (

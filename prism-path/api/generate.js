@@ -11,6 +11,50 @@
  */
 
 // ============================================================================
+// PII ANONYMIZATION UTILITY
+// ============================================================================
+
+/**
+ * PII Anonymization Function
+ * Strips personally identifiable information before sending to AI
+ * @param {string} prompt - The original prompt containing potential PII
+ * @param {string} studentName - The student's name to replace with placeholder
+ * @returns {string} Anonymized prompt
+ */
+function anonymizeAndSend(prompt, studentName) {
+  if (!prompt || typeof prompt !== 'string') return prompt || '';
+  
+  let anonymized = prompt;
+  
+  // Replace student name with placeholder
+  if (studentName && typeof studentName === 'string') {
+    const nameRegex = new RegExp(`\\b${studentName}\\b`, 'gi');
+    anonymized = anonymized.replace(nameRegex, '[Student]');
+  }
+  
+  // Common PII patterns to remove/replace
+  // Email addresses
+  anonymized = anonymized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[Email]');
+  
+  // Phone numbers (various formats)
+  anonymized = anonymized.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[Phone]');
+  
+  // Social Security Numbers (basic pattern)
+  anonymized = anonymized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]');
+  
+  // Addresses (basic pattern - street numbers)
+  anonymized = anonymized.replace(/\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr|Boulevard|Blvd|Court|Ct)\b/gi, '[Address]');
+  
+  // Dates of birth (MM/DD/YYYY or similar)
+  anonymized = anonymized.replace(/\b(?:DOB|Date of Birth)[:\s]+[\d/]+\b/gi, '[Date of Birth]');
+  
+  // Student ID numbers (common patterns)
+  anonymized = anonymized.replace(/\b(?:ID|Student ID)[:\s#]+[\w-]+\b/gi, '[Student ID]');
+  
+  return anonymized;
+}
+
+// ============================================================================
 // MOCK DATA LAYER (Fallback when integrations fail)
 // ============================================================================
 
@@ -158,6 +202,12 @@ async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, st
     }
   }
   
+  // Extract student name for anonymization
+  let studentName = null;
+  if (currentStudentData && currentStudentData.name) {
+    studentName = currentStudentData.name;
+  }
+  
   // Add student context if available
   if (currentStudentData) {
     prompt = `Student: ${currentStudentData.name}, Grade ${currentStudentData.grade}, Age 6-26. ${prompt}`;
@@ -174,6 +224,9 @@ async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, st
       prompt = `Previous conversation:\n${recentContext}\n\nCurrent request: ${prompt}`;
     }
   }
+  
+  // Anonymize PII before sending
+  prompt = anonymizeAndSend(prompt, studentName);
   
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
 }
@@ -214,6 +267,12 @@ async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistor
     }
   }
   
+  // Extract student name for anonymization
+  let studentName = null;
+  if (currentStudentData && currentStudentData.name) {
+    studentName = currentStudentData.name;
+  }
+  
   // Add student profile context if available
   if (currentStudentData) {
     prompt += `Student Profile:\n`;
@@ -248,6 +307,9 @@ async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistor
     prompt += `Please analyze the uploaded document(s) and provide specific differentiated instructions and accommodations based on the student's profile above.`;
   }
   
+  // Anonymize PII before sending
+  prompt = anonymizeAndSend(prompt, studentName);
+  
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
 }
 
@@ -272,6 +334,12 @@ async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, stu
     if (!currentStudentData) {
       currentStudentData = studentData;
     }
+  }
+  
+  // Extract student name for anonymization
+  let studentName = null;
+  if (currentStudentData && currentStudentData.name) {
+    studentName = currentStudentData.name;
   }
   
   // Build user prompt with student data
@@ -313,26 +381,35 @@ async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, stu
     }
   }
   
+  // Anonymize PII before sending
+  prompt = anonymizeAndSend(prompt, studentName);
+  
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
 }
 
 /**
- * Mode D: "instant_accommodation" - Inclusion Specialist
+ * Mode D: "instant_help" - Inclusion Specialist
  * Fast accommodation strategies
  */
-async function handleInstantAccommodation(apiKey, userInput, fileData, sessionHistory, studentData) {
+async function handleInstantHelp(apiKey, userInput, fileData, sessionHistory, studentData) {
   const model = 'gemini-1.5-flash'; // Speed
   
   const systemInstruction = `You are an inclusion specialist. Provide exactly 3 bullet points of immediate accommodation strategies based on the student's diagnosis/struggle.`;
   
   // Get fresh student data if not provided (ensures no stale state)
   let currentStudentData = studentData;
+  let studentName = null;
   if (!currentStudentData) {
     try {
       currentStudentData = await getStudentData();
     } catch (error) {
       // Continue without student data
     }
+  }
+  
+  // Extract student name for anonymization
+  if (currentStudentData && currentStudentData.name) {
+    studentName = currentStudentData.name;
   }
   
   // Build user prompt
@@ -347,6 +424,9 @@ async function handleInstantAccommodation(apiKey, userInput, fileData, sessionHi
   } else {
     prompt += `Provide immediate accommodation strategies.`;
   }
+  
+  // Anonymize PII before sending
+  prompt = anonymizeAndSend(prompt, studentName);
   
   return await callGeminiAPI(apiKey, model, systemInstruction, prompt, fileData);
 }
@@ -443,12 +523,17 @@ export default async function handler(req, res) {
     // Extract student ID
     studentId = body.studentId || body.student_id || null;
     
-    // Validate mode
-    const validModes = ['neuro_driver', 'accommodation_gem', 'iep_builder', 'instant_accommodation', 'translator'];
+    // Validate mode (support both instant_accommodation and instant_help for backward compatibility)
+    const validModes = ['neuro_driver', 'accommodation_gem', 'iep_builder', 'instant_help', 'instant_accommodation', 'translator'];
     if (!validModes.includes(mode)) {
       return res.status(400).json({ 
         error: `Invalid mode "${mode}". Must be one of: ${validModes.join(', ')}` 
       });
+    }
+    
+    // Normalize mode name (instant_accommodation -> instant_help)
+    if (mode === 'instant_accommodation') {
+      mode = 'instant_help';
     }
     
     // Validate that we have some input
@@ -463,6 +548,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ 
         error: "userInput or fileData is required for this mode" 
       });
+    }
+    
+    // Normalize mode name (instant_accommodation -> instant_help)
+    if (mode === 'instant_accommodation') {
+      mode = 'instant_help';
     }
   } catch (e) {
     return res.status(400).json({ error: "Invalid JSON body: " + e.message });
@@ -496,8 +586,9 @@ export default async function handler(req, res) {
         result = await handleIepBuilder(apiKey, userInput, fileData, sessionHistory, studentData);
         break;
         
-      case 'instant_accommodation':
-        result = await handleInstantAccommodation(apiKey, userInput, fileData, sessionHistory, studentData);
+      case 'instant_help':
+      case 'instant_accommodation': // Backward compatibility
+        result = await handleInstantHelp(apiKey, userInput, fileData, sessionHistory, studentData);
         break;
         
       case 'translator':

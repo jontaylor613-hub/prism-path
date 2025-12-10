@@ -137,6 +137,8 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             
             <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
             
+            <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
+            
             <div className="relative" ref={studentMenuRef}>
               <button 
                 onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
@@ -183,6 +185,9 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
              <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
              {/* Mobile Menu Order Updated */}
+             <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
+             <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
+             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
              <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>

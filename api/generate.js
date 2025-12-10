@@ -5,6 +5,46 @@
 
 import { rateLimitMiddleware } from './rateLimit.js';
 
+/**
+ * PII Anonymization Function
+ * Strips personally identifiable information before sending to AI
+ * @param {string} prompt - The original prompt containing potential PII
+ * @param {string} studentName - The student's name to replace with placeholder
+ * @returns {string} Anonymized prompt
+ */
+function anonymizeAndSend(prompt, studentName) {
+  if (!prompt || typeof prompt !== 'string') return prompt || '';
+  
+  let anonymized = prompt;
+  
+  // Replace student name with placeholder
+  if (studentName && typeof studentName === 'string') {
+    const nameRegex = new RegExp(`\\b${studentName}\\b`, 'gi');
+    anonymized = anonymized.replace(nameRegex, '[Student]');
+  }
+  
+  // Common PII patterns to remove/replace
+  // Email addresses
+  anonymized = anonymized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[Email]');
+  
+  // Phone numbers (various formats)
+  anonymized = anonymized.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[Phone]');
+  
+  // Social Security Numbers (basic pattern)
+  anonymized = anonymized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]');
+  
+  // Addresses (basic pattern - street numbers)
+  anonymized = anonymized.replace(/\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr|Boulevard|Blvd|Court|Ct)\b/gi, '[Address]');
+  
+  // Dates of birth (MM/DD/YYYY or similar)
+  anonymized = anonymized.replace(/\b(?:DOB|Date of Birth)[:\s]+[\d/]+\b/gi, '[Date of Birth]');
+  
+  // Student ID numbers (common patterns)
+  anonymized = anonymized.replace(/\b(?:ID|Student ID)[:\s#]+[\w-]+\b/gi, '[Student ID]');
+  
+  return anonymized;
+}
+
 // AI Mode Configuration
 const AI_MODES = {
   neuro_driver: {
@@ -146,10 +186,11 @@ export default async function handler(req, res) {
   let prompt = "";
   let files = [];
   let mode = null;
+  let body = {};
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    prompt = body.prompt || "";
-    files = body.files || [];
+    body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    prompt = body.prompt || body.userInput || "";
+    files = body.files || body.fileData || [];
     mode = body.mode || null;
     
     // Validate prompt exists and is not empty (unless files are provided)
@@ -179,6 +220,10 @@ export default async function handler(req, res) {
         userPrompt = parts.slice(1).join('\n\n---\n\n');
       }
       
+      // Anonymize user prompt before sending to AI (strip PII)
+      const studentName = body.studentName || null;
+      userPrompt = anonymizeAndSend(userPrompt, studentName);
+      
       // Try primary model, then fallback
       const models = [config.model];
       if (config.model === 'gemini-1.5-pro') {
@@ -206,10 +251,15 @@ export default async function handler(req, res) {
       // Legacy mode: use default behavior with fallback models
       const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
       // Legacy behavior: use prompt as-is without system instructions
+      // Still anonymize PII for legacy requests
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const studentName = body.studentName || null;
+      const anonymizedPrompt = anonymizeAndSend(prompt, studentName);
+      
       let lastError = null;
       for (const model of models) {
         try {
-          const result = await callGeminiAPI(apiKey, model, null, prompt, files);
+          const result = await callGeminiAPI(apiKey, model, null, anonymizedPrompt, files);
           return res.status(200).json({ result });
         } catch (modelError) {
           lastError = modelError;

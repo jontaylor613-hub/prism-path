@@ -43,9 +43,11 @@ export const createStudent = async (studentData, userId, userRole) => {
       // Access control
       createdBy: userId,
       assignedTeachers: userRole === 'parent' ? [] : [userId], // Teachers who can access this student
+      assignedTeacherIds: userRole === 'parent' ? [] : [userId], // Same as assignedTeachers (for compatibility)
       isSpedStudent: userRole === 'sped',
       schoolId: userRole === 'parent' ? 'home_school' : (studentData.schoolId || ''),
-      parentId: userRole === 'parent' ? userId : (studentData.parentId || ''), // For parent-created students
+      parentId: userRole === 'parent' ? userId : (studentData.parentId || ''), // For parent-created students (legacy)
+      parentIds: userRole === 'parent' ? [userId] : (studentData.parentIds || []), // Array of parent UIDs
       
       // Metadata
       createdAt: serverTimestamp(),

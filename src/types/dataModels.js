@@ -13,8 +13,8 @@
 /**
  * @typedef {Object} User
  * @property {string} uid - Firebase Auth UID
- * @property {'admin' | 'teacher'} role - User role (admin or teacher)
- * @property {string} schoolId - School this user belongs to
+ * @property {'admin' | 'teacher' | 'parent'} role - User role (admin, teacher, or parent)
+ * @property {string} schoolId - School this user belongs to (null or 'home_school' for parents)
  * @property {string} name - User's display name
  * @property {string} email - User's email
  * @property {boolean} isActive - Whether the user account is active
@@ -27,8 +27,9 @@
  * @property {string} id - Unique student identifier
  * @property {string} name - Student name (non-PII in context)
  * @property {string} diagnosis - Primary diagnosis/need
- * @property {string} schoolId - School this student belongs to
+ * @property {string} schoolId - School this student belongs to ('home_school' for parent-created students)
  * @property {string[]} assignedTeacherIds - Array of teacher UIDs who can access this student
+ * @property {string[]} parentIds - Array of parent UIDs who can access this student
  * @property {string} [learnerProfile] - Optional AI-generated learner profile
  * @property {string} [grade] - Student grade level
  * @property {boolean} isActive - Whether the student record is active
@@ -49,15 +50,20 @@
 export function canUserViewStudent(user, student) {
   if (!user || !student) return false;
   
-  // Must be in same school
-  if (user.schoolId !== student.schoolId) return false;
-  
   // Admins can view all students in their school
-  if (user.role === 'admin') return true;
+  if (user.role === 'admin') {
+    return user.schoolId === student.schoolId;
+  }
   
-  // Teachers can only view assigned students
+  // Teachers can only view assigned students in their school
   if (user.role === 'teacher') {
-    return student.assignedTeacherIds?.includes(user.uid) || false;
+    return user.schoolId === student.schoolId && 
+           (student.assignedTeacherIds?.includes(user.uid) || false);
+  }
+  
+  // Parents can only view their own children (students where parentIds includes their uid)
+  if (user.role === 'parent') {
+    return student.parentIds?.includes(user.uid) || false;
   }
   
   return false;

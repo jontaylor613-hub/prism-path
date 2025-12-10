@@ -95,7 +95,7 @@ export function createUser(userData) {
   const newUser = {
     uid: userData.uid || `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     role: userData.role || 'teacher',
-    schoolId: userData.schoolId || '',
+    schoolId: userData.schoolId || (userData.role === 'parent' ? 'home_school' : ''),
     name: userData.name || '',
     email: userData.email || '',
     isActive: userData.isActive !== false,
@@ -104,8 +104,8 @@ export function createUser(userData) {
   };
   mockUsers.push(newUser);
   
-  // If admin, add to school adminIds
-  if (newUser.role === 'admin' && newUser.schoolId) {
+  // If admin, add to school adminIds (but not for parents)
+  if (newUser.role === 'admin' && newUser.schoolId && newUser.schoolId !== 'home_school') {
     const school = getSchoolById(newUser.schoolId);
     if (school && !school.adminIds.includes(newUser.uid)) {
       school.adminIds.push(newUser.uid);
@@ -142,15 +142,16 @@ export function updateUser(uid, updates) {
 // STUDENT OPERATIONS
 // ============================================================================
 
-export function createStudent(studentData, userId) {
+export function createStudent(studentData, userId, userRole = 'teacher') {
   initializeMockStore();
   
   const newStudent = {
     id: studentData.id || `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     name: studentData.name || '',
-    diagnosis: studentData.diagnosis || '',
-    schoolId: studentData.schoolId || '',
-    assignedTeacherIds: studentData.assignedTeacherIds || [userId], // Auto-assign to creator
+    diagnosis: studentData.diagnosis || studentData.need || '',
+    schoolId: studentData.schoolId || (userRole === 'parent' ? 'home_school' : ''),
+    assignedTeacherIds: studentData.assignedTeacherIds || (userRole === 'parent' ? [] : [userId]), // Auto-assign to creator if teacher
+    parentIds: studentData.parentIds || (userRole === 'parent' ? [userId] : []), // Auto-assign to creator if parent
     grade: studentData.grade || '',
     learnerProfile: studentData.learnerProfile || null,
     isActive: true,
@@ -172,8 +173,27 @@ export function getStudentsBySchool(schoolId) {
   return mockStudents.filter(s => s.schoolId === schoolId && s.isActive !== false);
 }
 
-export function getStudentsForUser(userId, userRole, schoolId) {
+export function getStudentsForUser(userId, userRole, schoolId = null) {
   initializeMockStore();
+  
+  // Parents see students where parentIds includes their uid (regardless of schoolId)
+  if (userRole === 'parent') {
+    return mockStudents.filter(s => 
+      s.isActive !== false && 
+      (s.parentIds?.includes(userId) || false)
+    );
+  }
+  
+  // For admins and teachers, filter by schoolId
+  if (!schoolId) {
+    // Try to get schoolId from user if not provided
+    const user = getUserById(userId);
+    if (user && user.schoolId) {
+      schoolId = user.schoolId;
+    } else {
+      return [];
+    }
+  }
   
   let filtered = mockStudents.filter(s => s.schoolId === schoolId && s.isActive !== false);
   
@@ -223,6 +243,30 @@ export function assignStudentToTeacher(studentId, teacherId, adminId) {
   return updateStudent(studentId, {
     assignedTeacherIds: student.assignedTeacherIds
   });
+}
+
+/**
+ * Get all teachers in a school
+ */
+export function getTeachersBySchool(schoolId) {
+  initializeMockStore();
+  return mockUsers.filter(u => 
+    u.schoolId === schoolId && 
+    u.role === 'teacher' && 
+    u.isActive !== false
+  );
+}
+
+/**
+ * Get all admins in a school
+ */
+export function getAdminsBySchool(schoolId) {
+  initializeMockStore();
+  return mockUsers.filter(u => 
+    u.schoolId === schoolId && 
+    u.role === 'admin' && 
+    u.isActive !== false
+  );
 }
 
 export function removeStudent(id) {
@@ -373,6 +417,10 @@ const MockStore = {
   getStrategyUsage,
   getAllStrategyUsage,
   initializeWisdomStore,
+  
+  // Admin helpers
+  getTeachersBySchool,
+  getAdminsBySchool,
   
   // Initialize
   initialize: initializeMockStore

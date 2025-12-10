@@ -653,7 +653,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         if (generateProfile && newStudent.need) {
           setIsGeneratingProfile(true);
           try {
-            // Use instant_accommodation mode or accommodation_gem
+            // Use instant_help mode for quick accommodation strategies
             const aiPrompt = `Based on the diagnosis "${newStudent.need}", generate a 1-paragraph learner profile and 3 recommended accommodations.`;
             
             // Call AI service via the API route
@@ -661,9 +661,10 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                mode: 'instant_accommodation',
+                mode: 'instant_help',
                 userInput: aiPrompt,
-                fileData: []
+                fileData: [],
+                studentName: newStudent.name // Pass student name for anonymization
               })
             });
 

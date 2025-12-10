@@ -113,15 +113,15 @@ export default function VoiceObservation({
     setError('');
 
     try {
-      // Call API to parse the observation
+      // Call API to parse the observation using data_extractor mode
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          mode: 'neuro_driver', // Using neuro_driver mode, or could create a new 'data_extractor' mode
-          userInput: `Extract the following JSON from this text: "${transcript}". Return ONLY valid JSON in this format: {"studentName": "name", "time": "time", "antecedent": "what happened before", "behavior": "the behavior", "consequence": "what happened after"}. If any field cannot be determined, use null.`,
+          mode: 'data_extractor',
+          prompt: `Extract the following JSON from this observation text: "${transcript}". Return ONLY valid JSON in this format (no markdown, no explanation): {"studentName": "name", "time": "time", "antecedent": "what happened before", "behavior": "the behavior", "consequence": "what happened after"}. If any field cannot be determined, use null.`,
         }),
       });
 

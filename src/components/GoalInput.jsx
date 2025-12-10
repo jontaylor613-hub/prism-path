@@ -45,15 +45,24 @@ export default function GoalInput({
         const grade = student?.grade || 'Not specified';
         const diagnosis = student?.need || student?.primaryNeed || 'Not specified';
 
-        // Call AI to generate goal suggestions
-        const systemInstruction = `You are an expert IEP goal writer. Generate exactly 3 specific, SMART-formatted IEP goals related to the input keyword. Each goal should be appropriate for the student's grade level and diagnosis. Return ONLY a JSON array of strings, no markdown, no explanation:
-["Goal 1", "Goal 2", "Goal 3"]`;
+        // Call AI to generate goal suggestions using iep_builder mode
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'iep_builder',
+            prompt: `Generate exactly 3 specific, SMART-formatted IEP goals related to "${value}" for a ${grade} student with ${diagnosis}. Return ONLY a JSON array of strings, no markdown, no explanation: ["Goal 1", "Goal 2", "Goal 3"]`,
+          }),
+        });
 
-        const userPrompt = `Generate 3 SMART-formatted IEP goals related to "${value}" for a ${grade} student with ${diagnosis}.`;
+        if (!response.ok) {
+          throw new Error('Failed to generate goal suggestions');
+        }
 
-        const fullPrompt = `${systemInstruction}\n\n---\n\n${userPrompt}`;
-        const resultData = await GeminiService.fetchWithFallback(fullPrompt);
-        const rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;
+        const data = await response.json();
+        const rawResult = data.result;
 
         // Try to parse JSON array from response
         let goalSuggestions = [];

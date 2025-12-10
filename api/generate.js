@@ -22,6 +22,18 @@ const AI_MODES = {
   instant_help: {
     model: 'gemini-1.5-flash',
     systemPrompt: "Inclusion Specialist. Provide 3 bullet points of immediate accommodation strategies."
+  },
+  translator: {
+    model: 'gemini-1.5-flash',
+    systemPrompt: "You are a professional translator. Translate the provided text accurately while maintaining the same tone, formality level, and structure as the original. If the text is an email or formal communication, preserve the formatting and salutations. Return ONLY the translated text, no explanations, no markdown."
+  },
+  data_extractor: {
+    model: 'gemini-1.5-flash',
+    systemPrompt: "You are a data extraction assistant. Extract structured JSON data from unstructured text. Return ONLY valid JSON in the requested format. If a field cannot be determined, use null."
+  },
+  tone: {
+    model: 'gemini-1.5-flash',
+    systemPrompt: "You are a professional communication coach. Analyze the provided text for hostility, frustration, or non-objective language. Return ONLY a valid JSON object with this exact structure: {\"score\": <number 1-10 where 1=safe, 10=very risky>, \"flaggedPhrases\": [<array of problematic phrases>], \"betterAlternatives\": [<array of suggested improvements>]}. Be objective and professional. Only flag truly problematic language."
   }
 };
 

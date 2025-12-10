@@ -19,16 +19,24 @@ export async function translateContent(text, targetLanguage) {
   }
 
   try {
-    // Use the translator mode (will be added to API)
-    const result = await GeminiService.generate(
-      {
-        text: text,
-        targetLanguage: targetLanguage
+    // Use the translator mode API
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      'translator'
-    );
+      body: JSON.stringify({
+        mode: 'translator',
+        prompt: `Translate this text to ${targetLanguage}:\n\n${text}`,
+      }),
+    });
 
-    return result || text; // Fallback to original if translation fails
+    if (!response.ok) {
+      throw new Error('Failed to translate');
+    }
+
+    const data = await response.json();
+    return data.result || text; // Fallback to original if translation fails
   } catch (error) {
     console.error('Translation error:', error);
     return text; // Fallback to original text on error

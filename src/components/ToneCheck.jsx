@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { GeminiService } from '../utils';
 import { getTheme } from '../utils';
 
 /**
@@ -29,11 +28,24 @@ export default function ToneCheck({ text, isDark, onToneUpdate }) {
     debounceTimer.current = setTimeout(async () => {
       setIsAnalyzing(true);
       try {
-        // Call AI for tone analysis using the 'tone' type
-        const rawResult = await GeminiService.generate(
-          { text: text },
-          'tone'
-        );
+        // Call AI for tone analysis using the 'tone' mode
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'tone',
+            prompt: `Analyze this text for tone issues:\n\n${text}`,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to analyze tone');
+        }
+
+        const data = await response.json();
+        const rawResult = data.result;
 
         // Try to parse JSON from response
         let analysis;

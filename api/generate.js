@@ -211,35 +211,74 @@ async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileD
   }
 
   // Call Google Gemini API
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // Try v1 API first, fallback to v1beta if needed
+  const apiVersions = ['v1', 'v1beta'];
+  const modelVariants = [
+    model, // Try original model name first
+    model.replace('-latest', ''), // Try without -latest suffix
+    model.includes('pro') ? 'gemini-pro' : model, // Fallback to gemini-pro for pro models
+  ];
   
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: parts }]
-    })
-  });
+  let lastError = null;
+  
+  for (const apiVersion of apiVersions) {
+    for (const modelVariant of modelVariants) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelVariant}:generateContent?key=${apiKey}`;
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: parts }]
+          })
+        });
 
-  const data = await response.json();
+        const data = await response.json();
 
-  if (!response.ok) {
-    if (response.status === 400) {
-      const errorMsg = data.error?.message || data.message || "Invalid request to AI service";
-      throw new Error(`AI Service Error: ${errorMsg}`);
+        if (response.ok) {
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            return text;
+          }
+        }
+
+        // If 400 error about model not found, try next variant
+        if (response.status === 400 && data.error?.message?.includes('not found')) {
+          lastError = new Error(data.error.message);
+          continue; // Try next model variant
+        }
+
+        // For other errors, throw immediately
+        if (!response.ok) {
+          if (response.status === 400) {
+            const errorMsg = data.error?.message || data.message || "Invalid request to AI service";
+            throw new Error(`AI Service Error: ${errorMsg}`);
+          }
+          if (response.status === 429) {
+            throw new Error("Rate Limit: Please try again in 30 seconds");
+          }
+          throw new Error(data.error?.message || `AI Service returned status ${response.status}`);
+        }
+      } catch (error) {
+        // If it's a model not found error, continue to next variant
+        if (error.message?.includes('not found') || error.message?.includes('not supported')) {
+          lastError = error;
+          continue;
+        }
+        // For other errors, throw immediately
+        throw error;
+      }
     }
-    if (response.status === 429) {
-      throw new Error("Rate Limit: Please try again in 30 seconds");
-    }
-    throw new Error(data.error?.message || `AI Service returned status ${response.status}`);
   }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) {
-    throw new Error("No response from AI model");
+  
+  // If all variants failed, throw the last error
+  if (lastError) {
+    throw new Error(`Model not available: ${model}. Tried multiple variants. Last error: ${lastError.message}`);
   }
+  
+  throw new Error("No response from AI model");
 
-  return text;
 }
 
 // ============================================================================

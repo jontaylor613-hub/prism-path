@@ -263,7 +263,7 @@ export default function StudentProgressChart({
             This chart shows {student.name}'s progress over the past month. The blue line shows their current level, 
             and the purple dashed line shows the goal we're working toward. 
             {trend === 'up' && ' Great progress! Keep up the excellent work!'}
-            {trend === 'down' && ' We're providing additional support to help get back on track.'}
+            {trend === 'down' && " We're providing additional support to help get back on track."}
             {trend === 'stable' && ' Steady progress is being made toward the goal.'}
           </p>
         </div>

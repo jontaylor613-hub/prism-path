@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Calendar, AlertCircle, Users, TrendingUp, 
-  ArrowRight, Sparkles, Clock
+  ArrowRight, Sparkles, Clock, ChevronDown, ChevronUp, X
 } from 'lucide-react';
 import { getTheme } from '../utils';
 
@@ -9,8 +9,21 @@ import { getTheme } from '../utils';
  * Morning Briefing Component
  * Smart dashboard widget that scans student data for deadlines and priorities
  */
-export default function DashboardBriefing({ students = [], isDark = true, onReviewNow }) {
+export default function DashboardBriefing({ 
+  students = [], 
+  isDark = true, 
+  onReviewNow,
+  isCollapsed: externalIsCollapsed = null,
+  onToggleCollapse = null,
+  onDismiss = null,
+  showDismissButton = false
+}) {
   const theme = getTheme(isDark);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  
+  // Use external state if provided, otherwise use internal state
+  const isCollapsed = externalIsCollapsed !== null ? externalIsCollapsed : internalCollapsed;
+  const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed(!internalCollapsed));
 
   // Calculate briefing data
   const briefingData = useMemo(() => {
@@ -74,6 +87,33 @@ export default function DashboardBriefing({ students = [], isDark = true, onRevi
 
   const hasPriorityItems = briefingData.upcomingIepReviews > 0 || briefingData.unassignedStudents > 0;
 
+  // Collapsed view - just show summary
+  if (isCollapsed) {
+    return (
+      <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-4 shadow-lg relative overflow-hidden cursor-pointer hover:border-cyan-500/50 transition-all`} onClick={handleToggleCollapse}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-fuchsia-500/20 border border-cyan-500/30">
+              <Sparkles className="text-cyan-400" size={20} />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${theme.text}`}>Morning Briefing</h3>
+              <p className={`text-xs ${theme.textMuted}`}>{briefingData.greetingMessage}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasPriorityItems && (
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                {briefingData.upcomingIepReviews + briefingData.unassignedStudents} Priority
+              </span>
+            )}
+            <ChevronDown className={theme.textMuted} size={18} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6 shadow-lg relative overflow-hidden`}>
       {/* Background Gradient */}
@@ -90,6 +130,24 @@ export default function DashboardBriefing({ students = [], isDark = true, onRevi
               <h2 className={`text-xl font-bold ${theme.text}`}>Morning Briefing</h2>
               <p className={`text-sm ${theme.textMuted}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {showDismissButton && onDismiss && (
+              <button
+                onClick={onDismiss}
+                className={`p-1.5 rounded-lg ${theme.textMuted} hover:${theme.text} hover:bg-red-500/10 transition-colors`}
+                title="Dismiss briefing"
+              >
+                <X size={18} />
+              </button>
+            )}
+            <button
+              onClick={handleToggleCollapse}
+              className={`p-1.5 rounded-lg ${theme.textMuted} hover:${theme.text} hover:bg-cyan-500/10 transition-colors`}
+              title="Collapse briefing"
+            >
+              <ChevronUp size={18} />
+            </button>
           </div>
         </div>
 

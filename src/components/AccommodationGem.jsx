@@ -9,7 +9,7 @@ import {
 import { GeminiService, getTheme } from '../utils';
 import { ChatHistoryService } from '../chatHistory';
 
-export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null }) {
+export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null, isParentContext = false }) {
   const theme = getTheme(isDark);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -414,7 +414,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         isFirstMessage: isActuallyFirstMessage,
         hasExistingMessages: messages.length > 0,
         isCompletingAccommodationRequest: isCompletingAccommodationRequest, // Flag to indicate this is completing a request
-        selectedStudent: selectedStudent // Pass selected student info for name extraction
+        selectedStudent: selectedStudent, // Pass selected student info for name extraction
+        isParentContext: isParentContext // Pass parent context for homeschool/parent-specific guidance
       };
 
       // Generate accommodation response using the full Gem prompt

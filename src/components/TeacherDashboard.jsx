@@ -22,7 +22,10 @@ import {
   getIepSummary,
   get504Accommodations,
   updateStudent,
-  saveIepSummary
+  saveIepSummary,
+  saveStudentDocument,
+  getStudentDocuments,
+  deleteStudentDocument
 } from '../studentData';
 import { ChatHistoryService } from '../chatHistory';
 import { DevModeService } from '../devMode';
@@ -316,9 +319,133 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme }) => {
 
 // --- INITIAL DATA ---
 const SAMPLE_STUDENTS = [
-  { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", nextIep: "2024-01-15", nextEval: "2025-05-20", behaviorPlan: true, summary: "Sample data." },
-  { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", nextIep: "2025-11-20", nextEval: "2026-09-01", behaviorPlan: false, summary: "Sample data." },
-  { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", nextIep: "2024-12-01", nextEval: "2024-12-15", behaviorPlan: true, summary: "Sample data." }
+  { 
+    id: 1, 
+    name: "Alex M.", 
+    grade: "3rd", 
+    need: "Reading Decoding", 
+    nextIep: "2024-01-15", 
+    nextEval: "2025-05-20", 
+    behaviorPlan: true, 
+    summary: `**Student Profile: Alex M.**
+
+**Grade:** 3rd Grade
+**Primary Need:** Reading Decoding (Dyslexia)
+
+**Current Reading Level:** Reading at approximately 1st grade level. Struggles with phonemic awareness and decoding multisyllabic words. Can read simple CVC words but has difficulty with blends, digraphs, and vowel teams.
+
+**Strengths:**
+- Strong visual memory
+- Excellent oral comprehension when text is read aloud
+- Enthusiastic about science and nature topics
+- Good problem-solving skills in hands-on activities
+
+**Challenges:**
+- Difficulty with phonological processing
+- Slow reading rate affects comprehension
+- Avoids reading tasks, shows anxiety around reading aloud
+- Working memory limitations impact spelling and written expression
+
+**Accommodations & Supports:**
+- Extended time (1.5x) for reading and written tasks
+- Text-to-speech software for independent reading
+- Chunking: Break reading assignments into smaller sections (2-3 paragraphs at a time)
+- Pre-teach vocabulary with visual supports before reading
+- Audio versions of texts when available
+- Allow oral responses instead of written when appropriate
+- Provide word banks and sentence starters for writing
+
+**Behavior Plan:** Yes - Uses a visual schedule and token system. Responds well to movement breaks every 15-20 minutes during reading tasks.
+
+**IEP Review Due:** January 15, 2024
+**Next Evaluation:** May 20, 2025` 
+  },
+  { 
+    id: 2, 
+    name: "Jordan K.", 
+    grade: "5th", 
+    need: "Math Calculation", 
+    nextIep: "2025-11-20", 
+    nextEval: "2026-09-01", 
+    behaviorPlan: false, 
+    summary: `**Student Profile: Jordan K.**
+
+**Grade:** 5th Grade
+**Primary Need:** Math Calculation (Dyscalculia)
+
+**Current Math Level:** Performing at approximately 3rd grade level in computation. Can add and subtract single and double-digit numbers with regrouping, but struggles with multiplication facts and multi-step word problems.
+
+**Strengths:**
+- Strong conceptual understanding when concepts are explained visually
+- Excellent verbal reasoning and problem-solving strategies
+- Strong in reading and writing (at or above grade level)
+- Collaborative learner who benefits from peer support
+
+**Challenges:**
+- Difficulty with number sense and quantity relationships
+- Struggles with math fact fluency (memorization)
+- Anxiety around timed math assessments
+- Difficulty transferring math concepts to word problems
+- Working memory challenges affect multi-step calculations
+
+**Accommodations & Supports:**
+- Extended time (2x) for math assessments and assignments
+- Use of calculator for computation (focus on problem-solving, not calculation)
+- Visual aids: number lines, multiplication charts, fraction bars
+- Break multi-step problems into smaller, numbered steps
+- Provide examples and worked solutions as reference
+- Allow use of manipulatives during instruction and assessments
+- Reduce number of problems (quality over quantity)
+- Pre-teach vocabulary and key terms before math lessons
+
+**IEP Review Due:** November 20, 2025
+**Next Evaluation:** September 1, 2026` 
+  },
+  { 
+    id: 3, 
+    name: "Taylor S.", 
+    grade: "2nd", 
+    need: "Emotional Regulation", 
+    nextIep: "2024-12-01", 
+    nextEval: "2024-12-15", 
+    behaviorPlan: true, 
+    summary: `**Student Profile: Taylor S.**
+
+**Grade:** 2nd Grade
+**Primary Need:** Emotional Regulation (ADHD - Combined Type)
+
+**Current Academic Level:** Reading and math skills are at grade level when emotionally regulated. Performance varies significantly based on emotional state and environmental factors.
+
+**Strengths:**
+- Creative and imaginative
+- Strong verbal expression
+- Enthusiastic learner when engaged
+- Good sense of humor and social awareness
+- Strong in hands-on, kinesthetic learning activities
+
+**Challenges:**
+- Difficulty regulating emotions, especially frustration and disappointment
+- Impulsive reactions to unexpected changes in routine
+- Struggles with transitions between activities
+- Sensory sensitivity (loud noises, bright lights can be overwhelming)
+- Executive functioning challenges: organization, time management, task initiation
+
+**Accommodations & Supports:**
+- Visual schedule with transition warnings (5-minute, 2-minute, 1-minute warnings)
+- Quiet space available for emotional regulation breaks
+- Fidget tools and movement breaks every 20-30 minutes
+- Preferential seating away from distractions
+- Clear, consistent routines with advance notice of changes
+- Positive behavior reinforcement system (token economy)
+- Social stories for expected behaviors in different situations
+- Break down assignments into smaller, manageable chunks
+- Provide choices when possible to increase sense of control
+
+**Behavior Plan:** Yes - Uses a daily point sheet with goals for: following directions, using coping strategies, and completing work. Responds well to immediate positive reinforcement.
+
+**IEP Review Due:** December 1, 2024
+**Next Evaluation:** December 15, 2024` 
+  }
 ];
 
 // --- MAIN DASHBOARD ---
@@ -327,6 +454,16 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [students, setStudents] = useState([]);
   const [currentStudentId, setCurrentStudentId] = useState(null);
+  const [briefingCollapsed, setBriefingCollapsed] = useState(() => {
+    // Check localStorage for saved preference
+    const saved = localStorage.getItem('briefingCollapsed');
+    return saved === 'true';
+  });
+  const [briefingDismissed, setBriefingDismissed] = useState(() => {
+    // Check localStorage for dismissed state
+    const saved = localStorage.getItem('briefingDismissed');
+    return saved === 'true';
+  });
   const [showSamples, setShowSamples] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '', qualifyingStatus: '' });
@@ -483,6 +620,36 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
             // If no IEP summary, check if there's a summary in activeStudent
             setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
           }
+          
+          // Load student documents
+          try {
+            const docs = await getStudentDocuments(activeStudent.id, user.uid);
+            setStudentDocuments(docs);
+            
+            // If no summary exists but documents do, build summary from documents
+            if (!iepSummary && docs.length > 0) {
+              const summaryFromDocs = docs
+                .sort((a, b) => {
+                  const dateA = a.uploadedAt?.toDate ? a.uploadedAt.toDate() : new Date(a.uploadedAt || 0);
+                  const dateB = b.uploadedAt?.toDate ? b.uploadedAt.toDate() : new Date(b.uploadedAt || 0);
+                  return dateB - dateA; // Most recent first
+                })
+                .map(doc => {
+                  const date = doc.uploadedAt?.toDate ? doc.uploadedAt.toDate() : new Date(doc.uploadedAt || Date.now());
+                  return `--- ${doc.fileTypeLabel || doc.fileType} Analysis (${date.toLocaleDateString()}) ---\n${doc.analysis || 'No analysis available.'}`;
+                })
+                .join('\n\n');
+              
+              if (summaryFromDocs) {
+                setStudentSummary(summaryFromDocs);
+                // Optionally save this compiled summary
+                // await saveIepSummary(activeStudent.id, summaryFromDocs, user.uid);
+              }
+            }
+          } catch (error) {
+            console.error('Error loading documents:', error);
+            setStudentDocuments([]);
+          }
         } else {
           // For demo/local students, use their summary if available
           setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
@@ -527,7 +694,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [goalText, setGoalText] = useState("");
   const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
   const [goalType, setGoalType] = useState('academic'); // 'academic' or 'behavior'
-  const [uploadFileType, setUploadFileType] = useState('iep'); // 'iep', 'test', 'baseline', 'benchmark'
+  const [uploadFileType, setUploadFileType] = useState('iep'); // 'iep', 'arc', 'progress', 'evaluation', 'test', 'baseline', 'benchmark'
+  const [studentDocuments, setStudentDocuments] = useState([]);
+  const [showDocumentsViewer, setShowDocumentsViewer] = useState(false);
   const [checklistItems, setChecklistItems] = useState([]);
   const [generatedChecklist, setGeneratedChecklist] = useState(null); // Will store { goal, classPeriods: [{ name, signed, comment }] }
   const [checklistGoal, setChecklistGoal] = useState(null);
@@ -972,11 +1141,16 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       
       // Determine file type from uploadFileType state or file name
-      let fileTypeLabel = uploadFileType;
-      if (fileTypeLabel === 'iep') fileTypeLabel = 'IEP Snapshot';
-      else if (fileTypeLabel === 'test') fileTypeLabel = 'Test Data';
-      else if (fileTypeLabel === 'baseline') fileTypeLabel = 'Baseline Data';
-      else if (fileTypeLabel === 'benchmark') fileTypeLabel = 'Benchmark Data';
+      const fileTypeLabels = {
+        'iep': 'IEP Snapshot',
+        'arc': 'ARC Notes',
+        'progress': 'Progress Report',
+        'evaluation': 'Evaluation Report',
+        'test': 'Test Data',
+        'baseline': 'Baseline Data',
+        'benchmark': 'Benchmark Data'
+      };
+      const fileTypeLabel = fileTypeLabels[uploadFileType] || uploadFileType;
       
       // Use AI to analyze the file and create a summary
       const analysisPrompt = `You are analyzing a ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
@@ -1041,15 +1215,38 @@ Format the summary clearly with sections. Only include information that is actua
       
       setStudentSummary(newSummary);
       
-      // Save to Firebase if student has an ID
+      // Save document separately and update summary
       if (activeStudent.id && typeof activeStudent.id === 'string' && user?.uid) {
         try {
+          // Save the document separately
+          await saveStudentDocument(activeStudent.id, {
+            fileName: file.name,
+            fileType: uploadFileType,
+            fileTypeLabel: fileTypeLabel,
+            content: fileText.substring(0, 200000), // Store extracted content
+            analysis: cleanedResult, // Store AI analysis
+            fileSize: file.size,
+            mimeType: file.type
+          }, user.uid);
+          
+          // Reload documents list
+          const docs = await getStudentDocuments(activeStudent.id, user.uid);
+          setStudentDocuments(docs);
+          
+          // Save updated summary to Firebase
           await saveIepSummary(activeStudent.id, newSummary, user.uid);
+          
           // Also update the local student object
           const updatedStudent = { ...activeStudent, summary: newSummary };
           setStudents(students.map(s => s.id === activeStudent.id ? updatedStudent : s));
         } catch (error) {
-          console.error('Error saving summary to Firebase:', error);
+          console.error('Error saving document to Firebase:', error);
+          // Still update summary even if document save fails
+          try {
+            await saveIepSummary(activeStudent.id, newSummary, user.uid);
+          } catch (summaryError) {
+            console.error('Error saving summary:', summaryError);
+          }
         }
       } else {
         // For demo students, just update local state
@@ -1261,11 +1458,22 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
         ) : (
           <>
-            {/* Morning Briefing Widget - Teslafication Project */}
-            {displayedStudents.length > 0 && (
+            {/* Morning Briefing Widget - Only show on profile tab if not dismissed */}
+            {displayedStudents.length > 0 && activeTab === 'profile' && !briefingDismissed && (
               <DashboardBriefing
                 students={displayedStudents}
                 isDark={isDark}
+                isCollapsed={briefingCollapsed}
+                onToggleCollapse={() => {
+                  const newState = !briefingCollapsed;
+                  setBriefingCollapsed(newState);
+                  localStorage.setItem('briefingCollapsed', newState.toString());
+                }}
+                onDismiss={() => {
+                  setBriefingDismissed(true);
+                  localStorage.setItem('briefingDismissed', 'true');
+                }}
+                showDismissButton={true}
                 onReviewNow={() => {
                   // Navigate to first student with upcoming deadline
                   const studentWithDeadline = displayedStudents.find(s => {
@@ -1329,6 +1537,9 @@ Format the summary clearly with sections. Only include information that is actua
                          disabled={isUploading}
                        >
                          <option value="iep">IEP Snapshot</option>
+                         <option value="arc">ARC Notes</option>
+                         <option value="progress">Progress Report</option>
+                         <option value="evaluation">Evaluation Report</option>
                          <option value="test">Test Data</option>
                          <option value="baseline">Baseline Data</option>
                          <option value="benchmark">Benchmark</option>
@@ -1351,6 +1562,15 @@ Format the summary clearly with sections. Only include information that is actua
                            {isUploading ? "Analyzing..." : "Upload"}
                          </Button>
                        </div>
+                       <Button 
+                         variant="secondary" 
+                         onClick={() => setShowDocumentsViewer(true)}
+                         icon={FileText}
+                         theme={theme}
+                         title="View uploaded documents"
+                       >
+                         Documents ({studentDocuments.length})
+                       </Button>
                      </div>
                      <p className={`text-[10px] ${theme.textMuted} text-right`}>Uploaded documents are analyzed and automatically added to the Student Summary</p>
                    </div>
@@ -1438,6 +1658,88 @@ Format the summary clearly with sections. Only include information that is actua
                    })()}
                  </div>
                </Card>
+
+               {/* Documents Viewer Modal */}
+               {showDocumentsViewer && (
+                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowDocumentsViewer(false)}>
+                   <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" theme={theme} onClick={(e) => e.stopPropagation()}>
+                     <div className="flex justify-between items-center p-6 border-b border-slate-700">
+                       <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
+                         <FileText className="text-cyan-400" size={24} />
+                         Uploaded Documents
+                       </h2>
+                       <button
+                         onClick={() => setShowDocumentsViewer(false)}
+                         className={`p-2 rounded-lg ${theme.textMuted} hover:${theme.text} hover:bg-red-500/10 transition-colors`}
+                       >
+                         <X size={20} />
+                       </button>
+                     </div>
+                     <div className="flex-1 overflow-y-auto p-6">
+                       {studentDocuments.length === 0 ? (
+                         <div className="text-center py-12">
+                           <FileText className={`mx-auto mb-4 ${theme.textMuted} opacity-50`} size={48} />
+                           <p className={theme.textMuted}>No documents uploaded yet.</p>
+                           <p className={`${theme.textMuted} text-sm mt-2`}>Upload documents using the file upload button above.</p>
+                         </div>
+                       ) : (
+                         <div className="space-y-4">
+                           {studentDocuments.map((doc) => (
+                             <div key={doc.id} className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4`}>
+                               <div className="flex items-start justify-between mb-3">
+                                 <div className="flex-1">
+                                   <div className="flex items-center gap-2 mb-2">
+                                     <FileText className="text-cyan-400" size={18} />
+                                     <h3 className={`font-bold ${theme.text}`}>{doc.fileName}</h3>
+                                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>
+                                       {doc.fileTypeLabel || doc.fileType}
+                                     </span>
+                                   </div>
+                                   <div className={`text-xs ${theme.textMuted} flex items-center gap-4`}>
+                                     <span>Uploaded: {doc.uploadedAt ? new Date(doc.uploadedAt.toDate ? doc.uploadedAt.toDate() : doc.uploadedAt).toLocaleDateString() : 'Unknown'}</span>
+                                     {doc.fileSize && <span>Size: {(doc.fileSize / 1024).toFixed(1)} KB</span>}
+                                   </div>
+                                 </div>
+                                 <button
+                                   onClick={async () => {
+                                     if (confirm('Delete this document?')) {
+                                       try {
+                                         await deleteStudentDocument(activeStudent.id, doc.id, user.uid);
+                                         const docs = await getStudentDocuments(activeStudent.id, user.uid);
+                                         setStudentDocuments(docs);
+                                       } catch (error) {
+                                         alert(`Error deleting document: ${error.message}`);
+                                       }
+                                     }
+                                   }}
+                                   className={`p-1.5 rounded-lg ${theme.textMuted} hover:text-red-400 hover:bg-red-500/10 transition-colors`}
+                                   title="Delete document"
+                                 >
+                                   <Trash2 size={16} />
+                                 </button>
+                               </div>
+                               {doc.analysis && (
+                                 <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-slate-800/50' : 'bg-slate-100/50'} border ${theme.cardBorder}`}>
+                                   <h4 className={`text-sm font-bold ${theme.text} mb-2`}>Analysis:</h4>
+                                   <div 
+                                     className={`text-sm ${theme.textMuted} max-h-48 overflow-y-auto`}
+                                     dangerouslySetInnerHTML={{
+                                       __html: doc.analysis
+                                         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                         .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                         .replace(/\n/g, '<br>')
+                                     }}
+                                   />
+                                 </div>
+                               )}
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                   </Card>
+                 </div>
+               )}
                
                {/* Chat Histories Section */}
                {chatHistories.length > 0 && (
@@ -1969,6 +2271,36 @@ Format the summary clearly with sections. Only include information that is actua
         {/* --- ROSTER TAB (NEW) --- */}
         {activeTab === 'roster' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+            {/* Morning Briefing - Always available on Roster tab */}
+            {displayedStudents.length > 0 && (
+              <DashboardBriefing
+                students={displayedStudents}
+                isDark={isDark}
+                isCollapsed={briefingCollapsed}
+                onToggleCollapse={() => {
+                  const newState = !briefingCollapsed;
+                  setBriefingCollapsed(newState);
+                  localStorage.setItem('briefingCollapsed', newState.toString());
+                }}
+                onReviewNow={() => {
+                  // Navigate to first student with upcoming deadline
+                  const studentWithDeadline = displayedStudents.find(s => {
+                    const iepDate = s.nextIep || s.nextIepDate;
+                    if (!iepDate) return false;
+                    const reviewDate = new Date(iepDate);
+                    const now = new Date();
+                    const sevenDaysFromNow = new Date(now);
+                    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                    return reviewDate >= now && reviewDate <= sevenDaysFromNow;
+                  });
+                  if (studentWithDeadline) {
+                    setCurrentStudentId(studentWithDeadline.id);
+                    setActiveTab('profile');
+                  }
+                }}
+              />
+            )}
+            
             <Card className="p-6" theme={theme}>
               <div className="flex justify-between items-center mb-6">
                 <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>

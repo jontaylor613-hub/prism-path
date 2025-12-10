@@ -11,6 +11,11 @@ import AccommodationGem from './AccommodationGem';
 import CommandBar from './CommandBar';
 
 // Sample demo children for demo mode
+const getIepDueDate = () => {
+  const date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
 const DEMO_CHILDREN = [
   { 
     id: 'demo-1', 
@@ -22,7 +27,38 @@ const DEMO_CHILDREN = [
     nextEval: "2025-05-20", 
     next504: "",
     behaviorPlan: true, 
-    summary: "Sample demo data.",
+    summary: `**Student Profile: Alex M.**
+
+**Grade:** 3rd Grade
+**Primary Need:** Reading Decoding (Dyslexia)
+
+**Current Reading Level:** Reading at approximately 1st grade level. Struggles with phonemic awareness and decoding multisyllabic words. Can read simple CVC words but has difficulty with blends, digraphs, and vowel teams.
+
+**Strengths:**
+- Strong visual memory
+- Excellent oral comprehension when text is read aloud
+- Enthusiastic about science and nature topics
+- Good problem-solving skills in hands-on activities
+
+**Challenges:**
+- Difficulty with phonological processing
+- Slow reading rate affects comprehension
+- Avoids reading tasks, shows anxiety around reading aloud
+- Working memory limitations impact spelling and written expression
+
+**Accommodations & Supports:**
+- Extended time (1.5x) for reading and written tasks
+- Text-to-speech software for independent reading
+- Chunking: Break reading assignments into smaller sections (2-3 paragraphs at a time)
+- Pre-teach vocabulary with visual supports before reading
+- Audio versions of texts when available
+- Allow oral responses instead of written when appropriate
+- Provide word banks and sentence starters for writing
+
+**Behavior Plan:** Yes - Uses a visual schedule and token system. Responds well to movement breaks every 15-20 minutes during reading tasks.
+
+**IEP Review Due:** ${getIepDueDate()}
+**Next Evaluation:** May 20, 2025`,
     isDemo: true
   },
   { 
@@ -35,7 +71,38 @@ const DEMO_CHILDREN = [
     nextEval: "2026-09-01", 
     next504: "",
     behaviorPlan: false, 
-    summary: "Sample demo data.",
+    summary: `**Student Profile: Jordan K.**
+
+**Grade:** 5th Grade
+**Primary Need:** Math Calculation (Dyscalculia)
+
+**Current Math Level:** Performing at approximately 3rd grade level in computation. Can add and subtract single and double-digit numbers with regrouping, but struggles with multiplication facts and multi-step word problems.
+
+**Strengths:**
+- Strong conceptual understanding when concepts are explained visually
+- Excellent verbal reasoning and problem-solving strategies
+- Strong in reading and writing (at or above grade level)
+- Collaborative learner who benefits from peer support
+
+**Challenges:**
+- Difficulty with number sense and quantity relationships
+- Struggles with math fact fluency (memorization)
+- Anxiety around timed math assessments
+- Difficulty transferring math concepts to word problems
+- Working memory challenges affect multi-step calculations
+
+**Accommodations & Supports:**
+- Extended time (2x) for math assessments and assignments
+- Use of calculator for computation (focus on problem-solving, not calculation)
+- Visual aids: number lines, multiplication charts, fraction bars
+- Break multi-step problems into smaller, numbered steps
+- Provide examples and worked solutions as reference
+- Allow use of manipulatives during instruction and assessments
+- Reduce number of problems (quality over quantity)
+- Pre-teach vocabulary and key terms before math lessons
+
+**IEP Review Due:** November 20, 2025
+**Next Evaluation:** September 1, 2026`,
     isDemo: true
   }
 ];
@@ -170,7 +237,39 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
       return;
     }
     
-    if (!user?.uid) return;
+    // Handle demo mode - store locally
+    if (demoMode || user?.isDemo) {
+      const newChildData = {
+        id: `demo-${Date.now()}`,
+        name: newChild.name,
+        grade: newChild.grade,
+        need: newChild.need,
+        primaryNeed: newChild.need,
+        nextIep: newChild.nextIep,
+        nextEval: newChild.nextEval,
+        next504: newChild.next504,
+        behaviorPlan: false,
+        summary: 'No summary available. Click "Open in Gem" to start working with this student.',
+        isDemo: true
+      };
+      
+      const updatedStudents = [...students, newChildData];
+      setStudents(updatedStudents);
+      setIsAddingChild(false);
+      setNewChild({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+      
+      // If this is the first child, show their detail view
+      if (updatedStudents.length === 1) {
+        setSelectedStudent(newChildData);
+        setActiveView('student');
+      }
+      return;
+    }
+    
+    if (!user?.uid) {
+      alert('Please sign in to add a child');
+      return;
+    }
     
     try {
       const childData = {
@@ -280,7 +379,7 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
 
 
           {/* Main Feature: IEP Upload and Explanation */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <Card className="p-6" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <FileText className="text-cyan-400" size={24} />
@@ -295,6 +394,23 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
                 theme={theme}
               >
                 Upload & Explain IEP
+              </Button>
+            </Card>
+
+            <Card className="p-6" theme={theme}>
+              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                <Sparkles className="text-cyan-400" size={24} />
+                Differentiate Work
+              </h2>
+              <p className={`${theme.textMuted} mb-4`}>
+                Get help adapting curriculum and assignments for homeschool or when helping your child with schoolwork.
+              </p>
+              <Button
+                onClick={() => setActiveView('gem')}
+                className="w-full"
+                theme={theme}
+              >
+                Open Accommodation Gem
               </Button>
             </Card>
 
@@ -332,6 +448,8 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
           user={user}
           onBack={() => setActiveView('student')}
           isEmbedded={false}
+          selectedStudent={selectedStudent}
+          isParentContext={true}
         />
       </div>
     );
@@ -414,19 +532,19 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
             <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>No children added yet</h2>
             <p className={`${theme.textMuted} mb-6`}>
               {demoMode 
-                ? 'Click "Try Demo Mode" to see sample children and explore premium features.'
+                ? 'Click "Add Your First Child" to create a demo child, or explore the sample children.'
                 : 'Add your first child to get started with personalized learning support.'}
             </p>
-            {!demoMode && (
+            <div className="flex gap-3 justify-center">
               <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
                 Add Your First Child
               </Button>
-            )}
-            {demoMode && (
-              <Button onClick={() => setDemoMode(false)} variant="secondary" theme={theme}>
-                Exit Demo Mode
-              </Button>
-            )}
+              {demoMode && (
+                <Button onClick={() => setDemoMode(false)} variant="secondary" theme={theme}>
+                  Exit Demo Mode
+                </Button>
+              )}
+            </div>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -467,7 +585,7 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
         )}
 
         {/* Add Child Button */}
-        {students.length > 0 && !demoMode && (
+        {students.length > 0 && (
           <div className="mt-8 flex justify-center">
             <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
               Add Child

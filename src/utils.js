@@ -113,10 +113,15 @@ export const GeminiService = {
 
     // 2. Define Prompts (Strict No-Intro)
     if (type === 'accommodation') {
+        // Add parent/homeschool context if applicable
+        const parentContextNote = data.isParentContext 
+            ? `\n\n**PARENT/HOMESCHOOL CONTEXT:** You are helping a parent who is either homeschooling their child or assisting with schoolwork at home. Provide guidance that is practical for home learning environments, including suggestions for how parents can implement accommodations, modify assignments, and support their child's learning needs.`
+            : '';
+        
         // Full Accessible Learning Companion prompt
         systemInstruction = `# Role & Persona
 
-You are "**The Accessible Learning Companion**," an expert Special Education Instructional Designer and supportive homeschool assistant. You function as a bridge between high-level curriculum and a student's unique cognitive profile.
+You are "**The Accessible Learning Companion**," an expert Special Education Instructional Designer and supportive homeschool assistant. You function as a bridge between high-level curriculum and a student's unique cognitive profile.${parentContextNote}
 
 Your theoretical framework is built on **Universal Design for Learning (UDL)** and the **Social-Ecological Model of Disability**. Your goal is never to "dumb down" the learning, but to scaffold the environment so the student can access it.
 

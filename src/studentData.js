@@ -20,8 +20,8 @@ import { logAuditEvent } from './auditLog';
 export const createStudent = async (studentData, userId, userRole) => {
   try {
     // Validate user has permission to create students
-    if (userRole !== 'admin' && userRole !== 'sped') {
-      throw new Error('Unauthorized: Only SPED teachers and admins can create student records');
+    if (userRole !== 'admin' && userRole !== 'sped' && userRole !== 'parent') {
+      throw new Error('Unauthorized: Only SPED teachers, admins, and parents can create student records');
     }
 
     const studentRef = doc(collection(db, 'students'));
@@ -42,7 +42,9 @@ export const createStudent = async (studentData, userId, userRole) => {
       
       // Access control
       createdBy: userId,
-      assignedTeachers: [userId], // Teachers who can access this student
+      createdByRole: userRole, // Track who created this record
+      assignedTeachers: userRole === 'parent' ? [] : [userId], // Parents don't assign teachers
+      parentId: userRole === 'parent' ? userId : null, // Track parent if created by parent
       isSpedStudent: userRole === 'sped',
       schoolId: studentData.schoolId || '',
       
@@ -82,6 +84,14 @@ export const getStudentsForUser = async (userId, userRole) => {
         where('isActive', '==', true),
         orderBy('createdAt', 'desc')
       );
+    } else if (userRole === 'parent') {
+      // Parents see only their own children
+      studentsQuery = query(
+        collection(db, 'students'),
+        where('isActive', '==', true),
+        where('parentId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
     } else if (userRole === 'sped') {
       // SPED teachers see SPED students
       studentsQuery = query(
@@ -101,10 +111,26 @@ export const getStudentsForUser = async (userId, userRole) => {
     }
 
     const snapshot = await getDocs(studentsQuery);
-    const students = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const students = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // Map field names for compatibility with existing code
+      return {
+        id: doc.id,
+        name: data.name,
+        grade: data.grade,
+        need: data.primaryNeed,
+        primaryNeed: data.primaryNeed,
+        nextIep: data.nextIepDate || data.nextIep,
+        nextIepDate: data.nextIepDate || data.nextIep,
+        nextEval: data.nextEvalDate || data.nextEval,
+        nextEvalDate: data.nextEvalDate || data.nextEval,
+        next504: data.next504Date || data.next504,
+        next504Date: data.next504Date || data.next504,
+        behaviorPlan: data.behaviorPlan || false,
+        summary: data.summary || '',
+        ...data // Include all other fields
+      };
+    });
 
     // Log access
     await logAuditEvent({
@@ -373,6 +399,79 @@ export const getIepSummary = async (studentId, userId) => {
     return student['iepSummary'] || '';
   } catch (error) {
     console.error('Error fetching IEP summary:', error);
+    throw error;
+  }
+};
+
+// Save uploaded document
+export const saveStudentDocument = async (studentId, documentData, userId) => {
+  try {
+    const docRef = doc(collection(db, 'students', studentId, 'documents'));
+    const document = {
+      fileName: documentData.fileName,
+      fileType: documentData.fileType, // 'iep', 'arc', 'progress', 'evaluation', 'test', 'baseline', 'benchmark'
+      fileTypeLabel: documentData.fileTypeLabel, // Display name
+      content: documentData.content, // Extracted text content
+      analysis: documentData.analysis, // AI-generated analysis
+      uploadedBy: userId,
+      uploadedAt: serverTimestamp(),
+      fileSize: documentData.fileSize || 0,
+      mimeType: documentData.mimeType || ''
+    };
+
+    await setDoc(docRef, document);
+
+    await logAuditEvent({
+      userId,
+      action: 'UPLOAD_DOCUMENT',
+      resourceType: 'document',
+      resourceId: docRef.id,
+      resourceParentId: studentId,
+      details: { fileName: documentData.fileName, fileType: documentData.fileType }
+    });
+
+    return { id: docRef.id, ...document };
+  } catch (error) {
+    console.error('Error saving document:', error);
+    throw error;
+  }
+};
+
+// Get all documents for a student
+export const getStudentDocuments = async (studentId, userId) => {
+  try {
+    const docsRef = collection(db, 'students', studentId, 'documents');
+    const snapshot = await getDocs(query(docsRef, orderBy('uploadedAt', 'desc')));
+    
+    const documents = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    return documents;
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    throw error;
+  }
+};
+
+// Delete a document
+export const deleteStudentDocument = async (studentId, documentId, userId) => {
+  try {
+    const docRef = doc(db, 'students', studentId, 'documents', documentId);
+    await deleteDoc(docRef);
+
+    await logAuditEvent({
+      userId,
+      action: 'DELETE_DOCUMENT',
+      resourceType: 'document',
+      resourceId: documentId,
+      resourceParentId: studentId
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting document:', error);
     throw error;
   }
 };

@@ -20,8 +20,8 @@ import { logAuditEvent } from './auditLog';
 export const createStudent = async (studentData, userId, userRole) => {
   try {
     // Validate user has permission to create students
-    if (userRole !== 'admin' && userRole !== 'sped' && userRole !== 'parent') {
-      throw new Error('Unauthorized: Only SPED teachers, admins, and parents can create student records');
+    if (userRole !== 'admin' && userRole !== 'sped') {
+      throw new Error('Unauthorized: Only SPED teachers and admins can create student records');
     }
 
     const studentRef = doc(collection(db, 'students'));
@@ -42,12 +42,9 @@ export const createStudent = async (studentData, userId, userRole) => {
       
       // Access control
       createdBy: userId,
-      assignedTeachers: userRole === 'parent' ? [] : [userId], // Teachers who can access this student
-      assignedTeacherIds: userRole === 'parent' ? [] : [userId], // Same as assignedTeachers (for compatibility)
+      assignedTeachers: [userId], // Teachers who can access this student
       isSpedStudent: userRole === 'sped',
-      schoolId: userRole === 'parent' ? 'home_school' : (studentData.schoolId || ''),
-      parentId: userRole === 'parent' ? userId : (studentData.parentId || ''), // For parent-created students (legacy)
-      parentIds: userRole === 'parent' ? [userId] : (studentData.parentIds || []), // Array of parent UIDs
+      schoolId: studentData.schoolId || '',
       
       // Metadata
       createdAt: serverTimestamp(),
@@ -91,14 +88,6 @@ export const getStudentsForUser = async (userId, userRole) => {
         collection(db, 'students'),
         where('isActive', '==', true),
         where('isSpedStudent', '==', true),
-        orderBy('createdAt', 'desc')
-      );
-    } else if (userRole === 'parent') {
-      // Parents see their own children (students assigned to their userId)
-      studentsQuery = query(
-        collection(db, 'students'),
-        where('isActive', '==', true),
-        where('parentId', '==', userId),
         orderBy('createdAt', 'desc')
       );
     } else {
@@ -148,8 +137,7 @@ export const getStudent = async (studentId, userId, userRole) => {
     const hasAccess = 
       userRole === 'admin' ||
       (userRole === 'sped' && student.isSpedStudent) ||
-      student.assignedTeachers?.includes(userId) ||
-      (userRole === 'parent' && (student.parentId === userId || student.assignedParents?.includes(userId)));
+      student.assignedTeachers?.includes(userId);
 
     if (!hasAccess) {
       throw new Error('Unauthorized: You do not have access to this student');

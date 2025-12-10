@@ -1,6 +1,8 @@
 // GEM Usage Tracker - Limits GEM usage to 1 time per IP address without account
 // FERPA-Compliant: Only tracks IP addresses, no PII
 
+import { DevModeService } from './devMode';
+
 const GEM_USAGE_KEY = 'prismpath_gem_usage';
 const GEM_USAGE_LIMIT = 1;
 
@@ -31,6 +33,11 @@ export const GemUsageTracker = {
   // Check if user can use GEM (1 use limit without account)
   canUseGem: async () => {
     try {
+      // Check for developer mode - bypass all restrictions
+      if (DevModeService.isActive()) {
+        return true;
+      }
+      
       // If user is logged in, they have unlimited access
       // This check should be done before calling this function
       

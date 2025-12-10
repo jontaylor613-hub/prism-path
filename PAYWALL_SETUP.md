@@ -266,3 +266,4 @@ After activation, monitor:
 - Users with accounts automatically get subscription checks
 - Non-logged-in users still use IP tracking until they sign up
 
+

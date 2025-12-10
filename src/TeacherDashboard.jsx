@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
-  Target, BookOpen, Plus, Save, Trash2, CheckCircle,
+  LineChart, Target, BookOpen, Plus, Save, Trash2, CheckCircle,
   Brain, Layout, FileText, Sparkles, ClipboardList, ArrowRight,
   GraduationCap, LogOut, Calculator, Calendar, Clock,
   Search, ChevronDown, User, Wand2, Copy, Heart,
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer,
-  Sun, Moon, Loader2, Thermometer, ExternalLink
+  Sun, Moon, Loader2, Thermometer
 } from 'lucide-react';
 
 // --- IMPORTS ---
@@ -20,28 +20,15 @@ import {
   removeStudent, 
   getStudentGoals,
   getIepSummary,
-  get504Accommodations
+  get504Accommodations,
+  updateStudent,
+  saveIepSummary
 } from './studentData';
 import { ChatHistoryService } from './chatHistory';
-import CommandBar from './components/CommandBar';
-import DashboardBriefing from './components/DashboardBriefing';
-import VoiceObservation from './components/VoiceObservation';
-import StudentProgressChart from './components/StudentProgressChart';
-import ToneCheck from './components/ToneCheck';
-import GoalInput from './components/GoalInput';
-import OnboardingTour from './components/OnboardingTour';
-import A11yMenu from './components/A11yMenu';
-import CrisisMode from './components/CrisisMode';
-import ImportRoster from './components/ImportRoster';
-import AdminDashboard from './components/AdminDashboard';
-import { translateContent } from './utils/translator';
-import { generatePDF } from './utils/pdfExporter';
+import { DevModeService } from './devMode';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
-    // Safety check: ensure theme exists, fallback to default dark theme
-    const safeTheme = theme || getTheme(true);
-    
     const [step, setStep] = useState('intro'); // intro, quiz, results
     const [answers, setAnswers] = useState({});
     const [score, setScore] = useState(0);
@@ -108,28 +95,28 @@ const BurnoutCheck = ({ theme }) => {
     const resultData = getResultContent();
 
     return (
-        <Card className="p-8 h-full flex flex-col items-center justify-center min-h-[500px]" theme={safeTheme}>
+        <Card className="p-8 h-full flex flex-col items-center justify-center min-h-[500px]" theme={theme}>
             
             {step === 'intro' && (
                 <div className="text-center max-w-lg animate-in zoom-in">
                     <div className="bg-fuchsia-500/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6 text-fuchsia-500">
                         <Heart size={40} fill="currentColor" />
                     </div>
-                    <h2 className={`text-3xl font-bold ${safeTheme.text} mb-4`}>Educator Pulse Check</h2>
-                    <p className={`${safeTheme.textMuted} mb-8 leading-relaxed`}>
+                    <h2 className={`text-3xl font-bold ${theme.text} mb-4`}>Educator Pulse Check</h2>
+                    <p className={`${theme.textMuted} mb-8 leading-relaxed`}>
                         Teaching is demanding. This quick, private check-in helps you gauge your energy levels and connects you with local resources.
                     </p>
-                    <Button onClick={() => setStep('quiz')} theme={safeTheme}>Start Check-in</Button>
+                    <Button onClick={() => setStep('quiz')} theme={theme}>Start Check-in</Button>
                 </div>
             )}
 
             {step === 'quiz' && (
                 <div className="w-full max-w-xl animate-in slide-in-from-right">
-                    <h3 className={`text-xl font-bold ${safeTheme.text} mb-6`}>Over the last 2 weeks...</h3>
+                    <h3 className={`text-xl font-bold ${theme.text} mb-6`}>Over the last 2 weeks...</h3>
                     <div className="space-y-8">
                         {questions.map((q) => (
                             <div key={q.id} className="space-y-3">
-                                <p className={`font-medium ${safeTheme.text}`}>{q.text}</p>
+                                <p className={`font-medium ${theme.text}`}>{q.text}</p>
                                 <div className="grid grid-cols-5 gap-2">
                                     {[1, 2, 3, 4, 5].map((val) => (
                                         <button
@@ -138,7 +125,7 @@ const BurnoutCheck = ({ theme }) => {
                                             className={`p-3 rounded-lg border transition-all ${
                                                 answers[q.id] === val 
                                                 ? 'bg-cyan-500 text-white border-cyan-500' 
-                                                : `${safeTheme.inputBg} ${safeTheme.inputBorder} ${safeTheme.textMuted} hover:border-cyan-400`
+                                                : `${theme.inputBg} ${theme.inputBorder} ${theme.textMuted} hover:border-cyan-400`
                                             }`}
                                         >
                                             {val}
@@ -146,8 +133,8 @@ const BurnoutCheck = ({ theme }) => {
                                     ))}
                                 </div>
                                 <div className="flex justify-between text-xs uppercase tracking-widest opacity-50">
-                                    <span className={safeTheme.textMuted}>Never</span>
-                                    <span className={safeTheme.textMuted}>Always</span>
+                                    <span className={theme.textMuted}>Never</span>
+                                    <span className={theme.textMuted}>Always</span>
                                 </div>
                             </div>
                         ))}
@@ -156,7 +143,7 @@ const BurnoutCheck = ({ theme }) => {
                         <Button 
                             onClick={calculateResults}
                             disabled={Object.keys(answers).length < questions.length}
-                            theme={safeTheme}
+                            theme={theme}
                         >
                             See Results
                         </Button>
@@ -168,31 +155,31 @@ const BurnoutCheck = ({ theme }) => {
                 <div className="w-full max-w-2xl animate-in zoom-in">
                     <div className={`p-6 rounded-xl border-l-8 mb-8 ${resultData.bg}`}>
                         <h3 className={`text-2xl font-black mb-2 ${resultData.color}`}>{resultData.level}</h3>
-                        <p className={`${safeTheme.text} text-lg`}>{resultData.msg}</p>
+                        <p className={`${theme.text} text-lg`}>{resultData.msg}</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div>
-                            <h4 className={`font-bold ${safeTheme.textMuted} uppercase tracking-widest text-sm mb-4`}>Suggested Actions</h4>
+                            <h4 className={`font-bold ${theme.textMuted} uppercase tracking-widest text-sm mb-4`}>Suggested Actions</h4>
                             <ul className="space-y-3">
                                 {resultData.tips.map((tip, i) => (
-                                    <li key={i} className={`flex items-start gap-3 ${safeTheme.text}`}>
+                                    <li key={i} className={`flex items-start gap-3 ${theme.text}`}>
                                         <CheckCircle size={18} className="text-cyan-500 mt-1 shrink-0" />
                                         <span>{tip}</span>
                                     </li>
                                 ))}
                             </ul>
                         </div>
-                        <div className={`${safeTheme.inputBg} p-6 rounded-xl border ${safeTheme.cardBorder} flex flex-col items-center justify-center text-center`}>
+                        <div className={`${theme.inputBg} p-6 rounded-xl border ${theme.cardBorder} flex flex-col items-center justify-center text-center`}>
                             <MapPin size={32} className="text-fuchsia-500 mb-3" />
-                            <h4 className={`font-bold ${safeTheme.text} mb-2`}>Find Local Support</h4>
-                            <p className={`text-sm ${safeTheme.textMuted} mb-4`}>Locate support groups and therapists near your current location.</p>
-                            <Button onClick={getLocalSupport} variant="secondary" icon={ArrowRight} theme={safeTheme}>Search Near Me</Button>
+                            <h4 className={`font-bold ${theme.text} mb-2`}>Find Local Support</h4>
+                            <p className={`text-sm ${theme.textMuted} mb-4`}>Locate support groups and therapists near your current location.</p>
+                            <Button onClick={getLocalSupport} variant="secondary" icon={ArrowRight} theme={theme}>Search Near Me</Button>
                         </div>
                     </div>
 
                     <div className="text-center">
-                        <button onClick={() => {setStep('intro'); setAnswers({});}} className={`text-sm ${safeTheme.textMuted} hover:${safeTheme.text} underline`}>
+                        <button onClick={() => {setStep('intro'); setAnswers({});}} className={`text-sm ${theme.textMuted} hover:${theme.text} underline`}>
                             Retake Check-in
                         </button>
                     </div>
@@ -251,17 +238,14 @@ const SimpleLineChart = ({ data, target, theme }) => {
 };
 
 // --- HELPER COMPONENTS ---
-const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme, type = "button", ...props }) => {
-  // Safety check: ensure theme exists, fallback to default dark theme
-  const safeTheme = theme || getTheme(true);
-  
+const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled = false, theme }) => {
   const baseStyle = "inline-flex items-center justify-center px-4 py-2 rounded-full font-bold transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide relative overflow-hidden";
   
   const variants = {
     primary: "text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(217,70,239,0.5)] border border-white/10",
-    secondary: `${safeTheme.inputBg} ${safeTheme.primaryText} border ${safeTheme.inputBorder} hover:opacity-80`,
+    secondary: `${theme.inputBg} ${theme.primaryText} border ${theme.inputBorder} hover:opacity-80`,
     danger: "bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40",
-    ghost: `${safeTheme.textMuted} hover:${safeTheme.text}`,
+    ghost: `${theme.textMuted} hover:${theme.text}`,
     copy: "w-full py-3 bg-emerald-900/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/40 font-mono tracking-widest uppercase shadow-lg hover:shadow-emerald-500/20"
   };
   
@@ -272,11 +256,9 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   
   return (
     <button 
-      type={type}
       onClick={onClick} 
       disabled={disabled} 
       className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`}
-      {...props}
     >
       {primaryGradientBg}
       <span className="relative z-10 flex items-center">
@@ -287,16 +269,12 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   );
 };
 
-const Card = ({ children, className = "", glow = false, theme }) => {
-  // Safety check: ensure theme exists, fallback to default dark theme
-  const safeTheme = theme || getTheme(true);
-  return (
-    <div className={`relative rounded-2xl overflow-hidden ${safeTheme.cardBg} ${safeTheme.cardBorder} border ${className} ${glow ? 'shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'shadow-xl'}`}>
-      {glow && <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>}
-      <div className="relative z-10">{children}</div>
-    </div>
-  );
-};
+const Card = ({ children, className = "", glow = false, theme }) => (
+  <div className={`relative rounded-2xl overflow-hidden ${theme.cardBg} ${theme.cardBorder} border ${className} ${glow ? 'shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'shadow-xl'}`}>
+    {glow && <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>}
+    <div className="relative z-10">{children}</div>
+  </div>
+);
 
 // --- FIXED BADGE COMPONENT ---
 const Badge = ({ children, color = "cyan", isDark }) => {
@@ -319,96 +297,16 @@ const Badge = ({ children, color = "cyan", isDark }) => {
   return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-widest ${styles[color] || styles.cyan}`}>{children}</span>;
 };
 
-const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "Document", schoolName = "" }) => {
+const CopyBlock = ({ content, label = "Copy for Documentation", theme }) => {
   const [copied, setCopied] = useState(false);
-  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
-  const [savedDocLink, setSavedDocLink] = useState(null);
-  
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const handleExportPDF = async () => {
-    try {
-      await generatePDF(title, content, schoolName, 'PrismPath');
-    } catch (error) {
-      alert('Failed to generate PDF: ' + error.message);
-    }
-  };
-
-  const handleSaveToDrive = async () => {
-    if (!content || !content.trim()) return;
-
-    setIsSavingToDrive(true);
-    setSavedDocLink(null);
-
-    try {
-      const { GoogleIntegration, getGoogleAccessToken } = await import('../lib/googleService');
-      const accessToken = await getGoogleAccessToken();
-      const google = new GoogleIntegration(accessToken);
-      
-      const docTitle = title || label.replace('Copy ', '') || 'PrismPath Document';
-      const result = await google.createDoc(docTitle, content);
-      
-      setSavedDocLink(result.webViewLink);
-    } catch (error) {
-      console.error('Error saving to Drive:', error);
-      alert('Failed to save to Google Drive. Please check your connection and try again.');
-    } finally {
-      setIsSavingToDrive(false);
-    }
-  };
-
   return (
     <div className={`mt-4 pt-4 border-t ${theme.cardBorder} animate-in fade-in`}>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Button 
-          onClick={handleCopy} 
-          variant="copy" 
-          icon={copied ? CheckCircle : Copy} 
-          theme={theme}
-          className="flex-1"
-        >
-          {copied ? "Copied to Clipboard!" : label}
-        </Button>
-        <Button
-          onClick={handleExportPDF}
-          variant="secondary"
-          icon={FileDown}
-          theme={theme}
-          className="flex-1"
-        >
-          Export PDF
-        </Button>
-        {savedDocLink ? (
-          <a
-            href={savedDocLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`
-              flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium
-              transition-all ${theme.primaryBg || 'bg-cyan-600'} text-white hover:opacity-90
-              active:scale-95
-            `}
-          >
-            <ExternalLink size={16} />
-            Open Doc
-          </a>
-        ) : (
-          <Button
-            onClick={handleSaveToDrive}
-            disabled={isSavingToDrive || !content}
-            variant="secondary"
-            icon={isSavingToDrive ? Loader2 : FileText}
-            theme={theme}
-            className="flex-1"
-          >
-            {isSavingToDrive ? "Saving..." : "Save to Google Drive"}
-          </Button>
-        )}
-      </div>
+      <Button onClick={handleCopy} variant="copy" icon={copied ? CheckCircle : Copy} theme={theme}>{copied ? "Copied to Clipboard!" : label}</Button>
       <p className={`text-center text-[10px] ${theme.textMuted} mt-2 uppercase tracking-widest`}>Ready for Infinite Campus / IEP Direct</p>
     </div>
   );
@@ -416,39 +314,9 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "
 
 // --- INITIAL DATA ---
 const SAMPLE_STUDENTS = [
-  { 
-    id: 1, 
-    name: "Alex M.", 
-    grade: "3rd", 
-    need: "Reading Decoding", 
-    primaryNeed: "Reading Decoding",
-    nextIep: "2024-01-15", 
-    nextEval: "2025-05-20", 
-    behaviorPlan: true, 
-    summary: "Alex is a 3rd grade student with dyslexia who demonstrates strong verbal comprehension but struggles with decoding multisyllabic words. Current accommodations include extended time, text-to-speech software, and chunked reading assignments. Recent progress shows improvement in fluency (from 45 to 62 WPM) but continues to need support with comprehension of complex texts. Parent communication is excellent, and Alex responds well to positive reinforcement strategies." 
-  },
-  { 
-    id: 2, 
-    name: "Jordan K.", 
-    grade: "5th", 
-    need: "Math Calculation", 
-    primaryNeed: "Math Calculation",
-    nextIep: "2025-11-20", 
-    nextEval: "2026-09-01", 
-    behaviorPlan: false, 
-    summary: "Jordan is a 5th grade student with dyscalculia who excels in reading and writing but has significant difficulty with number sense and calculation. Current supports include manipulatives, graph paper for alignment, calculator for complex problems, and visual math strategies. Recent data shows progress in addition/subtraction facts (from 40% to 68% accuracy) but multiplication remains challenging. Jordan benefits from real-world math applications and peer collaboration." 
-  },
-  { 
-    id: 3, 
-    name: "Taylor S.", 
-    grade: "2nd", 
-    need: "Emotional Regulation", 
-    primaryNeed: "Emotional Regulation",
-    nextIep: "2024-12-01", 
-    nextEval: "2024-12-15", 
-    behaviorPlan: true, 
-    summary: "Taylor is a 2nd grade student with ADHD and anxiety who requires support with emotional regulation and self-monitoring. Current interventions include a calm-down corner, visual schedule, movement breaks every 20 minutes, and a daily check-in system. Recent behavior data shows a 40% reduction in meltdowns since implementing the behavior plan. Taylor responds well to sensory tools (fidgets, weighted vest) and benefits from predictable routines. Parent partnership is strong, with consistent home-school communication." 
-  }
+  { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", nextIep: "2024-01-15", nextEval: "2025-05-20", behaviorPlan: true, summary: "Sample data." },
+  { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", nextIep: "2025-11-20", nextEval: "2026-09-01", behaviorPlan: false, summary: "Sample data." },
+  { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", nextIep: "2024-12-01", nextEval: "2024-12-15", behaviorPlan: true, summary: "Sample data." }
 ];
 
 // --- MAIN DASHBOARD ---
@@ -459,16 +327,15 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showSamples, setShowSamples] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
+  const [newStudent, setNewStudent] = useState({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '', qualifyingStatus: '' });
   const [goals, setGoals] = useState([]);
-  const [showA11yMenu, setShowA11yMenu] = useState(false);
   const [activeGoalId, setActiveGoalId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedStudentForGem, setSelectedStudentForGem] = useState(null);
   const [chatHistories, setChatHistories] = useState([]);
-  const [showImportRoster, setShowImportRoster] = useState(false);
-  const [generateProfile, setGenerateProfile] = useState(false);
-  const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editStudentData, setEditStudentData] = useState({});
+  const [sortBy, setSortBy] = useState('iep'); // Default to sorting by IEP due date
   
   // Track demo mode student additions (localStorage, not saved)
   const getDemoStudentCount = () => {
@@ -554,24 +421,48 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, user?.role, showSamples]);
 
-  // Filter students based on showSamples toggle
-  // This needs to be computed from the current students array
+  // Filter and sort students based on showSamples toggle and sort preference
   const displayedStudents = useMemo(() => {
-    if (showSamples) {
-      return students;
+    let filtered = showSamples 
+      ? students 
+      : students.filter(s => !SAMPLE_STUDENTS.some(sample => sample.id === s.id));
+    
+    // Sort by selected criteria
+    if (sortBy === 'iep') {
+      filtered = [...filtered].sort((a, b) => {
+        const dateA = a.nextIep || a.nextIepDate || '';
+        const dateB = b.nextIep || b.nextIepDate || '';
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateA) - new Date(dateB);
+      });
+    } else if (sortBy === '504') {
+      filtered = [...filtered].sort((a, b) => {
+        const dateA = a.next504 || a.next504Date || '';
+        const dateB = b.next504 || b.next504Date || '';
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateA) - new Date(dateB);
+      });
+    } else {
+      // Sort by name
+      filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
     }
-    // Filter out sample students
-    return students.filter(s => {
-      return !SAMPLE_STUDENTS.some(sample => sample.id === s.id);
-    });
-  }, [students, showSamples]);
+    
+    return filtered;
+  }, [students, showSamples, sortBy]);
   
   const activeStudent = displayedStudents.length > 0 
     ? (displayedStudents.find(s => s.id === currentStudentId) || displayedStudents[0])
     : null;
   const activeGoal = goals.find(g => g.id === activeGoalId);
 
-  // Load goals when student changes
+  // State for student summary
+  const [studentSummary, setStudentSummary] = useState('');
+
+  // Load goals and summary when student changes
   useEffect(() => {
     const loadStudentData = async () => {
       if (!activeStudent || !user?.uid) return;
@@ -581,15 +472,28 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         if (activeStudent.id && typeof activeStudent.id === 'string') {
           const studentGoals = await getStudentGoals(activeStudent.id, user.uid);
           setGoals(studentGoals);
+          
+          // Load IEP summary for student summary display
+          const iepSummary = await getIepSummary(activeStudent.id, user.uid);
+          if (iepSummary) {
+            setStudentSummary(iepSummary);
+          } else {
+            // If no IEP summary, check if there's a summary in activeStudent
+            setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
+          }
+        } else {
+          // For demo/local students, use their summary if available
+          setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
         }
       } catch (error) {
         console.error('Error loading student data:', error);
+        setStudentSummary(activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.');
       }
     };
     
     loadStudentData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStudent?.id, user?.uid]);
+  }, [activeStudent?.id, user?.uid, activeStudent]);
 
   // Load chat histories
   useEffect(() => {
@@ -617,9 +521,14 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [trackerData, setTrackerData] = useState({});
   const [isEditingTracker, setIsEditingTracker] = useState(false);
   const [rewardThreshold, setRewardThreshold] = useState(80);
-  const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '' });
+  const [goalInputs, setGoalInputs] = useState({ condition: '', behavior: '', skill: '', goal: '' });
   const [goalText, setGoalText] = useState("");
   const [goalConfig, setGoalConfig] = useState({ frequency: 'Weekly', target: 80 });
+  const [goalType, setGoalType] = useState('academic'); // 'academic' or 'behavior'
+  const [uploadFileType, setUploadFileType] = useState('iep'); // 'iep', 'test', 'baseline', 'benchmark'
+  const [checklistItems, setChecklistItems] = useState([]);
+  const [generatedChecklist, setGeneratedChecklist] = useState(null); // Will store { goal, classPeriods: [{ name, signed, comment }] }
+  const [checklistGoal, setChecklistGoal] = useState(null);
 
   // Helpers
   const getBadgeColor = (text) => {
@@ -637,9 +546,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       
       // If no user or demo mode, add to local state (demo mode - limit 1)
+      // BUT allow unlimited in developer mode
       if (!user?.uid || user?.isDemo) {
-        // Check demo limit
-        if (user?.isDemo && getDemoStudentCount() >= 1) {
+        // Check demo limit (skip if developer mode is active)
+        const isDevMode = DevModeService.isActive();
+        if (user?.isDemo && !isDevMode && getDemoStudentCount() >= 1) {
           alert('Demo mode limit reached. You can only add 1 student in demo mode. Please create an account for full access.');
           return;
         }
@@ -654,77 +565,23 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         setStudents([...students, student]);
         setIsAddingStudent(false);
         setNewStudent({ name: '', grade: '', need: '', nextIep: '', nextEval: '', next504: '' });
-        setGenerateProfile(false);
         setCurrentStudentId(student.id);
         incrementDemoStudentCount();
         return;
       }
       
       try {
-        // Auto-tag security: Set schoolId and assignedTeacherIds
-        // Get user's schoolId (from mockStore or user object)
-        let schoolId = user.schoolId || '';
-        
-        // If using mockStore, try to get user's school
-        try {
-          const { getUserById } = await import('./lib/mockStore');
-          const userData = getUserById(user.uid);
-          if (userData?.schoolId) {
-            schoolId = userData.schoolId;
-          }
-        } catch (e) {
-          // Fallback if mockStore not available
-          console.warn('Could not get schoolId from mockStore:', e);
-        }
-
-        let learnerProfile = null;
-        
-        // AI Auto-Fill: Generate learner profile if requested
-        if (generateProfile && newStudent.need) {
-          setIsGeneratingProfile(true);
-          try {
-            // Use instant_help mode for quick accommodation strategies
-            const aiPrompt = `Based on the diagnosis "${newStudent.need}", generate a 1-paragraph learner profile and 3 recommended accommodations.`;
-            
-            // Call AI service via the API route
-            const response = await fetch('/api/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                mode: 'instant_help',
-                userInput: aiPrompt,
-                fileData: [],
-                studentName: newStudent.name // Pass student name for anonymization
-              })
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              learnerProfile = data.result || null;
-            }
-          } catch (error) {
-            console.error('Error generating learner profile:', error);
-            // Continue without profile - don't block student creation
-          } finally {
-            setIsGeneratingProfile(false);
-          }
-        }
-
         const studentData = {
           name: newStudent.name,
           grade: newStudent.grade,
-          need: newStudent.need, // This is the diagnosis field
-          diagnosis: newStudent.need, // Also set diagnosis field for consistency
+          need: newStudent.need,
           nextIep: newStudent.nextIep,
           nextEval: newStudent.nextEval,
-          next504: newStudent.next504,
-          schoolId: schoolId, // Auto-tag with teacher's school
-          assignedTeacherIds: [user.uid], // Auto-assign to self
-          learnerProfile: learnerProfile // AI-generated profile if requested
+          next504: newStudent.next504
         };
         
         const createdStudent = await createStudent(studentData, user.uid, user.role);
-        // Reload students from Firebase/mockStore to get the updated list
+        // Reload students from Firebase to get the updated list
         const firebaseStudents = await getStudentsForUser(user.uid, user.role);
         const allStudents = showSamples 
           ? [...SAMPLE_STUDENTS, ...firebaseStudents]
@@ -737,6 +594,37 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         alert(`Error adding student: ${error.message}`);
         console.error('Error adding student:', error);
       }
+  };
+
+  const handleUpdateStudent = async () => {
+    if (!editingStudent || !user?.uid) return;
+    
+    try {
+      const updates = {
+        name: editStudentData.name,
+        grade: editStudentData.grade,
+        primaryNeed: editStudentData.need,
+        nextIepDate: editStudentData.nextIep || '',
+        next504Date: editStudentData.next504 || '',
+        nextEvalDate: editStudentData.nextEval || '',
+        hasIep: !!editStudentData.nextIep,
+        has504: !!editStudentData.next504
+      };
+      
+      await updateStudent(editingStudent.id, updates, user.uid, user.role);
+      
+      // Reload students
+      const firebaseStudents = await getStudentsForUser(user.uid, user.role);
+      const allStudents = showSamples 
+        ? [...SAMPLE_STUDENTS, ...firebaseStudents]
+        : firebaseStudents;
+      setStudents(allStudents);
+      setEditingStudent(null);
+      setEditStudentData({});
+    } catch (error) {
+      alert(`Error updating student: ${error.message}`);
+      console.error('Error updating student:', error);
+    }
   };
 
   const handleRemoveStudent = async (studentId) => {
@@ -797,6 +685,22 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           if (plan504) {
             studentProfile += `504 Plan Accommodations:\n${plan504}\n\n`;
           }
+          
+          // Load and add goals
+          const studentGoals = await getStudentGoals(activeStudent.id, user.uid);
+          if (studentGoals && studentGoals.length > 0) {
+            studentProfile += `Current Goals:\n`;
+            studentGoals.forEach((goal, index) => {
+              studentProfile += `${index + 1}. ${goal.text || goal.goalText || JSON.stringify(goal)}\n`;
+              if (goal.target) {
+                studentProfile += `   Target: ${goal.target}%\n`;
+              }
+              if (goal.frequency) {
+                studentProfile += `   Frequency: ${goal.frequency}\n`;
+              }
+            });
+            studentProfile += `\n`;
+          }
         } catch (err) {
           console.error('Error loading plan data:', err);
         }
@@ -826,11 +730,169 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
   const handleLockGoal = () => {
       if (!goalText) return;
-      const newGoal = { id: Date.now().toString(), studentId: activeStudent.id, text: goalText, target: goalConfig.target, frequency: goalConfig.frequency, data: [], createdAt: new Date().toISOString() };
+      const newGoal = { 
+        id: Date.now().toString(), 
+        studentId: activeStudent.id, 
+        text: goalText, 
+        type: goalType,
+        target: goalConfig.target, 
+        frequency: goalConfig.frequency, 
+        data: [], 
+        createdAt: new Date().toISOString(),
+        skill: goalInputs.skill || '',
+        goal: goalInputs.goal || '',
+        condition: goalInputs.condition || '',
+        behavior: goalInputs.behavior || ''
+      };
       setGoals([...goals, newGoal]);
       setActiveGoalId(newGoal.id);
       alert("Goal Locked! Go to 'Monitor' tab to track progress.");
       setActiveTab('monitor');
+  };
+
+  const handleAddAnotherGoal = () => {
+    if (!goalText) {
+      alert('Please generate a goal first before adding another.');
+      return;
+    }
+    handleLockGoal();
+    // Reset form for next goal
+    setGoalText('');
+    setGoalInputs({ condition: '', behavior: '', skill: '', goal: '' });
+    setGoalConfig({ frequency: 'Weekly', target: 80 });
+  };
+
+  const handleGenerateChecklist = () => {
+    if (!activeStudent || goals.length === 0) {
+      alert('Please select a student with goals to generate a checklist.');
+      return;
+    }
+    
+    // Use the active goal if available, otherwise use the first goal
+    const selectedGoal = activeGoal || goals[0];
+    
+    // Create default class periods (can be edited)
+    const defaultPeriods = [
+      { name: 'Period 1', signed: false, comment: '' },
+      { name: 'Period 2', signed: false, comment: '' },
+      { name: 'Period 3', signed: false, comment: '' },
+      { name: 'Period 4', signed: false, comment: '' },
+      { name: 'Period 5', signed: false, comment: '' },
+      { name: 'Period 6', signed: false, comment: '' },
+      { name: 'Period 7', signed: false, comment: '' },
+      { name: 'Period 8', signed: false, comment: '' }
+    ];
+    
+    setChecklistGoal(selectedGoal);
+    setGeneratedChecklist({
+      goal: selectedGoal,
+      classPeriods: defaultPeriods
+    });
+  };
+
+  const handleAddClassPeriod = () => {
+    if (!generatedChecklist) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: [...generatedChecklist.classPeriods, { name: `Period ${generatedChecklist.classPeriods.length + 1}`, signed: false, comment: '' }]
+    });
+  };
+
+  const handleRemoveClassPeriod = (index) => {
+    if (!generatedChecklist || generatedChecklist.classPeriods.length <= 1) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: generatedChecklist.classPeriods.filter((_, i) => i !== index)
+    });
+  };
+
+  const handleUpdateClassPeriod = (index, field, value) => {
+    if (!generatedChecklist) return;
+    const updatedPeriods = [...generatedChecklist.classPeriods];
+    updatedPeriods[index] = { ...updatedPeriods[index], [field]: value };
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      classPeriods: updatedPeriods
+    });
+  };
+
+  const handleUpdateChecklistGoal = (newGoalText) => {
+    if (!generatedChecklist) return;
+    setGeneratedChecklist({
+      ...generatedChecklist,
+      goal: { ...generatedChecklist.goal, text: newGoalText }
+    });
+  };
+
+  const handlePrintChecklist = () => {
+    if (!generatedChecklist) return;
+    
+    const printWindow = window.open('', '_blank');
+    const goalText = generatedChecklist.goal?.text || 'Goal';
+    const periods = generatedChecklist.classPeriods || [];
+    
+    const tableRows = periods.map((period, index) => `
+      <tr style="border-bottom: 1px solid #ddd;">
+        <td style="padding: 12px; font-weight: bold; width: 150px; color: #000;">${period.name}</td>
+        <td style="padding: 12px; text-align: center; width: 80px;">
+          <div style="width: 30px; height: 30px; border: 2px solid #000; margin: 0 auto; ${period.signed ? 'background-color: #000; position: relative;' : ''}">
+            ${period.signed ? '<span style="color: white; font-size: 20px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">✓</span>' : ''}
+          </div>
+        </td>
+        <td style="padding: 12px; color: #000;">
+          <div style="min-height: 30px; border: 1px solid #ccc; padding: 8px; white-space: pre-wrap;">${period.comment || ''}</div>
+        </td>
+      </tr>
+    `).join('');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Goal Checklist - ${activeStudent?.name || 'Student'}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; color: #000; }
+            h2 { color: #000; margin-bottom: 10px; font-size: 20px; font-weight: bold; }
+            .goal-text { background-color: #fff; border-left: 4px solid #000; padding: 15px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #000; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #000; color: #fff; padding: 12px; text-align: left; font-weight: bold; }
+            td { padding: 12px; color: #000; }
+            .student-info { margin-bottom: 20px; font-size: 14px; color: #000; }
+            strong { color: #000; font-weight: bold; }
+            @media print { 
+              body { padding: 15px; }
+              @page { margin: 1cm; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="student-info">
+            <strong>Student:</strong> ${activeStudent?.name || 'Student'}<br>
+            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+          </div>
+          <h2>Goal Being Monitored:</h2>
+          <div class="goal-text">${goalText}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Class Period</th>
+                <th style="text-align: center; width: 80px;">Teacher Sign-Off</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   const handleAddDataPoint = () => {
@@ -848,18 +910,194 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       alert("Summary copied to clipboard!");
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !activeStudent) return;
+    
     setIsUploading(true);
-    setTimeout(() => { setIsUploading(false); alert(`Successfully processed ${file.name}.`); }, 2000);
+    
+    try {
+      let fileText = '';
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      
+      // Extract text from PDF using pdfjs-dist
+      if (isPdf) {
+        try {
+          // Import pdfjs-dist dynamically
+          const pdfjsModule = await import('pdfjs-dist');
+          const pdfjsLib = pdfjsModule.default || pdfjsModule;
+          
+          // Set up worker
+          if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+          }
+          
+          // Read PDF and extract text
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          
+          // Extract text from all pages (limit to first 50 pages for comprehensive coverage)
+          const maxPages = Math.min(pdf.numPages, 50);
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n';
+          }
+          
+          if (pdf.numPages > 50) {
+            fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 50 pages]`;
+          }
+          
+          fileText = fullText.trim();
+          
+          if (!fileText || fileText.length === 0) {
+            throw new Error('Could not extract text from PDF. The PDF may be image-based or encrypted.');
+          }
+        } catch (pdfError) {
+          console.error('PDF extraction error:', pdfError);
+          throw new Error(`Failed to extract text from PDF: ${pdfError.message}. Please ensure the PDF contains extractable text.`);
+        }
+      } else {
+        // For text files, read directly
+        const reader = new FileReader();
+        fileText = await new Promise((resolve, reject) => {
+          reader.onload = (event) => resolve(event.target.result);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
+      
+      // Determine file type from uploadFileType state or file name
+      let fileTypeLabel = uploadFileType;
+      if (fileTypeLabel === 'iep') fileTypeLabel = 'IEP Snapshot';
+      else if (fileTypeLabel === 'test') fileTypeLabel = 'Test Data';
+      else if (fileTypeLabel === 'baseline') fileTypeLabel = 'Baseline Data';
+      else if (fileTypeLabel === 'benchmark') fileTypeLabel = 'Benchmark Data';
+      
+      // Use AI to analyze the file and create a summary
+      const analysisPrompt = `You are analyzing a ${fileTypeLabel} document for student ${activeStudent.name} (Grade ${activeStudent.grade}). 
+
+CRITICAL INSTRUCTIONS:
+1. The document content is provided below. You MUST read and analyze the ACTUAL content.
+2. Extract SPECIFIC information from the document - do NOT provide generic templates or placeholders.
+3. If information is not in the document, state "Not specified in document" rather than making up generic examples.
+4. Provide a clear, comprehensive summary with actual data from the document.
+
+Extract and summarize the following information from the ACTUAL document content:
+- Present levels of performance (extract actual data from the document)
+- Strengths and needs (extract specific strengths and needs mentioned in the document)
+- Accommodations mentioned (list all specific accommodations found in the document)
+- Goals or objectives (extract actual goals/objectives from the document)
+- Test scores or performance data (extract specific scores and data from the document)
+- Any other relevant educational information (extract specific details from the document)
+
+Format the summary clearly with sections. Only include information that is actually in the document.`;
+      
+      // Determine file type for the files array
+      let fileTypeForService = 'text';
+      if (isPdf) {
+        fileTypeForService = 'pdf';
+      } else if (file.type.includes('word') || file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx')) {
+        fileTypeForService = 'word';
+      }
+      
+      // Format file data as expected by GeminiService.generate()
+      const filesArray = [{
+        type: fileTypeForService,
+        name: file.name,
+        content: fileText.substring(0, 200000) // Increased limit for comprehensive analysis
+      }];
+      
+      const analysisResult = await GeminiService.generate({
+        message: analysisPrompt,
+        files: filesArray,
+        student: activeStudent.name,
+        grade: activeStudent.grade,
+        selectedStudent: activeStudent
+      }, 'accommodation');
+      
+      // Clean up the result - remove "Sample data" if it appears
+      let cleanedResult = analysisResult;
+      if (cleanedResult.startsWith('Sample data.') || cleanedResult.startsWith('Sample data')) {
+        cleanedResult = cleanedResult.replace(/^Sample data\.?\s*/i, '').trim();
+      }
+      
+      // Update student summary with the analysis
+      // Remove "Sample data." from existing summary if present
+      let currentSummary = studentSummary || activeStudent.summary || '';
+      if (currentSummary.trim() === 'Sample data.' || currentSummary.trim() === 'Sample data') {
+        currentSummary = '';
+      } else if (currentSummary.includes('Sample data.')) {
+        currentSummary = currentSummary.replace(/Sample data\.?\s*/gi, '').trim();
+      }
+      
+      const newSummary = currentSummary 
+        ? `${currentSummary}\n\n--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${cleanedResult}`
+        : `--- ${fileTypeLabel} Analysis (${new Date().toLocaleDateString()}) ---\n${cleanedResult}`;
+      
+      setStudentSummary(newSummary);
+      
+      // Save to Firebase if student has an ID
+      if (activeStudent.id && typeof activeStudent.id === 'string' && user?.uid) {
+        try {
+          await saveIepSummary(activeStudent.id, newSummary, user.uid);
+          // Also update the local student object
+          const updatedStudent = { ...activeStudent, summary: newSummary };
+          setStudents(students.map(s => s.id === activeStudent.id ? updatedStudent : s));
+        } catch (error) {
+          console.error('Error saving summary to Firebase:', error);
+        }
+      } else {
+        // For demo students, just update local state
+        const updatedStudent = { ...activeStudent, summary: newSummary };
+        setStudents(students.map(s => s.id === activeStudent.id ? updatedStudent : s));
+      }
+      
+      alert(`Successfully analyzed ${file.name} and added to ${activeStudent.name}'s profile.`);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert(`Error processing file: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (e.target) e.target.value = '';
+    }
   };
   
+  const handleGenerateImpact = async () => {
+    if (!plaafpInputs.strengths && !plaafpInputs.needs) {
+      alert('Please enter strengths and/or needs before generating impact.');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const result = await GeminiService.generate({ 
+        strengths: plaafpInputs.strengths, 
+        needs: plaafpInputs.needs,
+        student: activeStudent?.name || 'Student'
+      }, 'impact');
+      setPlaafpInputs({ ...plaafpInputs, impact: result });
+    } catch (error) {
+      console.error('Error generating impact:', error);
+      alert('Error generating impact. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGeneratePlaafp = async () => {
     setIsGenerating(true);
-    const result = await GeminiService.generate({ ...plaafpInputs, student: activeStudent?.name || 'Student' }, 'plaafp');
-    setPlaafpResult(result);
-    setIsGenerating(false);
+    try {
+      const result = await GeminiService.generate({ ...plaafpInputs, student: activeStudent?.name || 'Student' }, 'plaafp');
+      setPlaafpResult(result);
+    } catch (error) {
+      console.error('Error generating PLAAFP:', error);
+      setPlaafpResult('Error generating PLAAFP. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   const handleGenerateEmail = async () => {
@@ -868,13 +1106,12 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
     setIsGenerating(true);
     // Clear previous email to allow new generation
     setGeneratedEmail('');
-    setTranslatedEmail('');
-    setShowTranslation(false);
     
     try {
       // Add timestamp to ensure unique generation each time
+      const studentName = activeStudent?.name || 'the student';
       let prompt = { 
-        student: activeStudent?.name || 'the student', 
+        student: studentName, 
         topic: emailTopic,
         timestamp: Date.now() // Ensure each generation is unique
       };
@@ -884,19 +1121,6 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       const result = await GeminiService.generate(prompt, 'email');
       setGeneratedEmail(result);
-      setEmailDraft(result); // Set for ToneCheck
-      
-      // Check if parent has preferred language and translate if needed
-      // Note: In a real implementation, parentLanguage would come from student/parent data
-      // For now, we'll add a UI control to set it
-      if (parentLanguage && parentLanguage !== 'English') {
-        try {
-          const translated = await translateContent(result, parentLanguage);
-          setTranslatedEmail(translated);
-        } catch (transError) {
-          console.error('Translation error:', transError);
-        }
-      }
     } catch (error) {
       console.error('Error generating email:', error);
       setGeneratedEmail('Error generating email. Please try again.');
@@ -906,10 +1130,29 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   };
 
   const handleGenerateGoal = async () => {
+    if (goalType === 'academic' && (!goalInputs.skill || !goalInputs.goal)) {
+      alert('Please fill in both Skill and Goal fields for academic goals.');
+      return;
+    }
+    if (goalType === 'behavior' && (!goalInputs.condition || !goalInputs.behavior)) {
+      alert('Please fill in both Condition and Behavior fields for behavior goals.');
+      return;
+    }
+    
     setIsGenerating(true);
-    const result = await GeminiService.generate({ student: activeStudent?.name, grade: activeStudent?.grade, ...goalInputs }, 'goal');
-    setGoalText(result);
-    setIsGenerating(false);
+    try {
+      const goalData = goalType === 'academic' 
+        ? { student: activeStudent?.name, grade: activeStudent?.grade, skill: goalInputs.skill, goal: goalInputs.goal, type: 'academic' }
+        : { student: activeStudent?.name, grade: activeStudent?.grade, condition: goalInputs.condition, behavior: goalInputs.behavior, type: 'behavior' };
+      
+      const result = await GeminiService.generate(goalData, 'goal');
+      setGoalText(result);
+    } catch (error) {
+      console.error('Error generating goal:', error);
+      alert('Error generating goal. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleLogBehavior = () => {
@@ -967,17 +1210,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {[
-              'Profile', 
-              'Identify', 
-              'Develop', 
-              'Monitor', 
-              'Behavior', 
-              'Gem', 
-              'Roster', 
-              ...(user?.role === 'admin' ? ['Admin'] : []),
-              'Wellness'
-            ].map((tab) => {
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness'].map((tab) => {
               const isGem = tab === 'Gem';
               const isWellness = tab === 'Wellness';
               return (
@@ -990,7 +1223,6 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       setActiveTab(tab.toLowerCase());
                     }
                   }} 
-                  data-tour={isGem ? "ai-tools" : undefined}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
                     activeTab === tab.toLowerCase() 
                       ? isGem 
@@ -1009,9 +1241,6 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <button onClick={() => setShowA11yMenu(true)} className={`p-2 rounded-full transition-all ${theme.textMuted} hover:${theme.text} hover:bg-slate-500/10`} title="Accessibility Settings">
-                <Settings size={20} />
-            </button>
             <button onClick={onToggleTheme} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
                 {isDark ? <Moon size={20} /> : <Sun size={20} />}
             </button>
@@ -1021,26 +1250,6 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           </div>
         </div>
       </header>
-
-      {/* Onboarding Tour */}
-      <OnboardingTour isDark={isDark} onComplete={() => console.log('Tour completed')} />
-
-      {/* Accessibility Menu */}
-      <A11yMenu isDark={isDark} isOpen={showA11yMenu} onClose={() => setShowA11yMenu(false)} />
-
-      {/* Global Command Bar */}
-      <CommandBar
-        students={displayedStudents}
-        onOpenA11y={() => setShowA11yMenu(true)}
-        onNavigate={(tab) => setActiveTab(tab)}
-        onAddStudent={() => setIsAddingStudent(true)}
-        onDraftEmail={() => {
-          setActiveTab('profile');
-          handleGenerateEmail();
-        }}
-        onSelectStudent={(studentId) => setCurrentStudentId(studentId)}
-        isDark={isDark}
-      />
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 space-y-8">
         {loading ? (
@@ -1079,60 +1288,129 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
         {activeTab === 'profile' && (
           activeStudent ? (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            {/* Morning Briefing Widget */}
-            <DashboardBriefing
-              students={displayedStudents}
-              isDark={isDark}
-              onReviewNow={() => {
-                // Navigate to first student with upcoming IEP
-                const upcomingStudent = displayedStudents.find(s => {
-                  const iepDate = s.nextIep || s.nextIepDate;
-                  if (!iepDate) return false;
-                  const reviewDate = new Date(iepDate);
-                  const now = new Date();
-                  const sevenDaysFromNow = new Date(now);
-                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-                  return reviewDate >= now && reviewDate <= sevenDaysFromNow;
-                });
-                if (upcomingStudent) {
-                  setCurrentStudentId(upcomingStudent.id);
-                }
-              }}
-            />
-            
-            <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="lg:col-span-2 space-y-6">
                <Card className="p-6" theme={theme}>
                  <div className="flex justify-between items-start mb-6">
                    <div><h2 className={`text-2xl font-bold ${theme.text}`}>{activeStudent.name}</h2><p className={theme.textMuted}>Grade: {activeStudent.grade} • Primary Need: {activeStudent.need || activeStudent.primaryNeed}</p></div>
-                   <div className="flex gap-2">
-                     <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
-                     <div className="relative"><input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.txt" /><Button variant="secondary" onClick={() => fileInputRef.current.click()} icon={isUploading ? Settings : UploadCloud} disabled={isUploading} theme={theme}>{isUploading ? "Analyzing..." : "Upload Data"}</Button></div>
+                   <div className="flex flex-col items-end gap-2">
+                     <div className="flex gap-2 flex-wrap">
+                       <Button onClick={handleOpenGemWithStudent} icon={Sparkles} theme={theme}>Open in Gem</Button>
+                       <select 
+                         value={uploadFileType} 
+                         onChange={(e) => setUploadFileType(e.target.value)}
+                         className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg px-3 py-2 ${theme.text} text-sm outline-none`}
+                         disabled={isUploading}
+                       >
+                         <option value="iep">IEP Snapshot</option>
+                         <option value="test">Test Data</option>
+                         <option value="baseline">Baseline Data</option>
+                         <option value="benchmark">Benchmark</option>
+                       </select>
+                       <div className="relative">
+                         <input 
+                           type="file" 
+                           ref={fileInputRef} 
+                           onChange={handleFileUpload} 
+                           className="hidden" 
+                           accept=".pdf,.doc,.docx,.txt" 
+                         />
+                         <Button 
+                           variant="secondary" 
+                           onClick={() => fileInputRef.current.click()} 
+                           icon={isUploading ? Loader2 : UploadCloud} 
+                           disabled={isUploading} 
+                           theme={theme}
+                         >
+                           {isUploading ? "Analyzing..." : "Upload"}
+                         </Button>
+                       </div>
+                     </div>
+                     <p className={`text-[10px] ${theme.textMuted} text-right`}>Uploaded documents are analyzed and automatically added to the Student Summary</p>
                    </div>
                  </div>
-                 <div className="grid grid-cols-3 gap-4">
-                    <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep || activeStudent.nextIepDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text}</Badge>
-                    </div>
-                    <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>504 Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.next504 || activeStudent.next504Date || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text}</Badge>
-                    </div>
-                    <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
-                      <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).color}`}></div>
-                      <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval || activeStudent.nextEvalDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text}</Badge>
-                    </div>
+                 <div className={`grid gap-4 ${(activeStudent.nextIep || activeStudent.nextIepDate) && (activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-3' : (activeStudent.nextIep || activeStudent.nextIepDate || activeStudent.next504 || activeStudent.next504Date) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {(activeStudent.nextIep || activeStudent.nextIepDate) && (
+                      <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
+                        <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).color}`}></div>
+                        <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>IEP Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextIep || activeStudent.nextIepDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextIep || activeStudent.nextIepDate).text}</Badge>
+                      </div>
+                    )}
+                    {(activeStudent.next504 || activeStudent.next504Date) && (
+                      <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
+                        <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).color}`}></div>
+                        <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>504 Due Date</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.next504 || activeStudent.next504Date || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.next504 || activeStudent.next504Date).text}</Badge>
+                      </div>
+                    )}
+                    {(activeStudent.nextEval || activeStudent.nextEvalDate) && (
+                      <div className={`p-4 rounded-xl border ${theme.cardBorder} ${theme.inputBg} flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden`}>
+                        <div className={`absolute top-0 left-0 w-full h-1 ${ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).color}`}></div>
+                        <p className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Evaluation Due</p><h3 className={`text-xl font-bold ${theme.text}`}>{activeStudent.nextEval || activeStudent.nextEvalDate || 'N/A'}</h3><Badge color={getBadgeColor(ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text)} isDark={isDark}>{ComplianceService.getStatus(activeStudent.nextEval || activeStudent.nextEvalDate).text}</Badge>
+                      </div>
+                    )}
                  </div>
                </Card>
                <Card className="p-6" theme={theme}>
-                 <h3 className={`text-lg font-bold ${theme.text} mb-4 flex items-center gap-2`}>
-                   <BarChart3 className="text-cyan-400"/> Student Summary
-                 </h3>
-                 <p className={`${theme.textMuted} leading-relaxed text-sm whitespace-pre-wrap`}>
-                   {activeStudent.summary || 'No summary available. Click "Open in Gem" to start working with this student.'}
-                 </p>
+                 <div className="flex justify-between items-center mb-4">
+                   <h3 className={`text-lg font-bold ${theme.text} flex items-center gap-2`}>
+                     <BarChart3 className="text-cyan-400"/> Student Summary
+                   </h3>
+                   <Button 
+                     onClick={() => {
+                       const summary = studentSummary || activeStudent.summary || '';
+                       if (summary) {
+                         navigator.clipboard.writeText(summary);
+                         alert('Summary copied to clipboard!');
+                       }
+                     }}
+                     variant="secondary"
+                     icon={Copy}
+                     className="text-xs"
+                     theme={theme}
+                     disabled={!studentSummary && !activeStudent.summary}
+                   >
+                     Copy
+                   </Button>
+                 </div>
+                 <div className={`${theme.inputBg} rounded-xl p-4 border ${theme.cardBorder} max-h-[400px] overflow-y-auto`}>
+                   {(() => {
+                     const summary = studentSummary || activeStudent.summary || '';
+                     if (!summary) {
+                       return <p className={`${theme.textMuted} text-sm`}>No summary available. Click "Open in Gem" to start working with this student.</p>;
+                     }
+                     // Format summary: convert markdown-style asterisks to HTML bold, clean up formatting
+                     const formatted = summary
+                       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // **text** to <strong>
+                       .replace(/\*(.+?)\*/g, '<strong>$1</strong>') // *text* to <strong>
+                       .replace(/\n\n+/g, '\n\n') // Remove excessive line breaks
+                       .split('\n')
+                       .map(line => {
+                         // Convert section headers (lines starting with --- or ===)
+                         if (line.trim().startsWith('---') || line.trim().startsWith('===')) {
+                           return '<hr class="my-4 border-gray-300" />';
+                         }
+                         // Convert markdown headers
+                         if (line.trim().startsWith('#')) {
+                           const level = line.match(/^#+/)[0].length;
+                           const text = line.replace(/^#+\s*/, '');
+                           return `<h${Math.min(level, 4)} class="font-bold ${theme.text} mb-2 mt-4">${text}</h${Math.min(level, 4)}>`;
+                         }
+                         // Convert bullet points
+                         if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+                           const text = line.replace(/^[-*]\s+/, '');
+                           return `<li class="ml-4 mb-1 ${theme.text}">${text}</li>`;
+                         }
+                         // Regular paragraph
+                         if (line.trim()) {
+                           return `<p class="mb-2 ${theme.text} leading-relaxed">${line}</p>`;
+                         }
+                         return '';
+                       })
+                       .filter(line => line)
+                       .join('');
+                     return <div className={`text-sm leading-relaxed ${theme.text}`} dangerouslySetInnerHTML={{ __html: formatted }} />;
+                   })()}
+                 </div>
                </Card>
                
                {/* Chat Histories Section */}
@@ -1213,97 +1491,35 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                    {emailTopic === 'Solicit Feedback' && (
                        <div className={`${theme.inputBg} p-3 rounded border ${theme.cardBorder} space-y-2`}><p className={`text-xs font-bold ${theme.textMuted} uppercase`}>Ask about:</p>{['behavior', 'social', 'academic', 'independence'].map(area => (<label key={area} className={`flex items-center gap-2 text-sm ${theme.textMuted} cursor-pointer hover:${theme.text}`}><input type="checkbox" checked={feedbackAreas[area]} onChange={e => setFeedbackAreas({...feedbackAreas, [area]: e.target.checked})} className="accent-cyan-500"/>{area.charAt(0).toUpperCase() + area.slice(1)} at Home</label>))}</div>
                    )}
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Parent Preferred Language</label><select value={parentLanguage} onChange={(e) => setParentLanguage(e.target.value)} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`}><option>English</option><option>Spanish</option><option>French</option><option>Mandarin</option><option>Arabic</option><option>Vietnamese</option><option>Tagalog</option></select></div>
-                   <Button onClick={handleGenerateEmail} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Drafting..." : "Generate Email Draft"}</Button>
+                   <Button onClick={handleGenerateEmail} disabled={isGenerating} className="w-full" icon={isGenerating ? Loader2 : Wand2} theme={theme}>
+                     {isGenerating ? (
+                       <span className="flex items-center gap-2">
+                         <Loader2 className="animate-spin" size={16} />
+                         Drafting...
+                       </span>
+                     ) : "Generate Email Draft"}
+                   </Button>
                 </div>
-                {generatedEmail && (
-                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
-                    {/* Tone Check for Email Draft */}
-                    <div className="mb-4">
-                      <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Email Draft (Edit to check tone)</label>
-                      <textarea
-                        value={emailDraft}
-                        onChange={(e) => {
-                          setEmailDraft(e.target.value);
-                          setGeneratedEmail(e.target.value);
-                        }}
-                        className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[150px] font-mono text-xs`}
-                        placeholder="Email draft will appear here..."
-                      />
-                      <ToneCheck text={emailDraft} isDark={isDark} />
-                    </div>
-                    
-                    {/* Translation Toggle */}
-                    {translatedEmail && parentLanguage !== 'English' && (
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className={`text-xs font-bold ${theme.textMuted} uppercase`}>Translation ({parentLanguage})</label>
-                          <button
-                            onClick={() => setShowTranslation(!showTranslation)}
-                            className={`text-xs ${theme.textMuted} hover:${theme.text} underline`}
-                          >
-                            {showTranslation ? 'Hide' : 'Show'} Translation
-                          </button>
-                        </div>
-                        {showTranslation && (
-                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono mb-2 border ${theme.cardBorder}`}>
-                            {translatedEmail}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Split View: English and Translation */}
-                    {translatedEmail && parentLanguage !== 'English' && showTranslation && (
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>English</label>
-                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono border ${theme.cardBorder} max-h-64 overflow-y-auto`}>
-                            {generatedEmail}
-                          </div>
-                        </div>
-                        <div>
-                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>{parentLanguage}</label>
-                          <div className={`${theme.inputBg} p-3 rounded text-xs ${theme.textMuted} whitespace-pre-wrap font-mono border ${theme.cardBorder} max-h-64 overflow-y-auto`}>
-                            {translatedEmail}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex gap-2 flex-wrap">
-                      <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy English</Button>
-                      {translatedEmail && (
-                        <Button onClick={() => navigator.clipboard.writeText(translatedEmail)} variant="secondary" className="flex-1" icon={Copy} theme={theme}>Copy {parentLanguage}</Button>
-                      )}
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            const emailTitle = `Email - ${emailTopic || 'Parent Communication'}`;
-                            const emailContent = generatedEmail + (translatedEmail ? `\n\n--- Translation (${parentLanguage}) ---\n\n${translatedEmail}` : '');
-                            await generatePDF(emailTitle, emailContent, '', 'PrismPath');
-                          } catch (error) {
-                            alert('Failed to generate PDF: ' + error.message);
-                          }
-                        }}
-                        variant="secondary" 
-                        className="flex-1" 
-                        icon={FileDown} 
-                        theme={theme}
-                      >
-                        Export PDF
-                      </Button>
-                    </div>
+                {isGenerating && (
+                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder} flex items-center justify-center py-4`}>
+                    <Loader2 className="animate-spin text-cyan-400" size={24} />
+                    <span className={`ml-2 ${theme.textMuted}`}>Generating email...</span>
                   </div>
                 )}
-               </Card>
+                {generatedEmail && !isGenerating && (
+                  <div className={`mt-4 pt-4 border-t ${theme.cardBorder}`}>
+                    <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Email Draft</label>
+                    <textarea
+                      value={generatedEmail}
+                      onChange={(e) => setGeneratedEmail(e.target.value)}
+                      className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[200px] whitespace-pre-wrap font-mono text-xs mb-2`}
+                      placeholder="Edit the email draft..."
+                    />
+                    <Button onClick={() => navigator.clipboard.writeText(generatedEmail)} variant="secondary" className="w-full" icon={Copy} theme={theme}>Copy to Clipboard</Button>
+                  </div>
+                )}
+              </Card>
             </div>
-            
-            {/* Student Progress Chart */}
-            <StudentProgressChart
-              student={activeStudent}
-              isDark={isDark}
-            />
           </div>
           ) : (
             <div className={`text-center py-12 ${theme.textMuted}`}>
@@ -1319,16 +1535,35 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                  <h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><FileText className="text-cyan-400"/> PLAAFP Wizard</h2>
                  <p className={`text-sm ${theme.textMuted} mb-6`}>Input basic observations to generate a comprehensive Present Levels narrative.</p>
                  <div className="space-y-4">
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Student Strengths</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Key Needs/Deficits</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Impact of Disability</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} /></div>
-                   <Button onClick={handleGeneratePlaafp} disabled={isGenerating} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Compiling..." : "Generate Narrative"}</Button>
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Student Strengths</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Visual learner, kind to peers..." value={plaafpInputs.strengths} onChange={(e) => setPlaafpInputs({...plaafpInputs, strengths: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} /></div>
+                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Key Needs/Deficits</label><textarea className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Reading decoding..." value={plaafpInputs.needs} onChange={(e) => setPlaafpInputs({...plaafpInputs, needs: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} /></div>
+                   <div>
+                     <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Impact of Disability</label>
+                     <div className="flex gap-2">
+                       <textarea className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none h-20`} placeholder="e.g. Difficulty accessing text..." value={plaafpInputs.impact} onChange={(e) => setPlaafpInputs({...plaafpInputs, impact: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && plaafpInputs.strengths && plaafpInputs.needs) { e.preventDefault(); handleGeneratePlaafp(); } }} />
+                       <Button onClick={handleGenerateImpact} disabled={isGenerating || (!plaafpInputs.strengths && !plaafpInputs.needs)} className="self-start" icon={Wand2} theme={theme} title="Generate impact based on strengths and needs">
+                         {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                       </Button>
+                     </div>
+                   </div>
+                   <Button onClick={handleGeneratePlaafp} disabled={isGenerating || (!plaafpInputs.strengths && !plaafpInputs.needs)} className="w-full" icon={Wand2} theme={theme}>{isGenerating ? "Compiling..." : "Generate Narrative"} {plaafpInputs.strengths && plaafpInputs.needs && <span className="text-xs opacity-70 ml-2">(Ctrl+Enter)</span>}</Button>
                  </div>
               </Card>
               <Card className={`p-8 flex flex-col`} theme={theme}>
                  <h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Narrative Preview</h2>
                  {plaafpResult ? (
-                     <div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{plaafpResult}</div><CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} title="PLAAFP Statement" /></div>
+                     <div className="flex-1 flex flex-col">
+                       <div className="mb-2">
+                         <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Narrative Text</label>
+                         <textarea
+                           value={plaafpResult}
+                           onChange={(e) => setPlaafpResult(e.target.value)}
+                           className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-xl p-4 ${theme.text} outline-none min-h-[300px] leading-relaxed text-sm font-serif`}
+                           placeholder="Enter or edit the narrative text..."
+                         />
+                       </div>
+                       <CopyBlock content={plaafpResult} label="Copy PLAAFP to Documentation" theme={theme} />
+                     </div>
                  ) : (
                      <div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Brain size={48} className="mb-4 opacity-50"/><p>Enter data to generate statement.</p></div>
                  )}
@@ -1341,24 +1576,67 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
               <Card className="p-8" glow theme={theme}>
                  <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan" isDark={isDark}>AI Active</Badge></div>
                  <div className="space-y-6">
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Given a grade level text..." /></div>
-                   <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><GoalInput value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} student={activeStudent} isDark={isDark} placeholder="e.g. Student will decode..." /></div>
-                   <Button onClick={handleGenerateGoal} disabled={isGenerating} className="w-full" theme={theme}>{isGenerating ? <span className="animate-pulse">Generating...</span> : <span><Wand2 size={16} className="inline mr-2"/> Draft Smart Goal</span>}</Button>
+                   <div>
+                     <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal Type</label>
+                     <select 
+                       value={goalType} 
+                       onChange={(e) => {
+                         setGoalType(e.target.value);
+                         setGoalText(''); // Clear previous goal when switching types
+                         setGoalInputs({ condition: '', behavior: '', skill: '', goal: '' });
+                       }}
+                       className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`}
+                     >
+                       <option value="academic">Academic Goal</option>
+                       <option value="behavior">Behavior Goal</option>
+                     </select>
+                   </div>
+                   
+                   {goalType === 'academic' ? (
+                     <>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Skill</label><input type="text" value={goalInputs.skill} onChange={(e) => setGoalInputs({...goalInputs, skill: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.skill && goalInputs.goal) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Reading comprehension, Math computation..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal</label><input type="text" value={goalInputs.goal} onChange={(e) => setGoalInputs({...goalInputs, goal: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.skill && goalInputs.goal) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will read and comprehend grade-level texts..." /></div>
+                     </>
+                   ) : (
+                     <>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Condition</label><input type="text" value={goalInputs.condition} onChange={(e) => setGoalInputs({...goalInputs, condition: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.condition && goalInputs.behavior) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. When given a directive or during transitions..." /></div>
+                       <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Behavior</label><input type="text" value={goalInputs.behavior} onChange={(e) => setGoalInputs({...goalInputs, behavior: e.target.value})} onKeyDown={(e) => { if (e.key === 'Enter' && goalInputs.condition && goalInputs.behavior) { e.preventDefault(); handleGenerateGoal(); } }} className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} placeholder="e.g. Student will follow directions without argument..." /></div>
+                     </>
+                   )}
+                   
+                   <Button onClick={handleGenerateGoal} disabled={isGenerating || (goalType === 'academic' ? (!goalInputs.skill || !goalInputs.goal) : (!goalInputs.condition || !goalInputs.behavior))} className="w-full" theme={theme}>
+                     {isGenerating ? (
+                       <span className="animate-pulse">Generating...</span>
+                     ) : (
+                       <span><Wand2 size={16} className="inline mr-2"/> Generate {goalType === 'academic' ? 'Academic' : 'Behavior'} Goal {((goalType === 'academic' && goalInputs.skill && goalInputs.goal) || (goalType === 'behavior' && goalInputs.condition && goalInputs.behavior)) && <span className="text-xs opacity-70 ml-2">(Enter)</span>}</span>
+                     )}
+                   </Button>
                  </div>
               </Card>
               <Card className={`p-8 flex flex-col`} theme={theme}>
                 <h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Goal Preview</h2>
                 {goalText ? (
                     <div className="flex-1 flex flex-col">
-                        <div className={`${theme.inputBg} rounded-xl p-6 mb-4 border ${theme.cardBorder}`}><p className={`text-lg ${theme.text} leading-relaxed font-medium whitespace-pre-wrap`}>{goalText}</p></div>
+                        <div className="mb-2">
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Edit Goal Text</label>
+                          <textarea
+                            value={goalText}
+                            onChange={(e) => setGoalText(e.target.value)}
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-xl p-4 ${theme.text} outline-none min-h-[120px] leading-relaxed text-lg font-medium`}
+                            placeholder="Enter or edit the goal text..."
+                          />
+                        </div>
                         <div className={`p-4 ${theme.inputBg} rounded-xl border ${theme.cardBorder} space-y-4`}>
                             <div className="flex gap-4">
                                 <div className="flex-1"><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Target %</label><input type="number" value={goalConfig.target} onChange={e => setGoalConfig({...goalConfig, target: Number(e.target.value)})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
                                 <div className="flex-1"><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Frequency</label><select value={goalConfig.frequency} onChange={e => setGoalConfig({...goalConfig, frequency: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`}><option>Daily</option><option>Weekly</option><option>Bi-Weekly</option><option>Monthly</option></select></div>
                             </div>
-                            <Button onClick={handleLockGoal} icon={Lock} className="w-full" variant="secondary" theme={theme}>Lock & Track This Goal</Button>
+                            <div className="flex gap-2">
+                              <Button onClick={handleLockGoal} icon={Lock} className="flex-1" variant="secondary" theme={theme}>Lock & Track Goal</Button>
+                              <Button onClick={handleAddAnotherGoal} icon={Plus} className="flex-1" variant="secondary" theme={theme}>Add Another Goal</Button>
+                            </div>
                         </div>
-                        <div className="mt-4"><CopyBlock content={goalText} label="Copy Goal Only" theme={theme} title="IEP Goal" /></div>
+                        <div className="mt-4"><CopyBlock content={goalText} label="Copy Goal Only" theme={theme} /></div>
                     </div>
                 ) : (
                     <div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Target size={32} className="mx-auto mb-2 opacity-50"/><p>Define conditions to generate a goal.</p></div>
@@ -1369,24 +1647,19 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
         {activeTab === 'monitor' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
-                {/* Student Progress Chart */}
-                {activeStudent && (
-                  <StudentProgressChart
-                    student={activeStudent}
-                    isDark={isDark}
-                  />
-                )}
-                
                 <Card className="p-6" theme={theme}>
                     <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Activity className="text-emerald-400"/> Progress Monitoring</h2>{activeGoal && <div className={`text-xs ${theme.textMuted} ${theme.inputBg} px-3 py-1 rounded border ${theme.cardBorder}`}>Data Collection: <span className={`${theme.text} font-bold`}>{activeGoal.frequency}</span></div>}</div>
                     {goals.length === 0 ? (
                         <div className={`text-center py-12 ${theme.textMuted}`}><p className="mb-4">No locked goals found for this student.</p><Button onClick={() => setActiveTab('develop')} variant="secondary" theme={theme}>Go to Develop Tab to Create Goals</Button></div>
                     ) : (
                         <div>
-                            <div className="flex gap-4 mb-6">
-                                <select className={`flex-1 ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={activeGoalId || ''} onChange={(e) => setActiveGoalId(e.target.value)}>{goals.map(g => (<option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>))}</select>
+                            <div className="flex gap-4 mb-6 flex-wrap">
+                                <select className={`flex-1 min-w-[200px] ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={activeGoalId || ''} onChange={(e) => setActiveGoalId(e.target.value)}>{goals.map(g => (<option key={g.id} value={g.id}>{g.text.substring(0, 60)}...</option>))}</select>
                                 <Button onClick={() => window.print()} variant="secondary" icon={Printer} theme={theme}>Print Graph</Button>
                                 <Button onClick={copyGraphSummary} variant="secondary" icon={Copy} theme={theme}>Copy Summary</Button>
+                                <Button onClick={handleGenerateChecklist} variant="secondary" icon={ClipboardList} theme={theme}>
+                                  Generate Checklist
+                                </Button>
                             </div>
                             {activeGoal && (
                                 <div className="grid lg:grid-cols-3 gap-6">
@@ -1394,9 +1667,36 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                                     <div className={`${theme.inputBg} rounded-xl border ${theme.cardBorder} p-6 h-fit`}>
                                         <h3 className={`text-sm font-bold ${theme.text} uppercase mb-4`}>Log Data Point</h3>
                                         <div className="space-y-4">
-                                            <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label><input type="date" value={newMeasure.date} onChange={e => setNewMeasure({...newMeasure, date: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
-                                            <div><label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Score (%)</label><input type="number" placeholder="0-100" value={newMeasure.score} onChange={e => setNewMeasure({...newMeasure, score: e.target.value})} className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} /></div>
-                                            <Button onClick={handleAddDataPoint} className="w-full" icon={Plus} theme={theme}>Add Data Point</Button>
+                                            <div>
+                                              <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label>
+                                              <input 
+                                                type="date" 
+                                                value={newMeasure.date} 
+                                                onChange={e => setNewMeasure({...newMeasure, date: e.target.value})} 
+                                                className={`w-full ${theme.bg} border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400' : 'border-slate-300 hover:border-cyan-500'} rounded p-2 ${theme.text} transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`}
+                                                title="Click to open calendar picker"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Score (%)</label>
+                                              <input 
+                                                type="number" 
+                                                placeholder="0-100" 
+                                                value={newMeasure.score} 
+                                                onChange={e => setNewMeasure({...newMeasure, score: e.target.value})} 
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && newMeasure.date && newMeasure.score) { e.preventDefault(); handleAddDataPoint(); } }}
+                                                className={`w-full ${theme.bg} border ${theme.cardBorder} rounded p-2 ${theme.text}`} 
+                                              />
+                                            </div>
+                                            <Button 
+                                              onClick={handleAddDataPoint} 
+                                              disabled={!newMeasure.date || !newMeasure.score}
+                                              className="w-full" 
+                                              icon={Plus} 
+                                              theme={theme}
+                                            >
+                                              Add Data Point {newMeasure.date && newMeasure.score && <span className="text-xs opacity-70 ml-2">(Enter)</span>}
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -1404,6 +1704,105 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                         </div>
                     )}
                 </Card>
+                
+                {/* Checklist Generator */}
+                {goals.length > 0 && (
+                  <Card className="p-6" theme={theme}>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}>
+                        <ClipboardList className="text-cyan-400"/> Goal-Based Checklist
+                      </h2>
+                      {generatedChecklist && (
+                        <Button onClick={handlePrintChecklist} icon={Printer} theme={theme}>Print Checklist</Button>
+                      )}
+                    </div>
+                    {generatedChecklist ? (
+                      <div className="space-y-4">
+                        {/* Goal Text Editor */}
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-2`}>Goal Being Monitored</label>
+                          <textarea
+                            value={generatedChecklist.goal?.text || ''}
+                            onChange={(e) => handleUpdateChecklistGoal(e.target.value)}
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none min-h-[80px]`}
+                            placeholder="Enter the goal being monitored..."
+                          />
+                        </div>
+                        
+                        {/* Class Periods Table */}
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase`}>Class Periods</label>
+                            <Button onClick={handleAddClassPeriod} icon={Plus} variant="secondary" theme={theme} className="text-sm">Add Period</Button>
+                          </div>
+                          <div className={`${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}>
+                            <table className="w-full">
+                              <thead>
+                                <tr className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} border-b ${theme.cardBorder}`}>
+                                  <th className={`text-left p-3 text-xs font-bold ${theme.textMuted} uppercase`}>Class Period</th>
+                                  <th className={`text-center p-3 text-xs font-bold ${theme.textMuted} uppercase w-24`}>Teacher Sign-Off</th>
+                                  <th className={`text-left p-3 text-xs font-bold ${theme.textMuted} uppercase`}>Comments</th>
+                                  <th className={`text-center p-3 text-xs font-bold ${theme.textMuted} uppercase w-16`}>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {generatedChecklist.classPeriods.map((period, index) => (
+                                  <tr key={index} className={`border-b ${theme.cardBorder} ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                                    <td className="p-3">
+                                      <input
+                                        type="text"
+                                        value={period.name}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'name', e.target.value)}
+                                        className={`w-full ${theme.bg} border ${theme.inputBorder} rounded px-2 py-1 ${theme.text} text-sm outline-none`}
+                                        placeholder="Class name..."
+                                      />
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={period.signed}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'signed', e.target.checked)}
+                                        className="w-5 h-5 cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="p-3">
+                                      <input
+                                        type="text"
+                                        value={period.comment}
+                                        onChange={(e) => handleUpdateClassPeriod(index, 'comment', e.target.value)}
+                                        className={`w-full ${theme.bg} border ${theme.inputBorder} rounded px-2 py-1 ${theme.text} text-sm outline-none`}
+                                        placeholder="Teacher comments..."
+                                      />
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      {generatedChecklist.classPeriods.length > 1 && (
+                                        <button
+                                          onClick={() => handleRemoveClassPeriod(index)}
+                                          className={`${theme.textMuted} hover:text-red-400 transition-colors`}
+                                          title="Remove period"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`text-center py-8 ${theme.textMuted}`}>
+                        <ClipboardList size={48} className="mx-auto mb-4 opacity-50" />
+                        <p className="mb-4">Generate an editable schedule-based checklist for tracking goal progress.</p>
+                        <Button onClick={handleGenerateChecklist} icon={ClipboardList} theme={theme}>
+                          Generate Checklist
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                )}
             </div>
         )}
 
@@ -1438,35 +1837,74 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                   </div>
               )}
               {behaviorTab === 'log' && (
-                  <div className="space-y-6">
-                    {/* Voice Observation Tracker */}
-                    <VoiceObservation
-                      students={displayedStudents}
-                      onObservationSubmit={(data) => {
-                        // Auto-fill the incident log form
-                        setNewIncident({
-                          date: data.time ? new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                          antecedent: data.antecedent || '',
-                          behavior: data.behavior || '',
-                          consequence: data.consequence || ''
-                        });
-                        // If student name matches, we could set the active student
-                        if (data.studentName) {
-                          const matchingStudent = displayedStudents.find(s => 
-                            s.name.toLowerCase().includes(data.studentName.toLowerCase())
-                          );
-                          if (matchingStudent) {
-                            setCurrentStudentId(matchingStudent.id);
-                          }
-                        }
-                      }}
-                      isDark={isDark}
-                    />
-                    
-                    <div className="grid lg:grid-cols-2 gap-8">
-                    <Card className="p-8" glow theme={theme}><h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}><ShieldAlert className="text-fuchsia-400"/> Incident Log</h2><div className="space-y-4"><div className="grid grid-cols-2 gap-4"><input type="date" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.date} onChange={e => setNewIncident({...newIncident, date: e.target.value})} /><input type="text" placeholder="Antecedent" className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.antecedent} onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} /></div><input type="text" placeholder="Behavior Observed" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.behavior} onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} /><input type="text" placeholder="Consequence/Intervention" className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} value={newIncident.consequence} onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} /><div className="flex gap-2"><Button onClick={handleLogBehavior} className="flex-1 overflow-hidden" icon={Plus} theme={theme}>Log Incident</Button><Button onClick={handleAnalyzeBehavior} disabled={isAnalyzing} variant="secondary" className="flex-1" icon={isAnalyzing ? Loader2 : Brain} theme={theme}>{isAnalyzing ? "Analyzing..." : "Analyze Patterns"}</Button></div></div></Card>
-                    <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} title="Behavior Intervention Plan" /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
-                    </div>
+                  <div className="grid lg:grid-cols-2 gap-8">
+                    <Card className="p-8" glow theme={theme}>
+                      <h2 className={`text-xl font-bold ${theme.text} mb-6 flex items-center gap-2`}>
+                        <ShieldAlert className="text-fuchsia-400"/> Incident Log
+                      </h2>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Date</label>
+                            <input 
+                              type="date" 
+                              className={`w-full ${theme.inputBg} border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400' : 'border-slate-300 hover:border-cyan-500'} rounded-lg p-3 ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
+                              onChange={e => setNewIncident({...newIncident, date: e.target.value})}
+                              title="Click to open calendar picker"
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Antecedent</label>
+                            <input 
+                              type="text" 
+                              placeholder="What happened before?" 
+                              className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                              onChange={e => setNewIncident({...newIncident, antecedent: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Behavior Observed</label>
+                          <input 
+                            type="text" 
+                            placeholder="Describe the behavior" 
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                            onChange={e => setNewIncident({...newIncident, behavior: e.target.value})} 
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold ${theme.textMuted} uppercase mb-1`}>Consequence/Intervention</label>
+                          <input 
+                            type="text" 
+                            placeholder="What was the response?" 
+                            className={`w-full ${theme.inputBg} border ${theme.inputBorder} rounded-lg p-3 ${theme.text} outline-none`} 
+                            onChange={e => setNewIncident({...newIncident, consequence: e.target.value})} 
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={handleLogBehavior} 
+                            disabled={!newIncident.date || !newIncident.behavior}
+                            className="flex-1 overflow-hidden" 
+                            icon={Plus} 
+                            theme={theme}
+                          >
+                            Log Incident
+                          </Button>
+                          <Button 
+                            onClick={handleAnalyzeBehavior} 
+                            disabled={isAnalyzing || behaviorLog.length === 0} 
+                            variant="secondary" 
+                            className="flex-1" 
+                            icon={isAnalyzing ? Loader2 : Brain} 
+                            theme={theme}
+                          >
+                            {isAnalyzing ? "Analyzing..." : "Analyze Patterns"}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                    <Card className={`p-8 flex flex-col`} theme={theme}><h2 className={`text-xs font-bold ${theme.textMuted} uppercase mb-4`}>Intervention Analysis</h2>{bipAnalysis ? (<div className="flex-1 flex flex-col"><div className={`flex-1 ${theme.inputBg} rounded-xl p-6 ${theme.text} text-sm whitespace-pre-wrap leading-relaxed border ${theme.cardBorder} font-serif`}>{bipAnalysis}</div><CopyBlock content={bipAnalysis} label="Copy BIP to Documentation" theme={theme} /></div>) : (<div className={`flex-1 flex flex-col items-center justify-center ${theme.textMuted}`}><Activity size={48} className="mb-4 opacity-50"/><p>Log incidents to generate AI strategies.</p></div>)}</Card>
                     <div className={`lg:col-span-2 ${theme.inputBg} rounded-xl border ${theme.cardBorder} overflow-hidden`}><table className={`w-full text-sm text-left ${theme.textMuted}`}><thead className={`${theme.bg} ${theme.text} font-bold uppercase text-xs`}><tr><th className="p-4">Date</th><th className="p-4">Antecedent</th><th className="p-4">Behavior</th><th className="p-4">Consequence</th></tr></thead><tbody className={`divide-y ${theme.cardBorder}`}>{behaviorLog.length === 0 ? <tr><td colSpan="4" className="p-8 text-center italic opacity-50">No incidents logged yet.</td></tr> : behaviorLog.map(log => (<tr key={log.id}><td className="p-4 font-mono text-cyan-400">{log.date}</td><td className="p-4">{log.antecedent}</td><td className={`p-4 ${theme.text}`}>{log.behavior}</td><td className="p-4">{log.consequence}</td></tr>))}</tbody></table></div>
                   </div>
               )}
@@ -1486,106 +1924,35 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                   user={user} 
                   onBack={() => setActiveTab('profile')} 
                   isEmbedded={true}
+                  selectedStudent={selectedStudentForGem}
                 />
             </div>
-        )}
-
-        {/* --- ADMIN TAB --- */}
-        {activeTab === 'admin' && user?.role === 'admin' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4">
-            <AdminDashboard 
-              user={user}
-              theme={theme}
-              onBack={() => setActiveTab('profile')}
-            />
-          </div>
         )}
 
         {/* --- ROSTER TAB (NEW) --- */}
         {activeTab === 'roster' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
-            {/* Import Roster Component */}
-            {showImportRoster ? (
-              <Card className="p-6" theme={theme}>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
-                    <UploadCloud className="text-cyan-400" size={24} />
-                    Import Student Roster
-                  </h2>
-                  <Button 
-                    onClick={() => setShowImportRoster(false)} 
-                    icon={X} 
-                    variant="secondary"
-                    theme={theme}
+            <Card className="p-6" theme={theme}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
+                  <Users className="text-cyan-400" size={24} />
+                  Student Roster
+                </h2>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className={`${theme.inputBg} border ${theme.inputBorder} rounded-lg px-3 py-2 ${theme.text} outline-none focus:border-cyan-500 text-sm`}
                   >
-                    Cancel
+                    <option value="name">Sort by Name</option>
+                    <option value="iep">Sort by IEP Due Date</option>
+                    <option value="504">Sort by 504 Due Date</option>
+                  </select>
+                  <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
+                    Add Student
                   </Button>
                 </div>
-                <ImportRoster
-                  onImportComplete={async (importedStudents) => {
-                    // Reload students from Firebase/mock store
-                    try {
-                      if (user?.uid) {
-                        const updatedStudents = await getStudentsForUser(user.uid, user.role);
-                        const allStudents = showSamples 
-                          ? [...SAMPLE_STUDENTS, ...updatedStudents]
-                          : updatedStudents;
-                        setStudents(allStudents);
-                        
-                        // Select first imported student if available
-                        if (importedStudents.length > 0 && importedStudents[0].id) {
-                          setCurrentStudentId(importedStudents[0].id);
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error reloading students after import:', error);
-                    }
-                    setShowImportRoster(false);
-                  }}
-                  onStudentsUpdate={async (importedStudents) => {
-                    // Same as onImportComplete
-                    try {
-                      if (user?.uid) {
-                        const updatedStudents = await getStudentsForUser(user.uid, user.role);
-                        const allStudents = showSamples 
-                          ? [...SAMPLE_STUDENTS, ...updatedStudents]
-                          : updatedStudents;
-                        setStudents(allStudents);
-                      }
-                    } catch (error) {
-                      console.error('Error updating students after import:', error);
-                    }
-                  }}
-                  user={user}
-                  theme={theme}
-                />
-              </Card>
-            ) : (
-              <Card className="p-6" theme={theme}>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className={`text-2xl font-bold ${theme.text} flex items-center gap-2`}>
-                    <Users className="text-cyan-400" size={24} />
-                    Student Roster
-                  </h2>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => setShowImportRoster(true)} 
-                      icon={UploadCloud} 
-                      variant="secondary"
-                      theme={theme}
-                    >
-                      Import CSV
-                    </Button>
-                    <Button 
-                      onClick={() => setIsAddingStudent(true)} 
-                      icon={Plus} 
-                      theme={theme}
-                      data-tour="add-student"
-                    >
-                      Add Student
-                    </Button>
-                  </div>
-                </div>
+              </div>
               
               {loading ? (
                 <div className={`text-center py-12 ${theme.textMuted}`}>
@@ -1596,12 +1963,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                 <div className={`text-center py-12 ${theme.textMuted}`}>
                   <Users size={48} className="mx-auto mb-4 opacity-50" />
                   <p className="mb-4">No students in your roster yet.</p>
-                  <Button 
-                    onClick={() => setIsAddingStudent(true)} 
-                    icon={Plus} 
-                    theme={theme}
-                    data-tour="add-student"
-                  >
+                  <Button onClick={() => setIsAddingStudent(true)} icon={Plus} theme={theme}>
                     Add Your First Student
                   </Button>
                 </div>
@@ -1639,9 +2001,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             <td className={`p-4 ${theme.textMuted}`}>{student.need || student.primaryNeed || 'N/A'}</td>
                             <td className="p-4">
                               {student.nextIep || student.nextIepDate ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.nextIep || student.nextIepDate}</span>
-                                  <Badge color={getBadgeColor(iepStatus.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.nextIep || student.nextIepDate}</span>
+                                  <Badge color={getBadgeColor(iepStatus.text)} isDark={isDark} className="w-fit">
                                     {iepStatus.text}
                                   </Badge>
                                 </div>
@@ -1651,9 +2013,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             </td>
                             <td className="p-4">
                               {student.next504 || student.next504Date ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.next504 || student.next504Date}</span>
-                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.next504 || student.next504Date}</span>
+                                  <Badge color={getBadgeColor(plan504Status.text)} isDark={isDark} className="w-fit">
                                     {plan504Status.text}
                                   </Badge>
                                 </div>
@@ -1663,9 +2025,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                             </td>
                             <td className="p-4">
                               {student.nextEval || student.nextEvalDate ? (
-                                <div className="flex items-center gap-2">
-                                  <span className={theme.text}>{student.nextEval || student.nextEvalDate}</span>
-                                  <Badge color={getBadgeColor(evalStatus.text)} isDark={isDark}>
+                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                  <span className={`${theme.text} whitespace-nowrap`}>{student.nextEval || student.nextEvalDate}</span>
+                                  <Badge color={getBadgeColor(evalStatus.text)} isDark={isDark} className="w-fit">
                                     {evalStatus.text}
                                   </Badge>
                                 </div>
@@ -1687,7 +2049,29 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                                   View
                                 </Button>
                                 <Button 
-                                  onClick={() => handleOpenGemWithStudent()}
+                                  onClick={() => {
+                                    setEditingStudent(student);
+                                    setEditStudentData({
+                                      name: student.name,
+                                      grade: student.grade,
+                                      need: student.need || student.primaryNeed,
+                                      nextIep: student.nextIep || student.nextIepDate || '',
+                                      next504: student.next504 || student.next504Date || '',
+                                      nextEval: student.nextEval || student.nextEvalDate || ''
+                                    });
+                                  }}
+                                  variant="secondary"
+                                  className="text-xs"
+                                  icon={Edit2}
+                                  theme={theme}
+                                >
+                                  Edit
+                                </Button>
+                                <Button 
+                                  onClick={() => {
+                                    setCurrentStudentId(student.id);
+                                    handleOpenGemWithStudent();
+                                  }}
                                   variant="secondary"
                                   className="text-xs"
                                   icon={Sparkles}
@@ -1719,6 +2103,74 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
       </main>
       
+      {editingStudent && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className={`text-2xl font-bold ${theme.text}`}>Edit Student</h2>
+                  <button onClick={() => {setEditingStudent(null); setEditStudentData({});}} className={`${theme.textMuted} hover:${theme.text}`}>
+                    <X />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <input 
+                      placeholder="Student Name" 
+                      className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                      value={editStudentData.name || ''} 
+                      onChange={e => setEditStudentData({...editStudentData, name: e.target.value})} 
+                    />
+                    <input 
+                      placeholder="Grade" 
+                      className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                      value={editStudentData.grade || ''} 
+                      onChange={e => setEditStudentData({...editStudentData, grade: e.target.value})} 
+                    />
+                  </div>
+                  <input 
+                    placeholder="Primary Need" 
+                    className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                    value={editStudentData.need || ''} 
+                    onChange={e => setEditStudentData({...editStudentData, need: e.target.value})} 
+                  />
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
+                        value={editStudentData.nextIep || ''} 
+                        onChange={e => setEditStudentData({...editStudentData, nextIep: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
+                        value={editStudentData.next504 || ''} 
+                        onChange={e => setEditStudentData({...editStudentData, next504: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
+                      <input 
+                        type="date" 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
+                        value={editStudentData.nextEval || ''} 
+                        onChange={e => setEditStudentData({...editStudentData, nextEval: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                  <div className="pt-4 flex justify-end gap-2">
+                    <Button variant="ghost" onClick={() => {setEditingStudent(null); setEditStudentData({});}} theme={theme}>Cancel</Button>
+                    <Button onClick={handleUpdateStudent} theme={theme}>Save Changes</Button>
+                  </div>
+                </div>
+              </Card>
+          </div>
+      )}
+
       {isAddingStudent && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}>
@@ -1749,12 +2201,34 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                     value={newStudent.need} 
                     onChange={e => setNewStudent({...newStudent, need: e.target.value})} 
                   />
+                  <div>
+                    <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Qualifying Status</label>
+                    <select 
+                      value={newStudent.qualifyingStatus} 
+                      onChange={e => setNewStudent({...newStudent, qualifyingStatus: e.target.value})}
+                      className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
+                    >
+                      <option value="">Select Status</option>
+                      <option value="SLD">SLD - Specific Learning Disability</option>
+                      <option value="MMD">MMD - Multiple Disabilities</option>
+                      <option value="OHI">OHI - Other Health Impairment</option>
+                      <option value="EBD">EBD - Emotional Behavioral Disorder</option>
+                      <option value="ASD">ASD - Autism Spectrum Disorder</option>
+                      <option value="ID">ID - Intellectual Disability</option>
+                      <option value="HI">HI - Hearing Impairment</option>
+                      <option value="VI">VI - Visual Impairment</option>
+                      <option value="OI">OI - Orthopedic Impairment</option>
+                      <option value="TBI">TBI - Traumatic Brain Injury</option>
+                      <option value="DB">DB - Deaf-Blindness</option>
+                      <option value="504">504 Plan Only</option>
+                    </select>
+                  </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.nextIep} 
                         onChange={e => setNewStudent({...newStudent, nextIep: e.target.value})} 
                       />
@@ -1763,7 +2237,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.next504} 
                         onChange={e => setNewStudent({...newStudent, next504: e.target.value})} 
                       />
@@ -1772,66 +2246,20 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
                       <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
                       <input 
                         type="date" 
-                        className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`} 
+                        className={`w-full ${theme.inputBg} p-3 rounded-lg border-2 ${isDark ? 'border-cyan-500/50 hover:border-cyan-400 focus:border-cyan-400' : 'border-slate-300 hover:border-cyan-500 focus:border-cyan-500'} ${theme.text} outline-none transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 ${isDark ? '[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-150' : ''}`} 
                         value={newStudent.nextEval} 
                         onChange={e => setNewStudent({...newStudent, nextEval: e.target.value})} 
                       />
                     </div>
                   </div>
-                  {/* AI Auto-Fill Checkbox */}
-                  <div className="flex items-center gap-2 p-3 rounded-lg border border-cyan-200 bg-cyan-50/50">
-                    <input
-                      type="checkbox"
-                      id="generateProfile"
-                      checked={generateProfile}
-                      onChange={(e) => setGenerateProfile(e.target.checked)}
-                      className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
-                      disabled={isGeneratingProfile || !newStudent.need}
-                    />
-                    <label htmlFor="generateProfile" className={`text-sm ${theme.text} cursor-pointer`}>
-                      {isGeneratingProfile ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="animate-spin text-cyan-600" size={16} />
-                          Generating learner profile...
-                        </span>
-                      ) : (
-                        <span>
-                          <Sparkles className="inline mr-1 text-cyan-600" size={14} />
-                          Generate Draft Learner Profile? (AI will create a profile based on diagnosis)
-                        </span>
-                      )}
-                    </label>
-                  </div>
-                  {!newStudent.need && generateProfile && (
-                    <p className={`text-xs ${theme.textMuted} -mt-2`}>
-                      Enter a diagnosis/need above to enable AI profile generation.
-                    </p>
-                  )}
-                  
                   <div className="pt-4 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => {
-                      setIsAddingStudent(false);
-                      setGenerateProfile(false);
-                    }} theme={theme}>Cancel</Button>
-                    <Button 
-                      onClick={handleAddStudent} 
-                      theme={theme}
-                      disabled={isGeneratingProfile}
-                    >
-                      {isGeneratingProfile ? 'Generating...' : 'Save'}
-                    </Button>
+                    <Button variant="ghost" onClick={() => setIsAddingStudent(false)} theme={theme}>Cancel</Button>
+                    <Button onClick={handleAddStudent} theme={theme}>Save</Button>
                   </div>
                 </div>
               </Card>
           </div>
       )}
-
-      {/* Crisis Mode - Always available */}
-      <CrisisMode 
-        activeStudent={activeStudent} 
-        user={user}
-        officePhone="555-0100"
-      />
     </div>
   );
 };
@@ -1967,24 +2395,18 @@ const LoginScreen = ({ onLogin, onBack }) => {
 
 export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Check if user is already logged in
-    try {
-      const unsubscribe = onAuthChange((userProfile) => {
-        if (userProfile) {
-          setUser(userProfile);
-        } else {
-          setUser(null);
-        }
-      });
+    const unsubscribe = onAuthChange((userProfile) => {
+      if (userProfile) {
+        setUser(userProfile);
+      } else {
+        setUser(null);
+      }
+    });
 
-      return () => unsubscribe();
-    } catch (err) {
-      console.error('Auth error:', err);
-      setError(err.message);
-    }
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
@@ -1996,59 +2418,6 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
     }
   };
 
-  // Error boundary
-  if (error) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-red-500/30 rounded-xl p-8 max-w-md text-center">
-          <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Dashboard</h2>
-          <p className="text-slate-400 mb-4">{error}</p>
-          <button onClick={onBack} className="px-4 py-2 bg-cyan-500 text-white rounded-lg">Go Back</button>
-        </div>
-      </div>
-    );
-  }
-
   // Pass props down correctly to Dashboard
-  try {
-    if (!user) {
-      return (
-        <div className={`min-h-screen ${getTheme(isDark).bg}`}>
-          <LoginScreen onLogin={setUser} onBack={onBack} isDark={isDark} />
-          {/* Quick Demo Access Button */}
-          <div className="fixed bottom-6 right-6 z-50">
-            <button
-              onClick={() => {
-                setUser({
-                  uid: 'demo-user',
-                  name: 'Demo Educator',
-                  email: 'demo@prismpath.com',
-                  role: 'sped',
-                  school: 'Demo School',
-                  schoolDistrict: 'Demo District',
-                  isDemo: true
-                });
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2"
-            >
-              <Sparkles size={18} />
-              Quick Demo
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} />;
-  } catch (err) {
-    console.error('Render error:', err);
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-red-500/30 rounded-xl p-8 max-w-md text-center">
-          <h2 className="text-2xl font-bold text-red-400 mb-4">Render Error</h2>
-          <p className="text-slate-400 mb-4">{err.message}</p>
-          <button onClick={onBack} className="px-4 py-2 bg-cyan-500 text-white rounded-lg">Go Back</button>
-        </div>
-      </div>
-    );
-  }
+  return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
 }

@@ -4,141 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, Mic, Camera, X, Sparkles, FileText, Image as ImageIcon, 
   Loader2, Send, Trash2, Wand2, FileUp, Volume2, VolumeX, Plus, 
-  MessageSquare, User, Clock, ExternalLink, CheckCircle
+  MessageSquare, User, Clock, Printer, Download, ExternalLink
 } from 'lucide-react';
 import { GeminiService, getTheme } from './utils';
 import { ChatHistoryService } from './chatHistory';
-import { generateStrategyId, incrementStrategyUsage, getStrategyUsage } from './lib/mockStore';
-import WisdomBadge from './components/WisdomBadge';
 
-/**
- * Component to render AI accommodation messages with wisdom badges and "Add to IEP" buttons
- */
-function AccommodationMessageContent({ content, isDark, theme, onAddToIEP }) {
-  const parseStrategies = (content) => {
-    if (!content || typeof content !== 'string') return [];
-    
-    const strategies = [];
-    const lines = content.split('\n');
-    
-    const bulletPattern = /^[\s]*[-*•]\s+(.+)$/;
-    const numberedPattern = /^[\s]*\d+[.)]\s+(.+)$/;
-    const boldColonPattern = /^\*\*(.+?)\*\*:\s*(.+)$/;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      let strategyText = null;
-      
-      const bulletMatch = line.match(bulletPattern);
-      if (bulletMatch) {
-        strategyText = bulletMatch[1].trim();
-      }
-      
-      const numberedMatch = line.match(numberedPattern);
-      if (numberedMatch) {
-        strategyText = numberedMatch[1].trim();
-      }
-      
-      const boldMatch = line.match(boldColonPattern);
-      if (boldMatch) {
-        strategyText = `${boldMatch[1].trim()}: ${boldMatch[2].trim()}`;
-      }
-      
-      if (strategyText && strategyText.length > 10) {
-        const strategyId = generateStrategyId(strategyText);
-        const usageCount = getStrategyUsage(strategyId);
-        
-        strategies.push({
-          id: strategyId,
-          text: strategyText,
-          originalLine: line,
-          usageCount: usageCount
-        });
-      }
-    }
-    
-    return strategies;
-  };
-
-  const processAIResponse = (content) => {
-    if (!content) return { strategies: [], otherContent: content };
-    
-    const strategies = parseStrategies(content);
-    const sortedStrategies = [...strategies].sort((a, b) => b.usageCount - a.usageCount);
-    
-    if (sortedStrategies.length === 0) {
-      return { strategies: [], otherContent: content };
-    }
-    
-    const lines = content.split('\n');
-    const strategyLines = new Set(sortedStrategies.map(s => s.originalLine));
-    const otherLines = lines.filter(line => !strategyLines.has(line.trim()));
-    
-    return {
-      strategies: sortedStrategies,
-      otherContent: otherLines.join('\n')
-    };
-  };
-
-  const processed = processAIResponse(content);
-  
-  // If no strategies found, render content as-is
-  if (processed.strategies.length === 0) {
-    return <div className="whitespace-pre-wrap">{content}</div>;
-  }
-
-  // Re-fetch usage counts to ensure we have the latest data
-  const strategiesWithUsage = processed.strategies.map(strategy => ({
-    ...strategy,
-    usageCount: getStrategyUsage(strategy.id) // Get fresh count
-  })).sort((a, b) => b.usageCount - a.usageCount); // Re-sort with fresh counts
-
-  return (
-    <div className="space-y-4">
-      {/* Non-strategy content (intro, headers, etc.) */}
-      {processed.otherContent.trim() && (
-        <div className="whitespace-pre-wrap text-sm mb-4">{processed.otherContent.trim()}</div>
-      )}
-      
-      {/* Strategies list with badges and buttons */}
-      {strategiesWithUsage.length > 0 && (
-        <div className="space-y-3">
-          {strategiesWithUsage.map((strategy, index) => (
-            <div
-              key={`${strategy.id}-${index}`}
-              className={`flex items-start gap-3 p-3 rounded-lg border ${
-                isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
-              } transition-all hover:border-cyan-500/50`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start gap-2 flex-wrap">
-                  <span className={`${theme.text} text-sm`}>{strategy.text}</span>
-                  <WisdomBadge usageCount={strategy.usageCount} isDark={isDark} />
-                </div>
-              </div>
-              <button
-                onClick={() => onAddToIEP(strategy.id, strategy.text)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  isDark
-                    ? 'bg-cyan-900/30 text-cyan-400 hover:bg-cyan-900/50 border border-cyan-500/30'
-                    : 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100 border border-cyan-300'
-                }`}
-                title="Add this strategy to IEP"
-              >
-                <CheckCircle size={14} />
-                Add to IEP
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, onFirstUse = null }) {
+export default function AccommodationGem({ isDark, user, onBack, isEmbedded = false, selectedStudent = null, onFirstUse = null }) {
   const theme = getTheme(isDark);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -152,7 +23,10 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const [deletedChats, setDeletedChats] = useState([]);
   const [showRecovery, setShowRecovery] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [googleToken, setGoogleToken] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [gapiLoaded, setGapiLoaded] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -160,15 +34,16 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const recognitionRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Load Google Drive Picker API
+  // Load Google APIs
   useEffect(() => {
-    const loadGoogleDrivePicker = () => {
+    const loadGoogleAPIs = () => {
+      // Load Google Picker API
       if (window.gapi && window.gapi.load) {
         window.gapi.load('picker', () => {
           setGapiLoaded(true);
         });
       } else {
-        // Wait for script to load from index.html
+        // Wait for script to load
         const checkGapi = setInterval(() => {
           if (window.gapi && window.gapi.load) {
             clearInterval(checkGapi);
@@ -178,18 +53,13 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           }
         }, 100);
         
-        // Timeout after 5 seconds
         setTimeout(() => {
           clearInterval(checkGapi);
-          if (!gapiLoaded) {
-            console.warn('Google Picker API failed to load');
-          }
         }, 5000);
       }
     };
     
-    // Small delay to ensure script is loaded
-    setTimeout(loadGoogleDrivePicker, 500);
+    setTimeout(loadGoogleAPIs, 500);
   }, []);
 
   // Load chat histories on mount
@@ -200,25 +70,54 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setDeletedChats(deleted);
   }, []);
 
+  // Auto-load selected student data when provided
+  useEffect(() => {
+    if (selectedStudent && selectedStudent.profileText) {
+      setStudentProfile(selectedStudent.profileText);
+      setIsFirstMessage(false);
+      // Generate chat ID from student (prefer ID, then name)
+      const chatId = ChatHistoryService.generateChatId(selectedStudent);
+      setCurrentChatId(chatId);
+      
+      // Load existing chat if available
+      const existingChat = ChatHistoryService.get(chatId);
+      if (existingChat && existingChat.messages && existingChat.messages.length > 0) {
+        setMessages(existingChat.messages);
+        setIsFirstMessage(false); // Ensure first message flag is off when loading existing chat
+      } else {
+        // If no existing chat, still set isFirstMessage to false since we have a profile
+        setIsFirstMessage(false);
+      }
+    } else if (selectedStudent === null) {
+      // Reset when no student is selected
+      setIsFirstMessage(true);
+    }
+  }, [selectedStudent]);
+
   // Save messages when they change
   useEffect(() => {
-    if (messages.length > 0) {
-      // Generate chat ID from profile or use generic one
+    if (messages.length > 0 && studentProfile) {
+      // Use student name for chat ID if available
       let chatId = currentChatId;
       if (!chatId) {
-        if (studentProfile) {
-          chatId = ChatHistoryService.generateChatId(studentProfile);
+        if (selectedStudent && selectedStudent.name) {
+          chatId = ChatHistoryService.generateChatId(selectedStudent.name);
         } else {
-          chatId = ChatHistoryService.generateChatId('accommodation-chat-' + Date.now());
+          chatId = ChatHistoryService.generateChatId(studentProfile);
         }
       }
       setCurrentChatId(chatId);
       
-      ChatHistoryService.save(chatId, studentProfile || 'Accommodation Chat', messages);
+      // Create profile object with name for better labeling
+      const profileForSave = selectedStudent && selectedStudent.name 
+        ? { name: selectedStudent.name, profileText: studentProfile }
+        : studentProfile;
+      
+      ChatHistoryService.save(chatId, profileForSave, messages);
       // Refresh histories
       setChatHistories(ChatHistoryService.getAll());
     }
-  }, [messages, studentProfile]);
+  }, [messages, studentProfile, selectedStudent]);
 
   // Load a chat history
   const loadChat = (chatId) => {
@@ -245,7 +144,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   // Delete a chat
   const deleteChat = (chatId, e) => {
     e.stopPropagation();
-    if (confirm('Delete this chat history?')) {
+    if (confirm('Delete this learner profile and chat history?')) {
       ChatHistoryService.delete(chatId);
       setChatHistories(ChatHistoryService.getAll());
       setDeletedChats(ChatHistoryService.getDeletedChats());
@@ -270,21 +169,26 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
   const getProfileSummary = (profile) => {
     if (!profile) return 'New Chat';
     
+    // If profile is an object with name, use the name
+    if (typeof profile === 'object' && profile.name) {
+      return profile.name;
+    }
+    
     if (typeof profile === 'string') {
-      // Try to extract key info from profile text
+      // Try to extract student name first (format: "Student: Name")
+      const nameMatch = profile.match(/Student:\s*([^\n]+)/i);
+      if (nameMatch) {
+        return nameMatch[1].trim();
+      }
+      
+      // Extract key info from profile text
       const gradeMatch = profile.match(/(\d+)(?:st|nd|rd|th)?\s*grade/i);
       const challengeMatch = profile.match(/(dyslexia|adhd|autism|dysgraphia|processing)/i);
       const grade = gradeMatch ? gradeMatch[0] : '';
       const challenge = challengeMatch ? challengeMatch[0] : '';
-      if (grade && challenge) {
-        return `${grade} - ${challenge}`;
-      }
-      if (profile.length > 30) {
-        return profile.substring(0, 30) + '...';
-      }
-      return profile;
+      return grade && challenge ? `${grade} - ${challenge}` : profile.substring(0, 30);
     }
-    return 'Accommodation Chat';
+    return 'Learner Profile';
   };
 
   // Initialize speech recognition
@@ -354,8 +258,8 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           file: file
         }]);
         
-        // Auto-add message about the image - this will be sent to the multimodal API
-        const imageMessage = `I've uploaded an image: ${file.name}. Please analyze this and provide accommodations.`;
+        // Auto-add message about the image
+        const imageMessage = `I've uploaded an image of student work: ${file.name}. Please analyze this and provide accommodations.`;
         setInput(prev => prev + (prev ? ' ' : '') + imageMessage);
       };
       reader.readAsDataURL(file);
@@ -369,69 +273,14 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       const isGoogleDoc = file.type === 'application/vnd.google-apps.document';
       
       if (isPdf) {
-        // PDF handling - extract text from PDF
-        const extractPDFText = async () => {
-          try {
-            // Try to use pdfjs-dist if available
-            let pdfjsLib;
-            try {
-              const pdfjsModule = await import('pdfjs-dist');
-              pdfjsLib = pdfjsModule.default || pdfjsModule;
-            } catch (importError) {
-              // If import fails, try to use from window (if loaded via CDN)
-              pdfjsLib = window.pdfjsLib;
-            }
-            
-            if (pdfjsLib) {
-              // Set worker source - use CDN for better compatibility
-              if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
-              }
-              
-              const arrayBuffer = await file.arrayBuffer();
-              const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-              let fullText = '';
-              
-              // Extract text from all pages (limit to first 20 pages for better coverage)
-              const maxPages = Math.min(pdf.numPages, 20);
-              for (let i = 1; i <= maxPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                fullText += pageText + '\n\n';
-              }
-              
-              if (pdf.numPages > 20) {
-                fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 20 pages]`;
-              }
-              
-              // Store PDF with extracted content - this will be sent to the API
-              const pdfContent = fullText.trim();
-              setUploadedFiles(prev => [...prev, {
-                id: Date.now(),
-                name: file.name,
-                type: 'pdf',
-                file: file,
-                content: pdfContent // Full extracted text - will be sent to API
-              }]);
-              setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this document and provide accommodations.`);
-            } else {
-              throw new Error('PDF library not available');
-            }
-          } catch (error) {
-            console.warn('PDF text extraction failed, storing file for analysis:', error);
-            // Fallback: store file without extracted text - AI will still analyze it
-            setUploadedFiles(prev => [...prev, {
-              id: Date.now(),
-              name: file.name,
-              type: 'pdf',
-              file: file
-            }]);
-            setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
-          }
-        };
-        
-        extractPDFText();
+        // PDF handling - store the file for processing
+        setUploadedFiles(prev => [...prev, {
+          id: Date.now(),
+          name: file.name,
+          type: 'pdf',
+          file: file
+        }]);
+        setInput(prev => prev + (prev ? ' ' : '') + `I've uploaded a PDF document: ${file.name}. Please analyze this and provide accommodations.`);
       } else if (isWordDoc || isGoogleDoc) {
         // Word document handling - attempt to read as text (may need server-side processing for full support)
         const reader = new FileReader();
@@ -500,8 +349,16 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles([]);
     setLoading(true);
 
+    // CRITICAL: Set isFirstMessage to false IMMEDIATELY when user sends their first message
+    // This prevents the AI from returning the welcome message in a loop
+    const wasFirstMessage = isFirstMessage;
+    if (isFirstMessage) {
+      setIsFirstMessage(false);
+    }
+
     try {
-      // Check if this is a document upload request (PDF, image, etc.) - these should be analyzed, not treated as profile
+      // CRITICAL: Check if this is a file upload/analysis request FIRST
+      // Files mean content analysis, NOT profile creation
       const hasFileUpload = currentFiles.length > 0;
       const isFileAnalysisRequest = hasFileUpload || 
         currentInput.toLowerCase().includes('uploaded') || 
@@ -509,35 +366,55 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         currentInput.toLowerCase().includes('document') ||
         currentInput.toLowerCase().includes('pdf');
       
-      // Check if this looks like profile information (first message or contains profile keywords)
-      // BUT exclude file upload requests from being treated as profile info
-      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia', 'processing speed'];
-      const isProfileInfo = !isFileAnalysisRequest && (isFirstMessage || profileKeywords.some(keyword => 
+      // Check if previous messages contain files (user might be providing profile info after file upload)
+      const previousMessagesWithFiles = messages.filter(msg => msg.files && msg.files.length > 0);
+      const hasPreviousFiles = previousMessagesWithFiles.length > 0;
+      const previousFiles = hasPreviousFiles ? previousMessagesWithFiles[previousMessagesWithFiles.length - 1].files : [];
+      
+      // Check if this looks like profile information
+      const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age'];
+      const looksLikeProfile = profileKeywords.some(keyword => 
         currentInput.toLowerCase().includes(keyword)
-      ));
+      );
+      
+      // If this looks like profile info AND there were files in previous messages, 
+      // this is completing an accommodation request, not starting a new profile
+      const isCompletingAccommodationRequest = looksLikeProfile && hasPreviousFiles && !hasFileUpload;
+      
+      // Only check for profile info if this is NOT a file analysis request
+      if (!isFileAnalysisRequest && !isCompletingAccommodationRequest) {
+        const isProfileInfo = wasFirstMessage && looksLikeProfile;
 
-      // Store profile information if detected (will be updated after AI response if AI extracts it)
-      // But NOT if this is a file upload/analysis request
-      if (isProfileInfo && isFirstMessage && !studentProfile && !isFileAnalysisRequest) {
-        setStudentProfile(currentInput);
-        setIsFirstMessage(false);
+        if (isProfileInfo && wasFirstMessage && !studentProfile) {
+          // Store profile information
+          setStudentProfile(currentInput);
+        }
+      } else if (isCompletingAccommodationRequest) {
+        // User is providing profile info to complete an accommodation request
+        // Store the profile and include the files from previous message
+        if (!studentProfile) {
+          setStudentProfile(currentInput);
+        }
       }
 
-      // Build prompt with full context including conversation history
-      // CRITICAL: Set isFirstMessage to false when user sends a message to prevent welcome message loops
-      const wasFirstMessage = isFirstMessage;
-      if (isFirstMessage) {
-        setIsFirstMessage(false);
-      }
-
+      // Build prompt with full context
+      // NEVER treat as first message if user has already sent a message (messages.length > 0 after adding user message)
+      const isActuallyFirstMessage = false; // User has already sent a message, so this is NOT the first message
+      
+      // If completing accommodation request, merge files from previous message
+      const filesToSend = isCompletingAccommodationRequest && previousFiles.length > 0 
+        ? [...previousFiles, ...currentFiles] 
+        : currentFiles;
+      
       let promptData = {
         message: currentInput,
         prompt: currentInput,
-        files: currentFiles,
-        studentProfile: studentProfile,
-        isFirstMessage: false, // Always false when user sends a message - prevents welcome loops
-        conversationHistory: messages, // Pass existing conversation history so AI knows what was said before
-        isFileAnalysisRequest: isFileAnalysisRequest // Flag to indicate this is a document analysis request
+        files: filesToSend,
+        studentProfile: isCompletingAccommodationRequest ? (studentProfile || currentInput) : studentProfile,
+        isFirstMessage: isActuallyFirstMessage,
+        hasExistingMessages: messages.length > 0,
+        isCompletingAccommodationRequest: isCompletingAccommodationRequest, // Flag to indicate this is completing a request
+        selectedStudent: selectedStudent // Pass selected student info for name extraction
       };
 
       // Generate accommodation response using the full Gem prompt
@@ -550,6 +427,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      // isFirstMessage is already set to false above when user sends their first message
     } catch (error) {
       const errorMessage = {
         id: Date.now() + 1,
@@ -567,60 +445,180 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  /**
-   * Handle "Add to IEP" button click
-   */
-  const handleAddToIEP = (strategyId, strategyText) => {
-    incrementStrategyUsage(strategyId);
-    
-    // Force re-render by updating messages to trigger strategy re-sorting
-    // Create a new message object to trigger React re-render
-    setMessages(prev => prev.map(msg => {
-      if (msg.role === 'assistant' && msg.content) {
-        return { ...msg, _wisdomUpdate: Date.now() }; // Add timestamp to force update
-      }
-      return msg;
-    }));
+  // Get the last assistant message (differentiated work)
+  const getLastDifferentiatedWork = () => {
+    const assistantMessages = messages.filter(msg => msg.role === 'assistant');
+    return assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1] : null;
   };
 
-  // Export to Google Docs using clipboard and direct link
+  // Export functions
+  const handlePrint = () => {
+    const lastWork = getLastDifferentiatedWork();
+    if (!lastWork) return;
+    
+    // Create a new window with printable content
+    const printWindow = window.open('', '_blank');
+    const content = lastWork.content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<em>$1</em>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^(\d+)\.\s+(.*$)/gm, '<p><strong>$1.</strong> $2</p>')
+      .replace(/^[-•]\s+(.*$)/gm, '<p>• $1</p>')
+      .replace(/\n/g, '<br>');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Differentiated Work - Print</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+            h1 { color: #06b6d4; margin-top: 30px; }
+            h2 { color: #06b6d4; margin-top: 25px; }
+            h3 { color: #06b6d4; margin-top: 20px; }
+            strong { color: #06b6d4; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <h1>Differentiated Work</h1>
+          <div>${content}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
+
+  const handleSavePDF = () => {
+    // Use print functionality - browser will handle PDF save
+    handlePrint();
+  };
+
+  // Google OAuth2 authentication
+  const authenticateGoogle = async () => {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.accounts) {
+        reject(new Error('Google API not loaded. Please refresh the page.'));
+        return;
+      }
+
+      window.google.accounts.oauth2.initTokenClient({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+        scope: 'https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file',
+        callback: (response) => {
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            setGoogleToken(response.access_token);
+            resolve(response.access_token);
+          }
+        },
+      }).requestAccessToken();
+    });
+  };
+
+  // Export to Google Docs using proper API
   const handleExportToGoogleDocs = async () => {
-    // Get the last AI message (accommodations)
-    const lastAIMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
-    if (!lastAIMessage || !lastAIMessage.content) {
-      alert('No accommodations to export. Please generate accommodations first.');
+    const lastWork = getLastDifferentiatedWork();
+    if (!lastWork) {
+      alert('No differentiated work to export. Please generate accommodations first.');
       return;
     }
 
+    setIsExporting(true);
+
     try {
-      // Copy content to clipboard
-      const content = lastAIMessage.content;
-      await navigator.clipboard.writeText(content);
-      
-      // Open Google Docs in a new tab
-      const googleDocsUrl = 'https://docs.google.com/document/create';
-      const docsWindow = window.open(googleDocsUrl, '_blank');
-      
-      // Show instructions
-      setTimeout(() => {
-        alert('Content copied to clipboard!\n\n1. Google Docs has been opened in a new tab\n2. Paste the content (Ctrl+V or Cmd+V) into the new document\n3. The accommodations are ready to use!');
-      }, 500);
+      // Get or request Google OAuth token
+      let token = googleToken;
+      if (!token) {
+        try {
+          token = await authenticateGoogle();
+        } catch (authError) {
+          console.error('Authentication error:', authError);
+          // Fallback: Use clipboard method if OAuth fails
+          await navigator.clipboard.writeText(lastWork.content);
+          window.open('https://docs.google.com/document/create', '_blank');
+          alert('Content copied to clipboard! Google Docs opened. Paste (Ctrl+V) to create your document.\n\nNote: For automatic document creation, please allow Google authentication when prompted.');
+          setIsExporting(false);
+          return;
+        }
+      }
+
+      // Call backend API to create Google Doc
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiUrl}/google-docs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: lastWork.content,
+          title: `Differentiated Work - ${new Date().toLocaleDateString()}`,
+          accessToken: token
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create Google Doc');
+      }
+
+      // Open the created document
+      if (data.documentUrl) {
+        window.open(data.documentUrl, '_blank');
+        alert('✅ Google Doc created successfully! Opening in new tab...');
+      } else {
+        throw new Error('Document URL not returned');
+      }
+
     } catch (error) {
       console.error('Export error:', error);
-      // Fallback: just open Google Docs
-      window.open('https://docs.google.com/document/create', '_blank');
-      alert('Please copy the accommodations text above and paste it into the new Google Doc.');
+      
+      // Fallback: Copy to clipboard and open Google Docs
+      try {
+        await navigator.clipboard.writeText(lastWork.content);
+        window.open('https://docs.google.com/document/create', '_blank');
+        alert('Content copied to clipboard! Google Docs opened. Paste (Ctrl+V) to create your document.\n\nError: ' + error.message);
+      } catch (clipboardError) {
+        alert('Failed to export. Error: ' + error.message + '\n\nPlease copy the content manually and paste it into Google Docs.');
+      }
+    } finally {
+      setIsExporting(false);
     }
   };
 
   // Import from Google Drive using Picker API
   const handleImportFromGoogleDrive = async () => {
+    setIsImporting(true);
+    
     try {
+      // Get or request Google OAuth token for Drive access
+      let token = googleToken;
+      if (!token) {
+        try {
+          token = await authenticateGoogle();
+        } catch (authError) {
+          console.error('Authentication error:', authError);
+          // Fallback: open Google Drive
+          window.open('https://drive.google.com/drive/my-drive', '_blank');
+          alert('Please authenticate with Google to import files directly.\n\nAlternatively, you can:\n1. Download the file from Google Drive\n2. Use the Upload Document button (📄) to upload it here');
+          setIsImporting(false);
+          return;
+        }
+      }
+
       if (!gapiLoaded || !window.gapi || !window.google) {
-        // Fallback: open Google Drive and provide instructions
-        const driveUrl = 'https://drive.google.com/drive/my-drive';
-        window.open(driveUrl, '_blank');
-        alert('To import from Google Drive:\n\n1. In the Google Drive window, find your file\n2. Right-click the file → Download\n3. Come back here and use the Upload Document button (📄) to upload the downloaded file\n\nAlternatively, you can drag and drop the downloaded file directly into this chat area.');
+        // Fallback: open Google Drive
+        window.open('https://drive.google.com/drive/my-drive', '_blank');
+        alert('Google Picker API not loaded. Please refresh the page.\n\nAlternatively, you can:\n1. Download the file from Google Drive\n2. Use the Upload Document button (📄) to upload it here');
+        setIsImporting(false);
         return;
       }
 
@@ -631,47 +629,55 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         .addView(window.google.picker.ViewId.PRESENTATIONS)
         .addView(window.google.picker.ViewId.SPREADSHEETS)
         .addView(window.google.picker.ViewId.PDFS)
+        .setOAuthToken(token)
         .setCallback((data) => {
+          setIsImporting(false);
+          
           if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.PICKED) {
             const file = data[window.google.picker.Response.DOCUMENTS][0];
             const fileId = file.id;
             const fileName = file.name;
             
-            // Download file from Google Drive
             if (fileId) {
               // Determine file type and export URL
               let exportUrl;
               if (file.mimeType && file.mimeType.includes('document')) {
-                exportUrl = `https://docs.google.com/document/d/${fileId}/export?format=pdf`;
+                exportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
               } else if (file.mimeType && file.mimeType.includes('spreadsheet')) {
-                exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=pdf`;
+                exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
               } else if (file.mimeType && file.mimeType.includes('presentation')) {
-                exportUrl = `https://docs.google.com/presentation/d/${fileId}/export?format=pdf`;
+                exportUrl = `https://docs.google.com/presentation/d/${fileId}/export?format=txt`;
               } else {
                 // For PDFs and other files, try direct download
                 exportUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
               }
               
               // Try to fetch the file
-              fetch(exportUrl)
+              fetch(exportUrl, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              })
                 .then(response => {
                   if (!response.ok) throw new Error('Download failed');
                   return response.blob();
                 })
                 .then(blob => {
-                  const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'pdf';
-                  const mimeType = blob.type || 'application/pdf';
+                  const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'txt';
+                  const mimeType = blob.type || 'text/plain';
                   const file = new File([blob], fileName || `drive-file.${fileExtension}`, { type: mimeType });
                   const fakeEvent = { target: { files: [file] } };
                   handleFileUpload(fakeEvent, 'document');
                 })
                 .catch(error => {
                   console.error('Error downloading from Drive:', error);
-                  // Fallback: open the file in a new tab and let user download manually
+                  // Fallback: open the file in a new tab
                   window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
                   alert('Please download the file from Google Drive and upload it here using the Upload Document button.');
                 });
             }
+          } else if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.CANCEL) {
+            setIsImporting(false);
           }
         })
         .build();
@@ -679,10 +685,10 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
       picker.setVisible(true);
     } catch (error) {
       console.error('Google Drive Picker error:', error);
+      setIsImporting(false);
       // Fallback to manual method
-      const driveUrl = 'https://drive.google.com/drive/my-drive';
-      window.open(driveUrl, '_blank');
-      alert('Please download the file from Google Drive and upload it here using the Upload Document button.');
+      window.open('https://drive.google.com/drive/my-drive', '_blank');
+      alert('Error accessing Google Drive. Please download the file manually and upload it here using the Upload Document button.');
     }
   };
 
@@ -693,7 +699,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
         <div className={`p-4 border-b ${theme.cardBorder} flex items-center justify-between`}>
           <h3 className={`font-bold ${theme.text} flex items-center gap-2`}>
             <MessageSquare size={18} className="text-cyan-400" />
-            Chat History
+            Learner Profiles
           </h3>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -708,7 +714,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
             className={`w-full mb-2 px-3 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium ${theme.text}`}
           >
             <Plus size={16} className="text-cyan-400" />
-            New Chat
+            New Profile
           </button>
           {chatHistories.map((chat) => (
             <div
@@ -748,7 +754,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
             <div className={`text-center py-8 ${theme.textMuted} text-sm`}>
               <User size={32} className="mx-auto mb-2 opacity-50" />
               <p>No profiles yet</p>
-              <p className="text-xs mt-1">Start a new conversation</p>
+              <p className="text-xs mt-1">Create your first learner profile</p>
             </div>
           )}
           
@@ -866,25 +872,51 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
           </div>
         )}
 
-        {/* Export/Import Buttons - Show when there are AI messages */}
-        {messages.some(msg => msg.role === 'assistant') && (
-          <div className="mb-4 flex justify-end gap-2">
-            <button
-              onClick={handleImportFromGoogleDrive}
-              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${isDark ? 'bg-green-900/20 text-green-400 hover:bg-green-900/30' : 'bg-green-50 text-green-700 hover:bg-green-100'} transition-colors flex items-center gap-2 text-sm font-medium`}
-              title="Import from Google Drive"
-            >
-              <FileUp size={16} />
-              Import from Drive
-            </button>
-            <button
-              onClick={handleExportToGoogleDocs}
-              className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${isDark ? 'bg-blue-900/20 text-blue-400 hover:bg-blue-900/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} transition-colors flex items-center gap-2 text-sm font-medium`}
-              title="Export to Google Docs"
-            >
-              <ExternalLink size={16} />
-              Export to Docs
-            </button>
+        {/* Export buttons */}
+        {getLastDifferentiatedWork() && (
+          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-4 mb-4 flex flex-wrap gap-2 items-center justify-between`}>
+            <div className="flex items-center gap-2">
+              <Sparkles className="text-cyan-400" size={18} />
+              <span className={`text-sm font-medium ${theme.text}`}>
+                Export Differentiated Work
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePrint}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                title="Print"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              <button
+                onClick={handleSavePDF}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium`}
+                title="Save as PDF"
+              >
+                <Download size={16} />
+                PDF
+              </button>
+              <button
+                onClick={handleExportToGoogleDocs}
+                disabled={isExporting}
+                className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.inputBg} ${theme.text} hover:bg-cyan-500/10 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+                title="Export to Google Docs"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink size={16} />
+                    Google Docs
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
@@ -919,17 +951,22 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                         ))}
                       </div>
                     )}
-                    {msg.role === 'assistant' ? (
-                      <AccommodationMessageContent 
-                        key={msg._wisdomUpdate || msg.id} // Use wisdom update timestamp as key to force re-render
-                        content={msg.content} 
-                        isDark={isDark} 
-                        theme={theme}
-                        onAddToIEP={handleAddToIEP}
-                      />
-                    ) : (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    )}
+                    <div 
+                      className="whitespace-pre-wrap prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{
+                        __html: (msg.content || '')
+                          .replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-cyan-400">$1</strong>')
+                          .replace(/\*(?!\*)(.*?)(?<!\*)\*/g, '<span class="italic text-fuchsia-300">$1</span>')
+                          .replace(/^### (.*$)/gm, '<h3 class="text-xl font-bold text-cyan-400 mt-4 mb-2">$1</h3>')
+                          .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-bold text-cyan-500 mt-6 mb-3">$1</h2>')
+                          .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-cyan-500 mt-8 mb-4">$1</h1>')
+                          .replace(/^(\d+)\.\s+(.*$)/gm, '<div class="my-2"><span class="font-bold text-fuchsia-400">$1.</span> <span>$2</span></div>')
+                          .replace(/^[-•]\s+(.*$)/gm, '<div class="my-1 ml-4"><span class="text-cyan-400">•</span> <span>$1</span></div>')
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -983,6 +1020,18 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
               title="Upload Photo"
             >
               <Camera size={20} />
+            </button>
+            <button
+              onClick={handleImportFromGoogleDrive}
+              disabled={isImporting}
+              className={`p-2 rounded-lg border ${theme.cardBorder} ${isImporting ? 'opacity-50 cursor-not-allowed' : `${theme.textMuted} hover:${theme.text}`} transition-colors`}
+              title="Import from Google Drive"
+            >
+              {isImporting ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <ExternalLink size={20} />
+              )}
             </button>
             <button
               onClick={isRecording ? stopSpeechRecognition : startSpeechRecognition}

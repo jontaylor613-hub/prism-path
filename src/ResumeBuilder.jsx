@@ -3,13 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Sparkles, User, Briefcase, GraduationCap, Award, 
   ArrowRight, ArrowLeft, Check, Printer, RotateCcw, 
-  Trash2, Wand, Loader2, X, BookOpen, Users, Calendar, MapPin, Gamepad2, Download
+  Trash2, Wand, Loader2, X, BookOpen, Users, Calendar, MapPin, Gamepad2
 } from 'lucide-react';
 
 // --- THE FIX: Import the brain ---
 import { GeminiService } from './utils';
 import ArchiveOfPotentials from './ArchiveOfPotentials';
-import { generatePDF } from './utils/pdfExporter';
 
 export default function ResumeBuilder({ onBack, isLowStim }) {
   const navigate = useNavigate();
@@ -352,54 +351,7 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
       <div className="min-h-screen bg-slate-900 text-white p-4 md:p-8 flex flex-col items-center">
         <div className="w-full max-w-4xl flex justify-between mb-6">
             <button onClick={() => setShowPreview(false)} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"><ArrowLeft /> Keep Editing</button>
-            <div className="flex gap-2">
-              <button onClick={() => window.print()} className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg ${isLowStim ? 'bg-slate-200 text-black' : 'bg-green-500 hover:bg-green-600 text-white'}`}><Printer size={20}/> Print</button>
-              <button 
-                onClick={async () => {
-                  try {
-                    // Format resume content for PDF
-                    let resumeContent = `# ${data.fullName || 'Resume'}\n\n`;
-                    if (data.title) resumeContent += `**${data.title}**\n\n`;
-                    if (data.location || data.email || data.phone) {
-                      resumeContent += `${data.location ? data.location + ' • ' : ''}${data.email || ''}${data.phone ? ' • ' + data.phone : ''}\n\n`;
-                    }
-                    if (data.summary) {
-                      resumeContent += `## Professional Summary\n\n${data.summary}\n\n`;
-                    }
-                    if (data.jobs.length > 0) {
-                      resumeContent += `## Experience\n\n`;
-                      data.jobs.forEach(job => {
-                        resumeContent += `### ${job.role}\n${job.company} | ${job.location}\n${job.startDate} – ${job.endDate}\n\n${job.description}\n\n`;
-                      });
-                    }
-                    if (data.education.length > 0) {
-                      resumeContent += `## Education\n\n`;
-                      data.education.forEach(edu => {
-                        resumeContent += `### ${edu.school}\n${edu.degree}\n${edu.year} • ${edu.location}\n\n`;
-                      });
-                    }
-                    if (data.coursework.length > 0) {
-                      resumeContent += `## Relevant Coursework\n\n${data.coursework.join(', ')}\n\n`;
-                    }
-                    if (data.skills.length > 0) {
-                      resumeContent += `## Skills\n\n${data.skills.join(', ')}\n\n`;
-                    }
-                    if (data.references.length > 0) {
-                      resumeContent += `## References\n\n`;
-                      data.references.forEach(ref => {
-                        resumeContent += `**${ref.name}**\n${ref.relation}\n${ref.contact}\n\n`;
-                      });
-                    }
-                    await generatePDF(data.fullName || 'Resume', resumeContent, '', 'PrismPath');
-                  } catch (error) {
-                    alert('Failed to generate PDF: ' + error.message);
-                  }
-                }}
-                className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg ${isLowStim ? 'bg-slate-300 text-black' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
-              >
-                <Download size={20}/> Export PDF
-              </button>
-            </div>
+            <button onClick={() => window.print()} className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg ${isLowStim ? 'bg-slate-200 text-black' : 'bg-green-500 hover:bg-green-600 text-white'}`}><Printer size={20}/> Print / Save PDF</button>
         </div>
         
         {/* RESUME PAPER (A4 Size) */}

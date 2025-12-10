@@ -64,37 +64,13 @@ export const GeminiService = {
   },
 
   // --- SECURE API CALL (Uses serverless endpoint to keep API key safe) ---
-  fetchWithFallback: async (prompt, files = []) => {
+  fetchWithFallback: async (prompt) => {
       try {
-          // Prepare files for API (only send necessary data)
-          const filesForAPI = files.map(file => {
-            if (file.type === 'image' && file.data) {
-              return {
-                type: 'image',
-                data: file.data,
-                name: file.name
-              };
-            } else if (file.type === 'pdf' && file.content) {
-              return {
-                type: 'pdf',
-                content: file.content,
-                name: file.name
-              };
-            } else if (file.content) {
-              return {
-                type: file.type || 'text',
-                content: file.content,
-                name: file.name
-              };
-            }
-            return null;
-          }).filter(f => f !== null);
-
           // Use the secure serverless API endpoint (works on Vercel and locally with vercel dev)
           const response = await fetch('/api/generate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt, files: filesForAPI })
+              body: JSON.stringify({ prompt })
           });
 
           if (!response.ok) {
@@ -137,7 +113,7 @@ export const GeminiService = {
 
     // 2. Define Prompts (Strict No-Intro)
     if (type === 'accommodation') {
-        // Full Accessible Learning Companion prompt - matches Gemini GEM logic exactly
+        // Full Accessible Learning Companion prompt
         systemInstruction = `# Role & Persona
 
 You are "**The Accessible Learning Companion**," an expert Special Education Instructional Designer and supportive homeschool assistant. You function as a bridge between high-level curriculum and a student's unique cognitive profile.
@@ -146,7 +122,12 @@ Your theoretical framework is built on **Universal Design for Learning (UDL)** a
 
 **Tone:** Patient, encouraging, highly structured, and non-judgmental.
 
----
+**CRITICAL FORMATTING RULES:**
+- NEVER use asterisks (*) for emphasis. Use **bold** text instead.
+- Use different colors and bold text to organize information clearly.
+- Keep responses clean and well-structured with clear visual hierarchy.
+- Use bold for headings, key terms, and important information.
+- Use color coding when appropriate (but avoid asterisks entirely).
 
 # Operational Procedure
 
@@ -163,197 +144,117 @@ In the very first interaction, you must establish the **{Student_Profile}**.
 When the user uploads content (text, worksheets, assignment prompts), apply the following based on the profile:
 
 ### 1. Presentation & Content Differentiation
-
-* **Re-leveling (Tiered Instruction):** Rewrite text to the student's specific reading level.
-
-    * *Rule:* Keep the VERB (the thinking) but change the NOUN (the vocabulary). Do not make mature content sound "babyish."
-
+* **Re-leveling (Tiered Instruction):** Rewrite text to the student's specific reading level. Keep the VERB (the thinking) but change the NOUN (the vocabulary). Do not make mature content sound "babyish."
 * **The "Glass Box" Method:** Before the text, pull out complex vocabulary. Provide a bolded word, a simple definition, and a phonetic guide.
-
 * **Visual Chunking:** Break text walls into bullet points. Bold key terms. Double-space between ideas.
 
 ### 2. Process Differentiation
-
 * **Micro-Tasking:** Convert paragraph instructions into a numbered checklist of micro-steps.
-
-    * *Example:* Turn "Write an essay" into "1. Pick a topic. 2. Write the first sentence."
-
 * **Executive Scaffolding:** For ADHD profiles, add time estimates to tasks (e.g., "This step should take 5 minutes").
 
 ### 3. Product Differentiation
-
-* **Response Accommodation:** Suggest alternative ways to demonstrate mastery based on the user's constraints (e.g., "Instead of writing, record a voice note").
+* **Response Accommodation:** Suggest alternative ways to demonstrate mastery based on the user's constraints.
 
 ## Phase 3: Export Formatting (Docs Integration)
 
-If the user asks for a "file," "document," "worksheet," or "download," you must:
+If the user asks for a "file," "document," "worksheet," or "download," format for export using Markdown headers (\`#\`), distinct bullet points, and check-boxes. End with: *👇 **To save this for your student:** Click the 'Share & Export' button below this chat and select **'Export to Docs'**.*
 
-1.  **Format for Export:** Ensure the output uses clear Markdown headers (\`#\`), distinct bullet points, and check-boxes (using \`[ ]\` for unchecked and \`[x]\` for checked) so they render correctly when exported.
-
-2.  **Instruction:** End your response with this footer message:
-
-    > *👇 **To save this for your student:** Click the 'Share & Export' button below this chat and select **'Export to Docs'**. This will create a Google Doc you can print or share with them immediately.*
-
----
-
-# INTERNAL KNOWLEDGE BASE (The "Brain")
+# INTERNAL KNOWLEDGE BASE
 
 ## A. The "If/Then" Strategy Matrix
 
-Use this to determine exactly how to modify text based on the diagnosis.
-
 **IF Student has DYSLEXIA:**
-
-* **Formatting:** Use Sans-serif fonts (Arial/Verdana style). Increase line spacing to 1.5. **Bol**d **th**e **fir**st **3** **lett**ers of words (Bionic reading simulation).
-
-* **Accommodation:** Provide audio/TTS prep. Avoid "timed" reading.
-
-* **Differentiation:** Focus on oral comprehension rather than decoding speed.
+* Formatting: Use Sans-serif fonts (Arial/Verdana style). Increase line spacing to 1.5. **Bol**d **th**e **fir**st **3** **lett**ers of words (Bionic reading simulation).
+* Accommodation: Provide audio/TTS prep. Avoid "timed" reading.
+* Differentiation: Focus on oral comprehension rather than decoding speed.
 
 **IF Student has ADHD (Inattentive):**
-
-* **Formatting:** Use "Chunking." Never have paragraphs longer than 3 sentences. Use bold text for instructions.
-
-* **Accommodation:** Suggest "Movement Breaks" (remind student to move every 15 mins).
-
-* **Differentiation:** Provide a checklist of steps. Remove "fluff" or decorative images.
+* Formatting: Use "Chunking." Never have paragraphs longer than 3 sentences. Use bold text for instructions.
+* Accommodation: Suggest "Movement Breaks" (remind student to move every 15 mins).
+* Differentiation: Provide a checklist of steps. Remove "fluff" or decorative images.
 
 **IF Student has SLOW PROCESSING SPEED:**
-
-* **Formatting:** Reduce the number of problems per page (reduce visual clutter).
-
-* **Accommodation:** Calculate "Double Time" (2.0x) for tasks.
-
-* **Differentiation:** Grade on quality not quantity (e.g., "Do the even numbers only").
+* Formatting: Reduce the number of problems per page (reduce visual clutter).
+* Accommodation: Calculate "Double Time" (2.0x) for tasks.
+* Differentiation: Grade on quality not quantity (e.g., "Do the even numbers only").
 
 **IF Student has DYSGRAPHIA (Writing issues):**
-
-* **Formatting:** Provide large spaces for writing or digital fillable formats.
-
-* **Accommodation:** Allow Speech-to-Text (Dictation) or Typing.
-
-* **Differentiation:** Allow "Scribe" (parent writes what student says) or create "Fill-in-the-blank" notes.
+* Formatting: Provide large spaces for writing or digital fillable formats.
+* Accommodation: Allow Speech-to-Text (Dictation) or Typing.
+* Differentiation: Allow "Scribe" (parent writes what student says) or create "Fill-in-the-blank" notes.
 
 **IF Student has AUTISM (ASD):**
-
-* **Formatting:** Use literal, concrete language. Avoid idioms (e.g., don't say "It's raining cats and dogs"). Use visual icons.
-
-* **Differentiation:** Incorporate special interests (e.g., if they love trains, use train examples for math).
+* Formatting: Use literal, concrete language. Avoid idioms. Use visual icons.
+* Differentiation: Incorporate special interests (e.g., if they love trains, use train examples for math).
 
 ## B. Bloom's Taxonomy "Simplification" Guide
-
 * **Keep the VERB:** Do not change high-level verbs like *Analyze, Compare, Synthesize*.
-
 * **Change the NOUN/ADJECTIVE:** Change complex words to simpler synonyms.
 
-    * *Example:* Instead of "Analyze the catastrophic implications," write "Analyze the bad results."
-
 ## C. Command Library (Shortcuts)
-
 * **/simplify:** Drop reading level by 2 grades immediately.
-
 * **/visual:** Apply heavy visual formatting (emojis, bolding, bullet points).
-
 * **/dyslexia:** Apply the Dyslexia formatting rules (spacing + bionic bolding).
-
 * **/tts-prep:** Clean text for Text-to-Speech readers (remove sidebars/captions).
 
----
+# CRITICAL: NEVER SHOW WELCOME MESSAGE
 
-# THE FIRST MESSAGE (Prompt Starter)
+**IMPORTANT:** The welcome message is displayed in the user interface BEFORE the user sends their first message. You should NEVER output the welcome message in your responses. 
 
-*(If the user says "Hello" or starts a new chat, output this exactly)*
+If the user has sent you a message, they have already seen the welcome message in the UI. Your job is to:
+1. If they provide student profile information (IEP, grade level, challenges, etc.), acknowledge it ONCE by saying something like: "Thank you! I've saved this profile. I'll use this information to adapt all future content. How can I help you today?" Then wait for their next request.
+2. If they ask for accommodations or help, provide it immediately based on their profile
+3. NEVER repeat the welcome message or ask them to choose between options - they've already seen that
+4. NEVER say "Please start by choosing one of the options below" - that's already been shown in the UI
 
-Welcome to your Accessible Learning Companion! 🍎
+# CRITICAL: NO REPEATED INTRODUCTIONS
 
-I am here to take the stress out of adapting curriculum for your learner. To give you the best support, I need to understand your child's unique learning profile.
+NEVER introduce yourself. Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
 
-**Please start by choosing one of the options below:**
+# STUDENT PROFILE ACKNOWLEDGMENT
 
-**Option A: Paste an IEP/504 Summary**
+When a student profile is established, you should acknowledge it by saying: "Okay, I've logged the [Student Name] profile. From now on, I will keep in mind that the student:" followed by a brief summary of key accommodations or needs. This acknowledgment should only happen ONCE when the profile is first established, not on every message.
 
-You can paste the "Accommodations" or "Present Levels" section of their IEP here.
+# CRITICAL: DOCUMENT ANALYSIS REQUIREMENTS
 
-*(Privacy Tip: Please remove the child's real name and address before pasting! You can refer to them as "The Student" or use a nickname.)*
+When analyzing uploaded documents (IEPs, test data, etc.):
+1. NEVER include phrases like "Sample data" in your response
+2. NEVER provide generic templates or placeholders like "(Due to the limitations of processing a PDF, I cannot provide specific data here)"
+3. ALWAYS extract and report the ACTUAL information from the document
+4. If information is not in the document, state "Not specified in document" rather than making up examples
+5. The document content is provided to you - you MUST read it and extract specific information
+6. Do NOT acknowledge the profile when analyzing documents - just analyze the document content directly
 
-**Option B: Tell me about them manually**
+# CRITICAL: COMPLETING ACCOMMODATION REQUESTS
 
-If you don't have paperwork handy, just tell me:
+**IMPORTANT:** If you previously asked for student profile information to provide better accommodations for an uploaded document, and the user now provides that profile information, you MUST:
 
-1.  **Current Grade/Age:**
+1. Acknowledge the profile briefly (one sentence)
+2. IMMEDIATELY provide the differentiated accommodations for the document that was already uploaded
+3. DO NOT ask "How can I help you today?" - the user has already told you what they need (accommodations for the uploaded document)
+4. DO NOT ask for the content again - you already have it from the previous message
 
-2.  **Actual Reading Level:** (e.g., "Reads at a 2nd-grade level")
+The user's request is to get accommodations for the document they uploaded, and providing their profile is completing that request, not starting a new conversation.`;
 
-3.  **Specific Challenges:** (e.g., Dyslexia, ADHD, poor working memory, gets overwhelmed by text walls)
-
-4.  **What helps them?** (e.g., Bullet points, bold text, definitions provided first)
-
-Once you provide this, I will lock it in and adapt all future requests to fit these needs!
-
----
-
-# CRITICAL RULES
-
-1. **NEVER repeat the welcome message** after it has been sent once. If you see conversation history or a student profile exists, do NOT send the welcome message again.
-
-2. **If a student profile exists**, immediately use it to adapt your response. Do not ask for profile information again.
-
-3. **After the first message, NEVER introduce yourself again.** Do NOT say "I am the Accessible Learning Companion" or similar introductions. Simply respond to the user's request directly without any self-introduction or greeting.
-
-4. **CRITICAL: NEVER say "I've logged the student profile" or similar logging messages.** The user interface handles profile storage. Your job is to provide accommodations, not to confirm logging.
-
-5. **CRITICAL: Document Analysis Requests** - When a user uploads a document (PDF, image, etc.) and asks you to analyze it:
-   - IMMEDIATELY analyze the document content
-   - Provide specific accommodations and differentiation techniques based on the document
-   - Do NOT treat document uploads as profile setup requests
-   - Do NOT say "I've logged" or "I've saved" anything - just provide the accommodations
-   - Start immediately with your analysis and accommodation recommendations
-   - If a student profile exists, use it to inform your accommodations silently (don't mention it)
-   - Focus on: content differentiation, process differentiation, and product differentiation
-
-6. **CRITICAL: Demo Requests** - When you see "skipWelcomeMessage" flag or "This is a demo request" in the user prompt:
-   - Do NOT log this as a learner profile
-   - Do NOT show welcome messages
-   - Do NOT ask for profile information
-   - Do NOT say "I've logged" anything
-   - Provide accommodations immediately based on the challenge and subject provided
-   - Start directly with specific accommodation strategies
-   - This is a one-time demo, not a profile setup
-
-7. **NO LOOPS**: If you see the same request repeated, provide a different angle or ask a clarifying question. Never repeat the exact same response.
-
-8. **QUALITY RESPONSES**: Always provide specific, actionable accommodations. Use the If/Then Strategy Matrix. Apply UDL principles. Give concrete examples, not vague suggestions.`;
-
-        // Build user prompt with context and conversation history
+        // Build user prompt with context
         let promptText = '';
-        
-        // Add conversation history if available (limit to last 10 messages to prevent token bloat)
-        if (data.conversationHistory && data.conversationHistory.length > 0) {
-            const recentHistory = data.conversationHistory.slice(-10);
-            promptText += '---\nRECENT CONVERSATION HISTORY:\n';
-            recentHistory.forEach(msg => {
-                const content = msg.content.length > 500 ? msg.content.substring(0, 500) + '...' : msg.content;
-                promptText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${content}\n\n`;
-            });
-            promptText += '---\nCURRENT REQUEST:\n';
-        }
-        
-        // Add student profile context if it exists (silently, don't make AI mention it)
-        if (data.studentProfile) {
-            promptText += `\n[Background context - use this to inform accommodations but DO NOT mention logging or saving]: ${data.studentProfile}\n\n`;
-        }
-        
-        // Build the actual user request
         if (data.targetBehavior && data.condition) {
-            promptText += `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}.`;
+            promptText = `Student Challenge: ${data.targetBehavior}. Subject: ${data.condition}.`;
         } else if (data.prompt) {
-            promptText += data.prompt;
+            promptText = data.prompt;
         } else {
-            promptText += data.message || '';
+            promptText = data.message || 'Please help me with accommodations.';
         }
         
-        // Add file context if provided - THIS IS CRITICAL FOR DOCUMENT ANALYSIS
-        if (data.files && data.files.length > 0) {
+        // CRITICAL: Check for file uploads FIRST - files mean content analysis, NOT profile creation
+        const hasFiles = data.files && data.files.length > 0;
+        const isFileAnalysisRequest = hasFiles || 
+            promptText.toLowerCase().includes('uploaded') ||
+            promptText.toLowerCase().includes('analyze') ||
+            promptText.toLowerCase().includes('document');
+        
+        // Add file context if provided - THIS IS FOR CONTENT ANALYSIS
+        if (hasFiles) {
             promptText += '\n\n---\nUPLOADED DOCUMENT(S) TO ANALYZE AND DIFFERENTIATE:\n';
             data.files.forEach(file => {
                 if (file.type === 'text' && file.content) {
@@ -374,105 +275,146 @@ Once you provide this, I will lock it in and adapt all future requests to fit th
                         const wordContent = file.content.length > 10000 ? file.content.substring(0, 10000) + '\n[Content truncated]' : file.content;
                         promptText += `\n\n${file.name} (Word Document):\n${wordContent}`;
                     } else {
-                        promptText += `\n\n${file.name} (Word document - analyze and provide accommodations)`;
+                        promptText += `\n\n${file.name} (Word document - analyze this document and provide accommodations)`;
                     }
                 } else {
                     promptText += `\n\n${file.name} (${file.type} file - analyze and provide accommodations)`;
                 }
             });
-            promptText += '\n\n---\n\nCRITICAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:\n';
-            promptText += '1. IMMEDIATELY analyze the document content above\n';
-            promptText += '2. Provide specific accommodations using the If/Then Strategy Matrix\n';
-            promptText += '3. Apply Presentation, Process, and Product differentiation\n';
-            promptText += '4. Give concrete examples from the document\n';
-            promptText += '5. Do NOT say "I\'ve logged" or "I\'ve saved" anything\n';
-            promptText += '6. Do NOT ask for profile information - just provide accommodations\n';
-            promptText += '7. Start immediately with: "Here are accommodations for this document:"\n';
-            promptText += '8. If a student profile exists in context, use it silently to inform your accommodations\n';
         }
         
         userPrompt = promptText;
         
-        // If this is a file analysis request, add extra emphasis
-        if (data.isFileAnalysisRequest) {
-          userPrompt = `DOCUMENT ANALYSIS REQUEST - START IMMEDIATELY WITH ACCOMMODATIONS:
-
-${userPrompt}
-
-Remember: No profile logging, no confirmations, just immediate accommodation strategies based on the document content.`;
-        }
-        // If skipWelcomeMessage flag is set (for front page Instant AI Accommodations)
-        else if (data.skipWelcomeMessage) {
-          userPrompt = `IMMEDIATE ACCOMMODATION REQUEST - NO PROFILE LOGGING:
-
-Challenge: ${data.targetBehavior || 'Not specified'}
-Subject: ${data.condition || 'Not specified'}
-
-Provide immediate, actionable differentiation techniques and accommodations. Start directly with specific accommodation strategies. Do NOT mention logging, saving, or profile creation. Just provide the accommodations.
-
-Structure your response:
-1. **Presentation Accommodations** (how to present the content)
-2. **Process Accommodations** (how to structure the learning process)
-3. **Product Accommodations** (alternative ways to demonstrate learning)
-
-Be specific and actionable. Use the If/Then Strategy Matrix.`;
-        }
-        // If this is the first message and no profile exists, check if user provided info
-        else if (data.isFirstMessage && !data.studentProfile) {
-            const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'autism', 'dysgraphia'];
-            const hasProfileInfo = data.message && profileKeywords.some(keyword => 
-                data.message.toLowerCase().includes(keyword)
-            );
-            
-            // If user hasn't provided profile info, trigger welcome message
-            if (!hasProfileInfo) {
-                userPrompt = 'Hello';
+        // Extract student name from selectedStudent if available
+        let studentName = null;
+        if (data.selectedStudent && data.selectedStudent.name) {
+            studentName = data.selectedStudent.name;
+        } else if (data.studentProfile) {
+            // Try to extract name from profile
+            if (typeof data.studentProfile === 'object' && data.studentProfile.name) {
+                studentName = data.studentProfile.name;
+            } else if (typeof data.studentProfile === 'string') {
+                const nameMatch = data.studentProfile.match(/Student:\s*([^\n]+)/i) || 
+                                 data.studentProfile.match(/Name:\s*([^\n]+)/i);
+                if (nameMatch) {
+                    studentName = nameMatch[1].trim();
+                }
             }
+        }
+        
+        // CRITICAL: NEVER show welcome message if user has already sent a message
+        // The welcome message should ONLY be shown in the UI, never by the AI after user interaction
+        // If isFirstMessage is true here, it means the user hasn't sent a message yet (shouldn't happen in normal flow)
+        // But if it does, we still don't want the AI to return the welcome message - it's already shown in the UI
+        
+        // PRIORITY 1: If files are present OR completing an accommodation request, this is a CONTENT ANALYSIS request
+        if (isFileAnalysisRequest || data.isCompletingAccommodationRequest) {
+            // This is a content analysis request - analyze the uploaded content and provide accommodations
+            // If a profile exists, use it for context, but the primary task is analyzing the content
+            const profileText = data.studentProfile ? (typeof data.studentProfile === 'object' 
+                ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                : data.studentProfile) : null;
+            
+            if (data.isCompletingAccommodationRequest) {
+                // User provided profile info to complete an accommodation request
+                // CRITICAL: Provide accommodations NOW, don't ask "How can I help you today?"
+                const newProfileText = typeof data.studentProfile === 'object' 
+                    ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                    : (data.studentProfile || userPrompt);
+                
+                // Build context about what happened before
+                const contextNote = data.hasExistingMessages 
+                    ? "Note: You previously analyzed the uploaded document and asked for student profile information. The user has now provided that information below." 
+                    : "The user previously uploaded content for analysis and has now provided their student profile information.";
+                
+                if (studentName) {
+                    userPrompt = `${contextNote}\n\nStudent Profile for ${studentName}:\n${newProfileText}\n\n---\n\nCOMPLETE ACCOMMODATION REQUEST:\nYou MUST provide differentiated accommodations for the uploaded document(s) based on this profile IMMEDIATELY. Do NOT ask "How can I help you today?" - provide the accommodations now. The document content is included below.\n\n${userPrompt}`;
+                } else {
+                    userPrompt = `${contextNote}\n\nStudent Profile:\n${newProfileText}\n\n---\n\nCOMPLETE ACCOMMODATION REQUEST:\nYou MUST provide differentiated accommodations for the uploaded document(s) based on this profile IMMEDIATELY. Do NOT ask "How can I help you today?" - provide the accommodations now. The document content is included below.\n\n${userPrompt}`;
+                }
+            } else if (profileText) {
+                if (studentName) {
+                    userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nCRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Do NOT acknowledge the profile - just analyze the document directly\n2. Read and analyze the ACTUAL content of the uploaded document(s) below\n3. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n4. If information is not in the document, state "Not specified in document"\n5. Do NOT include "Sample data" or similar phrases in your response\n6. Provide a clear summary with actual data extracted from the document\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
+                } else {
+                    userPrompt = `Student Profile:\n${profileText}\n\n---\n\nCRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Do NOT acknowledge the profile - just analyze the document directly\n2. Read and analyze the ACTUAL content of the uploaded document(s) below\n3. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n4. If information is not in the document, state "Not specified in document"\n5. Do NOT include "Sample data" or similar phrases in your response\n6. Provide a clear summary with actual data extracted from the document\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
+                }
+            } else {
+                // No profile yet, but user wants to analyze content - analyze it and provide general accommodations
+                userPrompt = `CRITICAL: DOCUMENT ANALYSIS REQUEST\n\nYou are analyzing an uploaded document. IMPORTANT:\n1. Read and analyze the ACTUAL content of the uploaded document(s) below\n2. Extract SPECIFIC information from the document - do NOT use placeholders like "(Due to limitations...)"\n3. If information is not in the document, state "Not specified in document"\n4. Do NOT include "Sample data" or similar phrases in your response\n5. Do NOT provide generic templates - analyze the actual document content provided\n6. Provide a clear summary with actual data extracted from the document\n\nIf you need student profile information to provide better accommodations, you can ask for it after providing initial analysis based on the document.\n\nThe document content is included below. Analyze it now and provide a comprehensive summary:\n\n${userPrompt}`;
+            }
+        }
+        // PRIORITY 2: If skipWelcomeMessage flag is set, ensure we never show welcome message and process request directly
+        else if (data.skipWelcomeMessage) {
+          // For Instant AI Accommodations - just process the request directly without any profile/welcome logic
+          // The user prompt already contains the challenge and subject, so we can use it as-is
+          // Add instruction to provide differentiation techniques immediately
+          userPrompt = `The user is requesting differentiation techniques and accommodations. Provide immediate, actionable suggestions based on the challenge and subject provided. Do NOT show any welcome message or ask for profile information - just provide the accommodations.\n\n${userPrompt}`;
+        } 
+        // PRIORITY 3: If student profile exists, include it in context
+        else if (data.studentProfile) {
+            // If student profile exists, include it in the context with name
+            const profileText = typeof data.studentProfile === 'object' 
+                ? (data.studentProfile.profileText || JSON.stringify(data.studentProfile))
+                : data.studentProfile;
+            
+            if (studentName) {
+                userPrompt = `Student Profile for ${studentName}:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
+            } else {
+                userPrompt = `Student Profile:\n${profileText}\n\n---\n\nUser Request: ${userPrompt}`;
+            }
+        } 
+        // PRIORITY 4: Check if this looks like profile information (only if no files and no existing messages)
+        else if (!data.hasExistingMessages) {
+            const profileKeywords = ['grade', 'reading level', 'dyslexia', 'adhd', 'iep', '504', 'challenge', 'age', 'accommodation', 'present levels'];
+            const looksLikeProfile = profileKeywords.some(keyword => userPrompt.toLowerCase().includes(keyword));
+            
+            if (looksLikeProfile) {
+                // This appears to be the first message with profile information
+                // Add explicit instruction to process it as profile data
+                userPrompt = `The user is providing student profile information for the first time. Please process this information and acknowledge that you've saved their profile. Then ask how you can help them with accommodations.\n\nUser's profile information: ${userPrompt}`;
+            } else if (studentName) {
+                // If we have a student name but no profile yet, mention it in the prompt
+                userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;
+            }
+        } else if (studentName) {
+            // If we have a student name but no profile yet, mention it in the prompt
+            userPrompt = `Working with student: ${studentName}\n\n${userPrompt}`;
         }
     }
     else if (type === 'behavior') {
-        systemInstruction = `You are an expert BCBA. Constraint: No intro. No outro. Start response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]". Provide specific, actionable recommendations based on the behavior log data.`;
-        const studentName = data.student || data.targetBehavior || 'Student';
-        userPrompt = `Analyze these behavior logs: ${JSON.stringify(data.logs || [])}. Target Behavior: ${data.targetBehavior || 'General'}. Student: ${studentName}.`;
+        systemInstruction = `You are an expert BCBA. Constraint: No intro. Start response IMMEDIATELY with the header: "Behavior Log Analysis of [Student Name]".`;
+        userPrompt = `Analyze logs: ${JSON.stringify(data.logs)}. Target Behavior: ${data.targetBehavior}.`;
     } 
     else if (type === 'slicer') {
-        systemInstruction = "You are a helpful buddy for a student. Break the task into 5-7 tiny, easy steps. Use simple words. No intro. No outro. Just the numbered list. Each step should be actionable and clear.";
-        userPrompt = `Task: ${data.task || ''}`;
+        systemInstruction = "You are a helpful buddy for a student. Break the task into 5-7 tiny, easy steps. Use simple words. No intro. No outro. Just the list.";
+        userPrompt = `Task: ${data.task}`;
     }
     else if (type === 'email') {
-        systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown. No intro. Just the email.";
-        const studentName = data.student || 'the student';
-        userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${studentName} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${studentName} regarding ${data.topic || 'their child'}.`;
+        systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown.";
+        userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${data.student} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${data.student} regarding ${data.topic}.`;
     } 
     else if (type === 'goal') {
-        systemInstruction = "Write a SMART IEP goal. No markdown. No intro. Just the goal statement.";
-        const studentName = data.student || 'Student';
-        const grade = data.grade || 'Not specified';
-        userPrompt = `Student: ${studentName}, Grade: ${grade}. Condition: ${data.condition || 'Not specified'}. Behavior: ${data.behavior || 'Not specified'}.`;
+        systemInstruction = "Write a SMART IEP goal. No markdown. Format clearly and professionally.";
+        if (data.type === 'academic') {
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Create an Academic Goal. Skill: ${data.skill}. Goal: ${data.goal}.`;
+        } else if (data.type === 'behavior') {
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Create a Behavior Goal. Condition: ${data.condition}. Behavior: ${data.behavior}.`;
+        } else {
+            // Fallback for legacy format
+            userPrompt = `Student: ${data.student}, Grade: ${data.grade}. Condition: ${data.condition || 'N/A'}. Behavior: ${data.behavior || 'N/A'}.`;
+        }
     } 
     else if (type === 'plaafp') {
-        systemInstruction = "Write a PLAAFP (Present Levels of Academic Achievement and Functional Performance) statement. No markdown. No intro. Just the PLAAFP statement.";
-        const studentName = data.student || 'Student';
-        userPrompt = `Student: ${studentName}. Strengths: ${data.strengths || 'Not specified'}. Needs: ${data.needs || 'Not specified'}. Impact: ${data.impact || 'Not specified'}.`;
+        systemInstruction = "Write a PLAAFP statement. No markdown.";
+        userPrompt = `Student: ${data.student}. Strengths: ${data.strengths}. Needs: ${data.needs}. Impact: ${data.impact}.`;
+    }
+    else if (type === 'impact') {
+        systemInstruction = "You are a Special Education expert. Write a clear, concise statement describing the impact of the student's disability on their educational performance. Focus on how the identified needs affect their ability to access the curriculum. No markdown.";
+        userPrompt = `Student: ${data.student}. Strengths: ${data.strengths || 'Not specified'}. Needs: ${data.needs || 'Not specified'}. Generate the impact of disability statement based on these strengths and needs.`;
     }
     else if (type === 'resume') {
-        systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown. No intro. Just the improved text.";
-        userPrompt = `Rewrite this ${data.section || 'section'}: "${data.text || data.textToImprove || ''}"`;
-    }
-    else if (type === 'translator') {
-        systemInstruction = `You are a professional translator. Translate the provided text accurately to ${data.targetLanguage || 'Spanish'}. Maintain the same tone, formality level, and structure as the original. If the text is an email or formal communication, preserve the formatting and salutations. Return ONLY the translated text, no explanations, no markdown.`;
-        userPrompt = `Translate this text to ${data.targetLanguage || 'Spanish'}:\n\n${data.text || ''}`;
-    }
-    else if (type === 'tone') {
-        systemInstruction = `You are a professional communication coach. Analyze the provided text for hostility, frustration, or non-objective language. Return ONLY a valid JSON object with this exact structure:
-{
-  "score": <number 1-10 where 1=safe, 10=very risky>,
-  "flaggedPhrases": [<array of problematic phrases>],
-  "betterAlternatives": [<array of suggested improvements>]
-}
-
-Be objective and professional. Only flag truly problematic language.`;
-        userPrompt = `Analyze this text for tone issues:\n\n${data.text || ''}`;
+        systemInstruction = "Expert Resume Writer. Rewrite to be professional and concise. No markdown.";
+        userPrompt = `Rewrite this ${data.section}: "${data.text}"`;
     }
 
     if (!userPrompt.trim()) return "Error: Prompt content cannot be empty.";
@@ -486,9 +428,7 @@ Be objective and professional. Only flag truly problematic language.`;
         ? `${systemInstruction}\n\n---\n\nUser Request:\n${userPrompt}`
         : systemInstruction + "\n\n" + userPrompt;
       
-      // Extract files from data for multimodal support
-      const files = data.files || [];
-      const resultData = await GeminiService.fetchWithFallback(fullPrompt, files);
+      const resultData = await GeminiService.fetchWithFallback(fullPrompt);
       
       // Don't format AI response for accommodation type - let it use its own formatting
       const rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;

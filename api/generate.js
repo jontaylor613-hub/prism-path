@@ -148,24 +148,15 @@ async function getStudentData(studentId = null) {
     // This will fail gracefully if integrations aren't connected
     
     // Try to import and use the unified student service if available
-    // Try multiple possible paths
-    const possiblePaths = [
-      '../src/lib/studentService.js',
-      '../prism-path/lib/studentService.js',
-      '../lib/studentService.js'
-    ];
-    
-    for (const path of possiblePaths) {
-      try {
-        const { getStudentDataForAPI } = await import(path).catch(() => null);
-        if (getStudentDataForAPI) {
-          const data = await getStudentDataForAPI(studentId);
-          if (data) return data;
-        }
-      } catch (importError) {
-        // Try next path
-        continue;
+    try {
+      const { getStudentDataForAPI } = await import('../lib/studentService.js').catch(() => null);
+      if (getStudentDataForAPI) {
+        const data = await getStudentDataForAPI(studentId);
+        if (data) return data;
       }
+    } catch (importError) {
+      // Service not available, continue to mock fallback
+      console.warn("Student service import failed, using mock data:", importError.message);
     }
     
     // Fallback to mock data if Firebase/Google integrations fail

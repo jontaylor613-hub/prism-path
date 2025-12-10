@@ -13,8 +13,7 @@ import { auth, db } from './firebase';
 export const ROLES = {
   REGULAR_ED: 'regular_ed',
   SPED: 'sped',
-  ADMIN: 'admin',
-  PARENT: 'parent'
+  ADMIN: 'admin'
 };
 
 // Create new user account with role assignment
@@ -36,7 +35,6 @@ export const signUp = async (email, password, userData) => {
       role: userData.role || ROLES.REGULAR_ED,
       school: userData.school || '',
       schoolDistrict: userData.schoolDistrict || '',
-      schoolId: userData.schoolId || '', // For parents, this will be 'home_school'
       createdAt: serverTimestamp(),
       lastLogin: serverTimestamp(),
       isActive: true
@@ -145,7 +143,7 @@ export const onAuthChange = (callback) => {
 };
 
 // Check if user has permission to access student data
-export const hasStudentAccess = (userRole, studentData, userId) => {
+export const hasStudentAccess = (userRole, studentData) => {
   if (!userRole) return false;
   
   // Admins can access all students
@@ -158,12 +156,7 @@ export const hasStudentAccess = (userRole, studentData, userId) => {
   
   // Regular Ed teachers can access their assigned students
   if (userRole === ROLES.REGULAR_ED) {
-    return studentData.assignedTeachers?.includes(userId) || false;
-  }
-  
-  // Parents can access their own children (students assigned to their userId)
-  if (userRole === ROLES.PARENT) {
-    return studentData.parentId === userId || studentData.assignedParents?.includes(userId) || false;
+    return studentData.assignedTeachers?.includes(userRole) || false;
   }
   
   return false;

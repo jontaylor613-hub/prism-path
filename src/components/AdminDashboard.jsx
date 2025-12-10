@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Users, GraduationCap, UserPlus, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { 
   getUsersBySchool, 
   getStudentsBySchool, 
@@ -22,38 +22,17 @@ export default function AdminDashboard({ user, theme, onBack }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
 
   // Use theme from props or default
   const safeTheme = theme || getTheme(false);
 
-  // Demo data
-  const DEMO_TEACHERS = [
-    { uid: 'demo-teacher-1', name: 'Ms. Johnson', email: 'johnson@demoschool.edu', role: 'teacher', isActive: true },
-    { uid: 'demo-teacher-2', name: 'Mr. Martinez', email: 'martinez@demoschool.edu', role: 'teacher', isActive: true },
-    { uid: 'demo-teacher-3', name: 'Mrs. Chen', email: 'chen@demoschool.edu', role: 'teacher', isActive: true }
-  ];
-
-  const DEMO_STUDENTS = [
-    { id: 'demo-student-1', name: 'Alex M.', grade: '3rd', diagnosis: 'Dyslexia', assignedTeacherIds: ['demo-teacher-1'] },
-    { id: 'demo-student-2', name: 'Jordan K.', grade: '5th', diagnosis: 'Dyscalculia', assignedTeacherIds: ['demo-teacher-2'] },
-    { id: 'demo-student-3', name: 'Taylor S.', grade: '2nd', diagnosis: 'ADHD', assignedTeacherIds: [] },
-    { id: 'demo-student-4', name: 'Sam R.', grade: '4th', diagnosis: 'Autism', assignedTeacherIds: ['demo-teacher-1', 'demo-teacher-3'] }
-  ];
-
   // Load data on mount
   useEffect(() => {
-    if (demoMode) {
-      setTeachers(DEMO_TEACHERS);
-      setStudents(DEMO_STUDENTS);
-      setLoading(false);
-    } else {
-      loadData();
-    }
-  }, [user, demoMode]);
+    loadData();
+  }, [user]);
 
   const loadData = () => {
-    if (!user?.schoolId && !demoMode) {
+    if (!user?.schoolId) {
       setLoading(false);
       return;
     }
@@ -124,31 +103,6 @@ export default function AdminDashboard({ user, theme, onBack }) {
       .filter(name => name !== null);
   };
 
-  // Show demo mode option if no user
-  if (!user && !demoMode) {
-    return (
-      <div className={`w-full ${safeTheme.cardBg} ${safeTheme.cardBorder} rounded-lg p-8 shadow-lg`}>
-        <div className="text-center">
-          <GraduationCap className="text-cyan-400 mx-auto mb-4" size={48} />
-          <h2 className={`text-2xl font-bold ${safeTheme.text} mb-4`}>Admin Dashboard</h2>
-          <p className={`${safeTheme.textMuted} mb-6`}>
-            Manage staff assignments and student-teacher relationships for your school.
-          </p>
-          <button
-            onClick={() => setDemoMode(true)}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2 mx-auto"
-          >
-            <Sparkles size={18} />
-            Try Demo Mode
-          </button>
-          <p className={`text-xs ${safeTheme.textMuted} mt-4`}>
-            Demo mode shows sample data for exploring the admin features
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className={`w-full ${safeTheme.cardBg} ${safeTheme.cardBorder} rounded-lg p-8 shadow-lg`}>
@@ -168,34 +122,19 @@ export default function AdminDashboard({ user, theme, onBack }) {
           <h2 className={`text-2xl font-bold ${safeTheme.text} flex items-center gap-2`}>
             <GraduationCap className="text-cyan-400" size={28} />
             Admin Dashboard
-            {demoMode && (
-              <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest ml-2">
-                Demo Mode
-              </span>
-            )}
           </h2>
           <p className={`text-sm ${safeTheme.textMuted} mt-1`}>
-            Manage staff and student assignments for {demoMode ? 'Demo School' : (user?.schoolId || 'your school')}
+            Manage staff and student assignments for {user?.schoolId || 'your school'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {demoMode && (
-            <button
-              onClick={() => setDemoMode(false)}
-              className={`px-4 py-2 rounded-lg border ${safeTheme.cardBorder} ${safeTheme.inputBg} hover:opacity-80 transition-colors text-sm`}
-            >
-              Exit Demo
-            </button>
-          )}
-          {onBack && (
-            <button
-              onClick={onBack}
-              className={`px-4 py-2 rounded-lg ${safeTheme.textMuted} hover:${safeTheme.text} transition-colors`}
-            >
-              <X size={20} />
-            </button>
-          )}
-        </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className={`px-4 py-2 rounded-lg ${safeTheme.textMuted} hover:${safeTheme.text} transition-colors`}
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Two Column Layout */}

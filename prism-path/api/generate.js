@@ -11,6 +11,71 @@
  */
 
 // ============================================================================
+// RATE LIMITING - "The Bouncer"
+// ============================================================================
+// Inline rate limiting implementation (serverless-friendly)
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 20;
+
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.headers['x-real-ip'] || 
+         req.headers['cf-connecting-ip'] || 
+         req.connection?.remoteAddress || 
+         req.socket?.remoteAddress ||
+         'unknown';
+}
+
+function cleanupOldEntries() {
+  const now = Date.now();
+  for (const [ip, data] of rateLimitStore.entries()) {
+    if (now - data.resetTime > RATE_LIMIT_WINDOW) {
+      rateLimitStore.delete(ip);
+    }
+  }
+}
+
+function rateLimitMiddleware(req, res) {
+  cleanupOldEntries();
+  const clientIP = getClientIP(req);
+  const now = Date.now();
+  
+  let rateLimitData = rateLimitStore.get(clientIP);
+  if (!rateLimitData || (now - rateLimitData.resetTime) > RATE_LIMIT_WINDOW) {
+    rateLimitData = { count: 0, resetTime: now };
+    rateLimitStore.set(clientIP, rateLimitData);
+  }
+  
+  rateLimitData.count += 1;
+  const allowed = rateLimitData.count <= MAX_REQUESTS_PER_WINDOW;
+  const remaining = Math.max(0, MAX_REQUESTS_PER_WINDOW - rateLimitData.count);
+  const resetTime = rateLimitData.resetTime + RATE_LIMIT_WINDOW;
+  rateLimitStore.set(clientIP, rateLimitData);
+  
+  if (!allowed) {
+    const retryAfter = Math.ceil((resetTime - now) / 1000);
+    res.setHeader('X-RateLimit-Limit', MAX_REQUESTS_PER_WINDOW);
+    res.setHeader('X-RateLimit-Remaining', 0);
+    res.setHeader('X-RateLimit-Reset', new Date(resetTime).toISOString());
+    res.setHeader('Retry-After', retryAfter);
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      message: 'Rate limit exceeded. Please try again later.',
+      retryAfter: retryAfter
+    });
+  }
+  
+  res.setHeader('X-RateLimit-Limit', MAX_REQUESTS_PER_WINDOW);
+  res.setHeader('X-RateLimit-Remaining', remaining);
+  res.setHeader('X-RateLimit-Reset', new Date(resetTime).toISOString());
+  return null;
+}
+
+// ============================================================================
 // PII ANONYMIZATION UTILITY
 // ============================================================================
 
@@ -474,13 +539,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  // 2. Get API Key from environment
+  // 2. Rate Limiting - "The Bouncer" (20 requests/minute per IP)
+  const rateLimitResult = rateLimitMiddleware(req, res);
+  if (rateLimitResult) {
+    return rateLimitResult; // Returns 429 if limit exceeded
+  }
+
+  // 3. Get API Key from environment
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "Server Error: API Key is missing" });
   }
 
-  // 3. Parse Input - CRITICAL: All variables instantiated inside handler (prevents stale state)
+  // 4. Parse Input - CRITICAL: All variables instantiated inside handler (prevents stale state)
   // Each request gets fresh variables - no shared state between requests
   let mode = null;
   let userInput = '';
@@ -558,7 +629,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid JSON body: " + e.message });
   }
 
-  // 4. Get Student Data (with mock fallback)
+  // 5. Get Student Data (with mock fallback)
   // CRITICAL: Always fetch fresh data per request (prevents stale state bug)
   // Note: Some handlers will fetch fresh data again to ensure no caching issues
   let studentData = null;
@@ -569,7 +640,7 @@ export default async function handler(req, res) {
     // Continue without student data - handlers will use mock fallback if needed
   }
 
-  // 5. Route to appropriate handler based on mode
+  // 6. Route to appropriate handler based on mode
   try {
     let result;
     

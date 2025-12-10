@@ -416,9 +416,39 @@ const CopyBlock = ({ content, label = "Copy for Documentation", theme, title = "
 
 // --- INITIAL DATA ---
 const SAMPLE_STUDENTS = [
-  { id: 1, name: "Alex M.", grade: "3rd", need: "Reading Decoding", nextIep: "2024-01-15", nextEval: "2025-05-20", behaviorPlan: true, summary: "Sample data." },
-  { id: 2, name: "Jordan K.", grade: "5th", need: "Math Calculation", nextIep: "2025-11-20", nextEval: "2026-09-01", behaviorPlan: false, summary: "Sample data." },
-  { id: 3, name: "Taylor S.", grade: "2nd", need: "Emotional Regulation", nextIep: "2024-12-01", nextEval: "2024-12-15", behaviorPlan: true, summary: "Sample data." }
+  { 
+    id: 1, 
+    name: "Alex M.", 
+    grade: "3rd", 
+    need: "Reading Decoding", 
+    primaryNeed: "Reading Decoding",
+    nextIep: "2024-01-15", 
+    nextEval: "2025-05-20", 
+    behaviorPlan: true, 
+    summary: "Alex is a 3rd grade student with dyslexia who demonstrates strong verbal comprehension but struggles with decoding multisyllabic words. Current accommodations include extended time, text-to-speech software, and chunked reading assignments. Recent progress shows improvement in fluency (from 45 to 62 WPM) but continues to need support with comprehension of complex texts. Parent communication is excellent, and Alex responds well to positive reinforcement strategies." 
+  },
+  { 
+    id: 2, 
+    name: "Jordan K.", 
+    grade: "5th", 
+    need: "Math Calculation", 
+    primaryNeed: "Math Calculation",
+    nextIep: "2025-11-20", 
+    nextEval: "2026-09-01", 
+    behaviorPlan: false, 
+    summary: "Jordan is a 5th grade student with dyscalculia who excels in reading and writing but has significant difficulty with number sense and calculation. Current supports include manipulatives, graph paper for alignment, calculator for complex problems, and visual math strategies. Recent data shows progress in addition/subtraction facts (from 40% to 68% accuracy) but multiplication remains challenging. Jordan benefits from real-world math applications and peer collaboration." 
+  },
+  { 
+    id: 3, 
+    name: "Taylor S.", 
+    grade: "2nd", 
+    need: "Emotional Regulation", 
+    primaryNeed: "Emotional Regulation",
+    nextIep: "2024-12-01", 
+    nextEval: "2024-12-15", 
+    behaviorPlan: true, 
+    summary: "Taylor is a 2nd grade student with ADHD and anxiety who requires support with emotional regulation and self-monitoring. Current interventions include a calm-down corner, visual schedule, movement breaks every 20 minutes, and a daily check-in system. Recent behavior data shows a 40% reduction in meltdowns since implementing the behavior plan. Taylor responds well to sensory tools (fidgets, weighted vest) and benefits from predictable routines. Parent partnership is strong, with consistent home-school communication." 
+  }
 ];
 
 // --- MAIN DASHBOARD ---
@@ -1981,7 +2011,34 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme }) {
 
   // Pass props down correctly to Dashboard
   try {
-    return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
+    if (!user) {
+      return (
+        <div className={`min-h-screen ${getTheme(isDark).bg}`}>
+          <LoginScreen onLogin={setUser} onBack={onBack} isDark={isDark} />
+          {/* Quick Demo Access Button */}
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={() => {
+                setUser({
+                  uid: 'demo-user',
+                  name: 'Demo Educator',
+                  email: 'demo@prismpath.com',
+                  role: 'sped',
+                  school: 'Demo School',
+                  schoolDistrict: 'Demo District',
+                  isDemo: true
+                });
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2"
+            >
+              <Sparkles size={18} />
+              Quick Demo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} />;
   } catch (err) {
     console.error('Render error:', err);
     return (

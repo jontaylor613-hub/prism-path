@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
   User, ArrowRight, Calendar, FileText, Brain, BarChart3, Zap
@@ -213,11 +213,28 @@ export default function ParentDashboard({ onBack, isDark }) {
     setActiveView('student');
   };
 
-  // If not authenticated, show loading
-  if (!user) {
+  // If not authenticated, show demo mode option
+  if (!user && !demoMode) {
     return (
-      <div className={`min-h-screen ${theme.bg} flex items-center justify-center`}>
-        <Loader2 className="animate-spin text-cyan-400" size={32} />
+      <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-6`}>
+        <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-md text-center shadow-xl`}>
+          <Heart className="text-cyan-400 mx-auto mb-4" size={48} />
+          <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>Parent Portal</h2>
+          <p className={`${theme.textMuted} mb-6`}>
+            Track your child's progress, view accommodations, and stay connected with their educational team.
+          </p>
+          <Button
+            onClick={() => setDemoMode(true)}
+            icon={Zap}
+            theme={theme}
+            className="w-full"
+          >
+            Try Demo Mode (No Account Required)
+          </Button>
+          <p className={`text-xs ${theme.textMuted} mt-4`}>
+            Or <Link to="/signup?type=parent" className="text-cyan-400 hover:text-cyan-300">create an account</Link> for full access
+          </p>
+        </div>
       </div>
     );
   }

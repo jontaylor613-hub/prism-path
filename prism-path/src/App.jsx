@@ -1,26 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { 
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Info, 
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
-  SmilePlus, Sun, Moon
+  SmilePlus, Sun, Moon, Loader2
 } from 'lucide-react';
 
-// Tools
-import ResumeBuilder from './ResumeBuilder';
-import SocialMap from './SocialMap';
-import EmotionalCockpit from './EmotionalCockpit';
-import TeacherDashboard from './TeacherDashboard';
-import NeuroDriver from './NeuroDriver';
-import VisualSchedule from './VisualSchedule';
-import EasterEgg from './EasterEgg'; // <--- IMPORT THE GAME
-import AccommodationGem from './AccommodationGem';
+// EasterEgg removed for performance optimization
+
+// Lazy load all route components for code splitting
+const ResumeBuilder = lazy(() => import('./ResumeBuilder'));
+const SocialMap = lazy(() => import('./SocialMap'));
+const EmotionalCockpit = lazy(() => import('./EmotionalCockpit'));
+const TeacherDashboard = lazy(() => import('./TeacherDashboard'));
+const NeuroDriver = lazy(() => import('./NeuroDriver'));
+const VisualSchedule = lazy(() => import('./VisualSchedule'));
+const AccommodationGem = lazy(() => import('./AccommodationGem'));
+const ArchiveOfPotentials = lazy(() => import('./ArchiveOfPotentials'));
+const SignupPage = lazy(() => import('./components/SignupPage'));
+const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
+const QuickTrack = lazy(() => import('./components/QuickTrack'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
+import { onAuthChange } from './auth';
+import { useSmartLock } from './hooks/useSmartLock';
+
+// Loading fallback component for Suspense
+const LoadingFallback = ({ isDark = true }) => {
+  const theme = getTheme(isDark);
+  return (
+    <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.text}`}>
+      <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-md text-center`}>
+        <Loader2 className="text-cyan-400 mx-auto mb-4 animate-spin" size={48} />
+        <p className={theme.textMuted}>Loading...</p>
+      </div>
+    </div>
+  );
+};
 
 // --- SHARED UI COMPONENTS ---
 const Disclaimer = ({ isDark }) => (
@@ -91,13 +111,12 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
     
     setLoading(true); setError(''); setGeneratedPlan(null); setShowTrialLimit(false);
     try {
-        // Use the same backend as Gem but with skipWelcomeMessage flag
+        // CRITICAL: skipWelcomeMessage flag ensures no profile logging, just immediate accommodations
         const response = await GeminiService.generate({ 
-          message: `Student Challenge: ${challenge}. Subject: ${subject}. Please provide differentiation techniques and accommodations.`,
-          prompt: `Student Challenge: ${challenge}. Subject: ${subject}. Please provide differentiation techniques and accommodations.`,
-          isFirstMessage: false, // Never show welcome message
-          hasExistingMessages: false,
-          skipWelcomeMessage: true // Explicit flag to skip welcome
+          targetBehavior: challenge, 
+          condition: subject, 
+          skipWelcomeMessage: true,
+          isFirstMessage: false // Prevent welcome message
         }, 'accommodation'); 
         setGeneratedPlan(response || "No suggestions generated.");
         
@@ -131,6 +150,8 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
             
             <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
+            
+            <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
             
             <div className="relative" ref={studentMenuRef}>
               <button 
@@ -178,6 +199,9 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
              <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
              {/* Mobile Menu Order Updated */}
+             <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
+             <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
+             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
              <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
@@ -286,13 +310,30 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 };
 
 // --- GEM ROUTE COMPONENT (with IP tracking) ---
-function GemRoute({ isDark, devModeActive, onExit }) {
+// This handles both: logged-in users (from TeacherDashboard) and trial users (from home page)
+function GemRoute({ isDark, devModeActive, onExit, user = null }) {
   const [canUse, setCanUse] = useState(null); // null = checking, true/false = result
   const [hasUsed, setHasUsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const theme = getTheme(isDark);
+  const location = useLocation();
+
+  // Track auth state
+  useEffect(() => {
+    const unsubscribe = onAuthChange((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const checkUsage = async () => {
+      // If user is logged in (from TeacherDashboard), they have full access
+      if (currentUser && currentUser.uid) {
+        setCanUse(true);
+        return;
+      }
+
       // Dev mode bypasses all restrictions
       if (devModeActive) {
         setCanUse(true);
@@ -311,16 +352,19 @@ function GemRoute({ isDark, devModeActive, onExit }) {
     };
     
     checkUsage();
-  }, [devModeActive]);
+  }, [devModeActive, currentUser]);
 
   // Track usage when GEM is actually used (when user sends first message)
   const handleGemUse = async () => {
+    // Don't track if user is logged in (they have unlimited access)
+    if (currentUser && currentUser.uid) {
+      return;
+    }
+    
     if (!devModeActive && canUse) {
       await GemUsageTracker.recordUsage();
       setCanUse(false); // Prevent further use on future visits
       setHasUsed(true);
-      // Note: User can complete their current session (profile + differentiated work)
-      // but will be blocked on subsequent visits due to IP tracking
     }
   };
 
@@ -336,16 +380,18 @@ function GemRoute({ isDark, devModeActive, onExit }) {
     );
   }
 
-  if (devModeActive) {
-    // Dev mode - full access
+  // Logged-in users and dev mode get full access
+  if ((currentUser && currentUser.uid) || devModeActive) {
     return (
-      <div className="relative z-[150] min-h-screen">
-        <AccommodationGem 
-          isDark={isDark} 
-          user={{ uid: 'dev', name: 'Dev User', role: 'admin' }}
-          onBack={onExit} 
-        />
-      </div>
+      <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+        <div className="relative z-[150] min-h-screen">
+          <AccommodationGem 
+            isDark={isDark} 
+            user={currentUser || { uid: 'dev', name: 'Dev User', role: 'admin' }}
+            onBack={onExit} 
+          />
+        </div>
+      </Suspense>
     );
   }
 
@@ -372,14 +418,16 @@ function GemRoute({ isDark, devModeActive, onExit }) {
 
   // First use - allow but track
   return (
-    <div className="relative z-[150] min-h-screen">
-      <AccommodationGem 
-        isDark={isDark} 
-        user={null} // No user = demo mode
-        onBack={onExit}
-        onFirstUse={handleGemUse} // Track usage on first message
-      />
-    </div>
+    <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+      <div className="relative z-[150] min-h-screen">
+        <AccommodationGem 
+          isDark={isDark} 
+          user={null} // No user = demo mode
+          onBack={onExit}
+          onFirstUse={handleGemUse} // Track usage on first message
+        />
+      </div>
+    </Suspense>
   );
 }
 
@@ -389,6 +437,9 @@ export default function App() {
   const [devModeActive, setDevModeActive] = useState(DevModeService.isActive());
   const navigate = useNavigate();
   const handleExit = () => navigate('/');
+  
+  // Security: Smart Lock anti-tamper protection (disabled in dev mode)
+  useSmartLock();
   
   // Dev mode code handler - works anywhere on page (toggles on/off)
   useEffect(() => {
@@ -426,9 +477,6 @@ export default function App() {
   return (
     <div className={`min-h-screen ${getTheme(isDark).bg} ${getTheme(isDark).text} font-sans overflow-x-hidden selection:bg-fuchsia-500/30 selection:text-fuchsia-200 transition-colors duration-500`}>
       
-      {/* THE SECRET LISTENER LIVES HERE */}
-      <EasterEgg isDark={isDark} /> 
-
       <div className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${isDark ? 'opacity-100' : 'opacity-30'}`}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
       </div>
@@ -437,43 +485,87 @@ export default function App() {
         <Route path="/" element={<Home isDark={isDark} setIsDark={setIsDark} devModeActive={devModeActive} />} />
         
         <Route path="/resume" element={
-          <div className="relative z-10 pt-10">
-            <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-10 pt-10">
+              <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/map" element={
-          <div className="relative z-10 pt-20 h-screen">
-            <SocialMap onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-10 pt-20 h-screen">
+              <SocialMap onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/cockpit" element={
-          <div className="relative z-[150] h-screen">
-            <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] h-screen">
+              <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/neuro" element={
-          <div className="relative z-[150] min-h-screen">
-            <NeuroDriver onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <NeuroDriver onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
         
         <Route path="/educator" element={
-          <div className="relative z-[150] min-h-screen">
-            <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <TeacherDashboard onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/schedule" element={
-          <div className="relative z-[150] min-h-screen">
-            <VisualSchedule onBack={handleExit} isDark={isDark} />
-          </div>
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <VisualSchedule onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
         } />
 
         <Route path="/gem" element={
-          <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} />
+          <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} user={null} />
+        } />
+
+        <Route path="/archive" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/signup" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <SignupPage onBack={handleExit} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/parent/dashboard" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <ParentDashboard onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/track/:token" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <QuickTrack isDark={isDark} />
+            </div>
+          </Suspense>
         } />
       </Routes>
     </div>

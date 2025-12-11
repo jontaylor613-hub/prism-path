@@ -61,7 +61,7 @@ export default function Mission({ isDark, onBack }) {
               </div>
             </div>
 
-            {/* Right: Headshot Placeholder with Enhanced Design */}
+            {/* Right: Professional Headshot */}
             <div className="flex items-center justify-center relative">
               <div className="relative group">
                 {/* Glowing Background */}
@@ -71,7 +71,18 @@ export default function Mission({ isDark, onBack }) {
                   {/* Animated gradient overlay */}
                   <div className={`absolute inset-0 bg-gradient-to-br ${isDark ? 'from-cyan-500/5 via-fuchsia-500/5 to-emerald-500/5' : 'from-cyan-500/10 via-fuchsia-500/10 to-emerald-500/10'} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                   
-                  <div className="text-center p-8 relative z-10">
+                  {/* Professional Headshot Image */}
+                  <img 
+                    src="/images/headshot.jpg" 
+                    alt="Professional headshot" 
+                    className="w-full h-full object-cover rounded-3xl"
+                    onError={(e) => {
+                      // Fallback to placeholder if image doesn't exist
+                      e.target.style.display = 'none';
+                      e.target.nextElementSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div className="text-center p-8 relative z-10 hidden items-center justify-center h-full">
                     <div className={`w-40 h-40 mx-auto mb-6 rounded-full ${isDark ? 'bg-gradient-to-br from-cyan-900/50 to-fuchsia-900/50' : 'bg-gradient-to-br from-cyan-100 to-fuchsia-100'} flex items-center justify-center shadow-xl transition-transform duration-500 group-hover:scale-110`}>
                       <Sparkles className={`${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} size={64} />
                     </div>
@@ -86,9 +97,9 @@ export default function Mission({ isDark, onBack }) {
         </div>
 
         {/* Strategic Pillars Section */}
-        <div className="mb-20">
-          <div className="text-center mb-16">
-            <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'}`}>
+        <div className="mb-20 overflow-visible">
+          <div className="text-center mb-16 overflow-visible">
+            <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'} leading-tight overflow-visible px-2`}>
               Aligned for the Future
             </h2>
             <div className="flex items-center justify-center gap-4 mb-6">

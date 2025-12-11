@@ -344,7 +344,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 <ArrowLeft /> Back
             </button>
             <div className="flex items-center gap-2">
-                <Brain className="text-yellow-500" /> {/* Brain Logo allowed Yellow */}
+                <Brain className={isDark ? "text-yellow-500" : "text-amber-600"} /> {/* Brain Logo allowed Yellow */}
                 <span className="font-bold text-xl tracking-tight">Neuro Driver™</span>
             </div>
         </div>
@@ -521,7 +521,11 @@ const NeuroDriver = ({ onBack, isDark }) => {
             {/* Indecisive Button (Yellow Highlight Allowed) */}
             {steps.length > 0 && !steps.every(s => s.done) && (
                 <div className="flex justify-end mb-2">
-                     <button onClick={pickFirstStep} className="text-xs font-bold text-yellow-500 hover:text-yellow-400 flex items-center gap-1 animate-pulse bg-yellow-500/10 px-3 py-1 rounded-full">
+                     <button onClick={pickFirstStep} className={`text-xs font-bold flex items-center gap-1 animate-pulse px-3 py-1 rounded-full ${
+                        isDark 
+                          ? 'text-yellow-500 hover:text-yellow-400 bg-yellow-500/10' 
+                          : 'text-amber-700 hover:text-amber-800 bg-amber-100 border border-amber-300'
+                     }`}>
                         <Pointer size={14}/> Where do I start?
                      </button>
                 </div>
@@ -535,7 +539,9 @@ const NeuroDriver = ({ onBack, isDark }) => {
                         step.done 
                         ? `${theme.inputBg} border-emerald-500/20 opacity-60` 
                         : highlightedStep === index 
-                            ? 'bg-yellow-500/10 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.3)] scale-[1.02]'
+                            ? isDark
+                                ? 'bg-yellow-500/10 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.3)] scale-[1.02]'
+                                : 'bg-amber-100 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)] scale-[1.02]'
                             : `${theme.cardBg} ${theme.cardBorder} hover:border-cyan-400 shadow-sm hover:shadow-md hover:scale-[1.01]`
                     }`}
                 >

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Zap, Shield
+  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
@@ -149,7 +149,7 @@ const Card = ({ children, className = "", glow = false, theme }) => {
   );
 };
 
-export default function ParentDashboard({ onBack, isDark, initialDemoMode = false }) {
+export default function ParentDashboard({ onBack, isDark, onToggleTheme, initialDemoMode = false }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
@@ -303,11 +303,23 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
 
   const handleLogout = async () => {
     try {
-      await logout();
+      if (!demoMode && user && !user.isDemo) {
+        await logout();
+      }
       setUser(null);
       navigate('/');
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout fails, navigate back to home
+      navigate('/');
+    }
+  };
+
+  const handleBackToMain = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate('/');
     }
   };
 
@@ -349,32 +361,45 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
             isDark={isDark}
           />
 
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => {
-                  setActiveView('dashboard');
-                  setSelectedStudent(null);
-                }}
-                variant="ghost"
-                icon={ArrowRight}
-                theme={theme}
-              >
-                Back to Family
-              </Button>
-              <h1 className={`text-3xl font-bold ${theme.text}`}>{selectedStudent.name}</h1>
-              {demoMode && (
-                <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
-                  Demo Mode
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {!demoMode && (
-                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                  Logout
+          {/* Header with navigation and controls */}
+          <div className={`sticky top-0 z-50 border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md mb-6 -mx-6 px-6 py-4`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => {
+                    setActiveView('dashboard');
+                    setSelectedStudent(null);
+                  }}
+                  variant="ghost"
+                  icon={ArrowRight}
+                  theme={theme}
+                >
+                  Back to Family
                 </Button>
-              )}
+                <h1 className={`text-3xl font-bold ${theme.text}`}>{selectedStudent.name}</h1>
+                {demoMode && (
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
+                    Demo Mode
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {onToggleTheme && (
+                  <button 
+                    onClick={onToggleTheme} 
+                    className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}
+                    title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  >
+                    {isDark ? <Moon size={20} /> : <Sun size={20} />}
+                  </button>
+                )}
+                <Button onClick={handleBackToMain} variant="ghost" theme={theme}>
+                  Back to Main
+                </Button>
+                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
+                  {demoMode ? 'Exit Demo' : 'Logout'}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -519,42 +544,59 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className={`text-4xl font-bold ${theme.text} mb-2`}>My Family</h1>
-            <p className={theme.textMuted}>Manage your children's learning profiles</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => setActiveView('advocacy')}
-              variant="secondary"
-              icon={Shield}
-              theme={theme}
-            >
-              Advocacy Center
-            </Button>
-          </div>
-          <div className="flex items-center gap-4">
-            {/* Demo Mode Toggle */}
-            <Button
-              onClick={() => setDemoMode(!demoMode)}
-              variant={demoMode ? "primary" : "secondary"}
-              icon={Zap}
-              theme={theme}
-            >
-              {demoMode ? 'Exit Demo' : 'Try Demo Mode'}
-            </Button>
-            {!demoMode && (
-              <>
-                <div className={`${theme.inputBg} px-4 py-2 rounded-lg border ${theme.inputBorder} flex items-center gap-2`}>
-                  <User size={18} />
-                  <span className={theme.text}>{user?.name || 'Parent'}</span>
-                </div>
+        <div className={`sticky top-0 z-50 border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md mb-8 -mx-6 px-6 py-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-4xl font-bold ${theme.text} mb-2`}>My Family</h1>
+              <p className={theme.textMuted}>Manage your children's learning profiles</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setActiveView('advocacy')}
+                variant="secondary"
+                icon={Shield}
+                theme={theme}
+              >
+                Advocacy Center
+              </Button>
+              {onToggleTheme && (
+                <button 
+                  onClick={onToggleTheme} 
+                  className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}
+                  title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {isDark ? <Moon size={20} /> : <Sun size={20} />}
+                </button>
+              )}
+              <Button onClick={handleBackToMain} variant="ghost" theme={theme}>
+                Back to Main
+              </Button>
+              {/* Demo Mode Toggle */}
+              <Button
+                onClick={() => setDemoMode(!demoMode)}
+                variant={demoMode ? "primary" : "secondary"}
+                icon={Zap}
+                theme={theme}
+              >
+                {demoMode ? 'Exit Demo' : 'Try Demo Mode'}
+              </Button>
+              {!demoMode && (
+                <>
+                  <div className={`${theme.inputBg} px-4 py-2 rounded-lg border ${theme.inputBorder} flex items-center gap-2`}>
+                    <User size={18} />
+                    <span className={theme.text}>{user?.name || 'Parent'}</span>
+                  </div>
+                  <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
+                    Logout
+                  </Button>
+                </>
+              )}
+              {demoMode && (
                 <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                  Logout
+                  Exit Demo
                 </Button>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

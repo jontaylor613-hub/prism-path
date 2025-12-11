@@ -18,7 +18,7 @@ const Button = ({ children, onClick, disabled, className = '', theme, type = 'bu
   </button>
 );
 
-export default function SignupPage({ onBack }) {
+export default function SignupPage({ onBack, isDark = true }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const userType = searchParams.get('type'); // 'parent' or 'educator'
@@ -37,7 +37,7 @@ export default function SignupPage({ onBack }) {
     schoolDistrict: ''
   });
 
-  const theme = getTheme(true);
+  const theme = getTheme(isDark);
 
   // Real-time password validation
   useEffect(() => {
@@ -100,16 +100,16 @@ export default function SignupPage({ onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 relative overflow-hidden`}>
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_40%,transparent_100%)]"></div>
-      <div className="relative z-10 w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl">
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 mb-6 shadow-lg mx-auto">
+      <div className={`relative z-10 w-full max-w-md ${theme.cardBg} backdrop-blur-xl border ${theme.cardBorder} rounded-3xl p-8 shadow-2xl`}>
+        <div className={`inline-flex items-center justify-center p-3 rounded-2xl ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-slate-200 to-slate-100 border-slate-300'} border mb-6 shadow-lg mx-auto`}>
           <Sparkles className="text-cyan-400" size={40} />
         </div>
-        <h1 className="text-3xl font-extrabold text-white mb-2 text-center">
+        <h1 className={`text-3xl font-extrabold ${theme.text} mb-2 text-center`}>
           Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span>
         </h1>
-        <p className="text-slate-400 font-medium mb-6 text-center">
+        <p className={`${theme.textMuted} font-medium mb-6 text-center`}>
           {isParent ? 'Parent Portal' : 'FERPA-Compliant Educator Portal'}
         </p>
         
@@ -188,7 +188,7 @@ export default function SignupPage({ onBack }) {
               placeholder="••••••••••••"
             />
             <p className={`text-xs ${theme.textMuted} mt-1`}>Minimum 12 characters with uppercase, lowercase, numbers, and symbols</p>
-            <PasswordStrengthIndicator password={formData.password} isDark={true} />
+            <PasswordStrengthIndicator password={formData.password} isDark={isDark} />
             {passwordErrors.length > 0 && (
               <ul className={`mt-2 text-xs text-red-400 space-y-1`}>
                 {passwordErrors.map((err, idx) => (
@@ -213,15 +213,15 @@ export default function SignupPage({ onBack }) {
         
         {/* Demo Mode Button - Only show for parents */}
         {isParent && (
-          <div className="mt-6 pt-6 border-t border-slate-700/50">
+          <div className={`mt-6 pt-6 border-t ${theme.cardBorder}`}>
             <button 
               onClick={() => navigate('/parent/dashboard?demo=true')}
-              className="w-full px-4 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+              className={`w-full px-4 py-2 ${theme.inputBg} hover:opacity-80 border ${theme.inputBorder} hover:border-cyan-500/50 ${theme.text} hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2`}
             >
               <Zap size={16} className="text-cyan-400" />
               Try Demo Mode (No Account Required)
             </button>
-            <p className="text-[10px] text-slate-500 mt-2 text-center">Perfect for exploring the platform</p>
+            <p className={`text-[10px] ${theme.textMuted} mt-2 text-center`}>Perfect for exploring the platform</p>
           </div>
         )}
         
@@ -236,7 +236,7 @@ export default function SignupPage({ onBack }) {
         
         <button
           onClick={onBack || (() => navigate('/'))}
-          className="mt-4 text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest block mx-auto"
+          className={`mt-4 text-xs ${theme.textMuted} hover:${theme.text} uppercase font-bold tracking-widest block mx-auto`}
         >
           Back to Home
         </button>

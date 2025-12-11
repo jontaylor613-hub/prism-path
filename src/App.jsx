@@ -31,11 +31,11 @@ import { onAuthChange } from './auth';
 import { useSmartLock } from './hooks/useSmartLock';
 
 // Wrapper component to handle demo mode for ParentDashboard
-function ParentDashboardWithDemo({ onBack, isDark }) {
+function ParentDashboardWithDemo({ onBack, isDark, onToggleTheme }) {
   const [searchParams] = useSearchParams();
   const demoMode = searchParams.get('demo') === 'true';
   
-  return <ParentDashboard onBack={onBack} isDark={isDark} initialDemoMode={demoMode} />;
+  return <ParentDashboard onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} initialDemoMode={demoMode} />;
 }
 
 // Wrapper component to handle demo modes for TeacherDashboard
@@ -163,7 +163,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 
           <div className="hidden md:flex items-center justify-evenly flex-1">
             <div className="flex items-center gap-4">
-              <button onClick={() => setIsDark(!isDark)} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
+              <button onClick={setIsDark} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
                   {isDark ? <Moon size={20} /> : <Sun size={20} />}
               </button>
               <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
@@ -240,7 +240,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         
         {mobileMenuOpen && (
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
-             <button onClick={() => setIsDark(!isDark)} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
+             <button onClick={setIsDark} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
              {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
@@ -281,7 +281,11 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         </div>
         {devModeActive && (
           <div className="mt-4 text-center">
-            <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-full text-xs font-bold uppercase tracking-widest">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${
+              isDark 
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' 
+                : 'bg-amber-100 text-amber-800 border border-amber-300'
+            }`}>
               🔓 Dev Mode Active
             </span>
           </div>
@@ -493,10 +497,29 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
 
 // --- MAIN APP ROUTER ---
 export default function App() {
-  const [isDark, setIsDark] = useState(true);
+  // Initialize theme from localStorage or default to dark
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem('prismpath_theme');
+      return saved !== null ? saved === 'dark' : true;
+    } catch {
+      return true;
+    }
+  });
   const [devModeActive, setDevModeActive] = useState(DevModeService.isActive());
   const navigate = useNavigate();
   const handleExit = () => navigate('/');
+  
+  // Persist theme changes to localStorage
+  const handleToggleTheme = () => {
+    const newTheme = !isDark;
+    setIsDark(newTheme);
+    try {
+      localStorage.setItem('prismpath_theme', newTheme ? 'dark' : 'light');
+    } catch (e) {
+      console.error('Failed to save theme preference:', e);
+    }
+  };
   
   // Security: Smart Lock anti-tamper protection (disabled in dev mode)
   useSmartLock();
@@ -542,7 +565,7 @@ export default function App() {
       </div>
 
       <Routes>
-        <Route path="/" element={<Home isDark={isDark} setIsDark={setIsDark} devModeActive={devModeActive} />} />
+        <Route path="/" element={<Home isDark={isDark} setIsDark={handleToggleTheme} devModeActive={devModeActive} />} />
         
         <Route path="/resume" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
@@ -579,7 +602,7 @@ export default function App() {
         <Route path="/educator" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <TeacherDashboardWithDemo onBack={handleExit} isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} />
+              <TeacherDashboardWithDemo onBack={handleExit} isDark={isDark} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />
@@ -607,7 +630,7 @@ export default function App() {
         <Route path="/signup" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <SignupPage onBack={handleExit} />
+              <SignupPage onBack={handleExit} isDark={isDark} />
             </div>
           </Suspense>
         } />
@@ -615,7 +638,7 @@ export default function App() {
         <Route path="/parent/dashboard" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <ParentDashboardWithDemo onBack={handleExit} isDark={isDark} />
+              <ParentDashboardWithDemo onBack={handleExit} isDark={isDark} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />

@@ -98,9 +98,9 @@ export default function Mission({ isDark, onBack }) {
 
         {/* Strategic Pillars Section */}
         <div className="mb-20">
-          <div className="text-center mb-16 overflow-visible">
-            <div className="inline-block px-8 py-6 overflow-visible">
-              <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'} leading-[1.2] overflow-visible`} style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+          <div className="text-center mb-16 overflow-visible" style={{ paddingTop: '1rem', paddingBottom: '1rem' }}>
+            <div className="inline-block px-8 py-4 overflow-visible" style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem', minHeight: 'auto' }}>
+              <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'} leading-[1.4] overflow-visible`} style={{ paddingTop: '1rem', paddingBottom: '1rem', display: 'block', lineHeight: '1.4' }}>
                 Aligned for the Future
               </h2>
             </div>

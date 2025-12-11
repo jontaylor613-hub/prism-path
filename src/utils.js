@@ -366,7 +366,18 @@ The user's request is to get accommodations for the document they uploaded, and 
           // For Instant AI Accommodations - just process the request directly without any profile/welcome logic
           // The user prompt already contains the challenge and subject, so we can use it as-is
           // Add instruction to provide differentiation techniques immediately
-          userPrompt = `The user is requesting differentiation techniques and accommodations. Provide immediate, actionable suggestions based on the challenge and subject provided. Do NOT show any welcome message or ask for profile information - just provide the accommodations.\n\n${userPrompt}`;
+          // Extract challenge and subject for the header
+          const challengeText = data.targetBehavior || 'the challenge';
+          const subjectText = data.condition || 'the subject';
+          userPrompt = `CRITICAL OUTPUT FORMAT REQUIREMENTS:
+1. Do NOT provide any conversational preamble, acknowledgement, or filler text.
+2. Do NOT say things like "Okay, I've logged..." or "I understand..." or any similar acknowledgments.
+3. Start your response IMMEDIATELY with the markdown header: ### General Strategies for ${subjectText} with ${challengeText}
+4. Output PURE markdown content only - no conversational text before the headers.
+5. Use **bold** text for emphasis and key terms throughout.
+6. Structure your response with clear markdown headers (###) and bullet points.
+
+The user is requesting differentiation techniques and accommodations. Provide immediate, actionable suggestions based on the challenge and subject provided. Do NOT show any welcome message or ask for profile information - just provide the accommodations starting with the header above.\n\n${userPrompt}`;
         } 
         // PRIORITY 3: If student profile exists, include it in context
         else if (data.studentProfile) {
@@ -482,7 +493,20 @@ ${data.message || 'Please generate a professional email addressing this issue.'}
       const resultData = await GeminiService.fetchWithFallback(fullPrompt);
       
       // Don't format AI response for accommodation type - let it use its own formatting
-      const rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;
+      let rawResult = resultData.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      // For Instant Accommodations (skipWelcomeMessage), clean any text before first markdown header
+      if (type === 'accommodation' && data.skipWelcomeMessage && rawResult) {
+        // Remove any text that appears before the first markdown header (# or ###)
+        const headerMatch = rawResult.match(/^(.*?)(#{1,6}\s+)/s);
+        if (headerMatch && headerMatch[1]) {
+          // Found text before first header - remove it
+          rawResult = rawResult.substring(headerMatch[1].length);
+        }
+        // Also remove any leading whitespace/newlines
+        rawResult = rawResult.trimStart();
+      }
+      
       const finalResult = type === 'accommodation' ? rawResult : formatAIResponse(rawResult);
       
       // Only cache if not email type (emails should regenerate each time)

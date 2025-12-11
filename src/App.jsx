@@ -161,11 +161,13 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-fuchsia-500">PrismPath</span>
           </div>
 
-          <div className="hidden md:flex items-center space-x-6">
-            <button onClick={() => setIsDark(!isDark)} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
-                {isDark ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-            <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
+          <div className="hidden md:flex items-center justify-evenly flex-1">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsDark(!isDark)} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
+                  {isDark ? <Moon size={20} /> : <Sun size={20} />}
+              </button>
+              <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
+            </div>
             
             <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
             
@@ -343,9 +345,10 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                     {generatedPlan ? 
                         <ReactMarkdown components={{
                             p: ({node, ...props}) => <p className={`mb-4 leading-relaxed ${theme.text}`} {...props} />,
-                            strong: ({node, ...props}) => <strong className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-4 marker:text-fuchsia-500" {...props} />,
-                            li: ({node, ...props}) => <li className={`pl-1 ${theme.text}`} {...props} />
+                            h3: ({node, ...props}) => <h3 className={`text-xl font-bold mb-4 mt-6 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} {...props} />,
+                            strong: ({node, ...props}) => <strong className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`} {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-4 marker:text-slate-500" {...props} />,
+                            li: ({node, ...props}) => <li className={`pl-1 ${theme.text} leading-relaxed`} {...props} />
                         }}>{generatedPlan}</ReactMarkdown> 
                         : <div className="text-center opacity-50 pt-20"><MessageSquare size={48} className={`mx-auto mb-4 ${theme.textMuted}`}/><p className={theme.textMuted}>Ready for input...</p></div>
                     }

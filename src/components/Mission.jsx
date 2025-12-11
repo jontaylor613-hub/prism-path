@@ -11,7 +11,7 @@ export default function Mission({ isDark, onBack }) {
   }, []);
 
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors duration-500 relative`}>
+    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors duration-500 relative overflow-x-hidden`}>
       {/* Animated Background Gradients */}
       <div className="fixed inset-0 -z-10">
         <div className={`absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse ${isDark ? 'opacity-30' : 'opacity-20'}`}></div>
@@ -98,9 +98,9 @@ export default function Mission({ isDark, onBack }) {
 
         {/* Strategic Pillars Section */}
         <div className="mb-20">
-          <div className="text-center mb-16">
-            <div className="inline-block px-6 py-3">
-              <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'} leading-[1.15]`}>
+          <div className="text-center mb-16 overflow-visible">
+            <div className="inline-block px-8 py-6 overflow-visible">
+              <h2 className={`text-5xl lg:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-emerald-400' : 'from-cyan-600 via-fuchsia-600 to-emerald-600'} leading-[1.2] overflow-visible`} style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
                 Aligned for the Future
               </h2>
             </div>

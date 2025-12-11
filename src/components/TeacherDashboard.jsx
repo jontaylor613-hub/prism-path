@@ -2643,7 +2643,7 @@ Format the summary clearly with sections. Only include information that is actua
 };
 
 // --- LOGIN SCREEN (FERPA-Compliant) ---
-const LoginScreen = ({ onLogin, onBack }) => {
+const LoginScreen = ({ onLogin, onBack, isDark }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -2686,14 +2686,14 @@ const LoginScreen = ({ onLogin, onBack }) => {
     }
   };
 
-  const theme = getTheme(true);
+  const theme = getTheme(isDark);
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 relative overflow-hidden`}>
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,black_40%,transparent_100%)]"></div>
-      <div className="relative z-10 w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl">
-         <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 mb-6 shadow-lg mx-auto"><Sparkles className="text-cyan-400" size={40} /></div>
-         <h1 className="text-3xl font-extrabold text-white mb-2 text-center">Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
-         <p className="text-slate-400 font-medium mb-6 text-center">FERPA-Compliant Educator Portal</p>
+      <div className={`relative z-10 w-full max-w-md ${theme.cardBg} backdrop-blur-xl border ${theme.cardBorder} rounded-3xl p-8 shadow-2xl`}>
+         <div className={`inline-flex items-center justify-center p-3 rounded-2xl ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-slate-200 to-slate-100 border-slate-300'} border mb-6 shadow-lg mx-auto`}><Sparkles className="text-cyan-400" size={40} /></div>
+         <h1 className={`text-3xl font-extrabold ${theme.text} mb-2 text-center`}>Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
+         <p className={`${theme.textMuted} font-medium mb-6 text-center`}>FERPA-Compliant Educator Portal</p>
          
          <form onSubmit={handleSubmit} className="space-y-4">
            {isSignUp && (
@@ -2730,7 +2730,7 @@ const LoginScreen = ({ onLogin, onBack }) => {
              {isSignUp && <p className={`text-xs ${theme.textMuted} mt-1`}>Minimum 6 characters</p>}
            </div>
            
-           {error && <div className={`p-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-400 text-sm`}>{error}</div>}
+           {error && <div className={`p-3 rounded-lg ${isDark ? 'bg-red-900/20 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-700'} border text-sm`}>{error}</div>}
            
            <Button type="submit" className="w-full" disabled={loading} theme={theme}>
              {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
@@ -2743,7 +2743,7 @@ const LoginScreen = ({ onLogin, onBack }) => {
            </button>
          </div>
          
-         <div className="mt-6 pt-6 border-t border-slate-700/50">
+         <div className={`mt-6 pt-6 border-t ${theme.cardBorder}`}>
            <button 
              onClick={() => {
                // Demo mode - bypass authentication
@@ -2757,15 +2757,15 @@ const LoginScreen = ({ onLogin, onBack }) => {
                  isDemo: true
                });
              }}
-             className="w-full px-4 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+             className={`w-full px-4 py-2 ${theme.inputBg} hover:opacity-80 border ${theme.inputBorder} hover:border-cyan-500/50 ${theme.text} hover:text-cyan-400 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2`}
            >
              <Sparkles size={16} className="text-cyan-400" />
              Try Demo Mode (No Account Required)
            </button>
-           <p className="text-[10px] text-slate-500 mt-2 text-center">Perfect for exploring the platform</p>
+           <p className={`text-[10px] ${theme.textMuted} mt-2 text-center`}>Perfect for exploring the platform</p>
          </div>
          
-         <button onClick={onBack} className="mt-4 text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest block mx-auto">Back to Home</button>
+         <button onClick={onBack} className={`mt-4 text-xs ${theme.textMuted} hover:${theme.text} uppercase font-bold tracking-widest block mx-auto`}>Back to Home</button>
       </div>
     </div>
   );
@@ -2829,5 +2829,5 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme, adminD
   };
 
   // Pass props down correctly to Dashboard
-  return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} />;
+  return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} isDark={isDark} />;
 }

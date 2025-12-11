@@ -307,11 +307,12 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
         await logout();
       }
       setUser(null);
-      navigate('/');
+      // Navigate to parent signup/login page instead of home
+      navigate('/signup?type=parent');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if logout fails, navigate back to home
-      navigate('/');
+      // Even if logout fails, navigate to parent signup/login page
+      navigate('/signup?type=parent');
     }
   };
 

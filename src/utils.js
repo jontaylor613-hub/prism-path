@@ -410,6 +410,39 @@ The user's request is to get accommodations for the document they uploaded, and 
     else if (type === 'email') {
         systemInstruction = "Professional Special Education Teacher. Write a polite email addressed to the PARENTS/GUARDIANS of the student. The email should be professional, warm, and parent-focused. Do NOT address the email to the student/learner. Address it to 'Dear [Parent/Guardian Name]' or 'Dear Parents'. No markdown.";
         userPrompt = data.feedbackAreas ? `Write an email to the PARENTS of ${data.student} asking for their feedback on: ${data.feedbackAreas.join(', ')}.` : `Write an email to the PARENTS of ${data.student} regarding ${data.topic}.`;
+    }
+    else if (type === 'advocacy-email') {
+        systemInstruction = `You are a professional advocacy email assistant. Your role is to help parents write effective, professional emails to schools and districts.
+
+**CRITICAL LANGUAGE CONSTRAINTS - STRICTLY ENFORCE:**
+- Use ONLY de-escalatory, professional, and factual language
+- NO accusatory language, blame, or emotional language
+- NO threats, ultimatums, or confrontational statements
+- Focus on facts, observations, and collaborative solutions
+- Maintain a respectful, solution-oriented tone throughout
+- Use "I" statements and collaborative language (e.g., "I noticed", "I would like to discuss", "I believe we can work together")
+- Avoid words like "failed", "refused", "neglected" - use neutral language like "has not yet", "we have not yet addressed"
+- Frame concerns as questions or requests for clarification, not accusations
+
+**Email Structure:**
+1. Professional greeting (e.g., "Dear [Name]")
+2. Brief, factual statement of the issue or concern
+3. Reference to relevant rights/protections (if applicable, stated factually)
+4. Request for discussion/collaboration to find solutions
+5. Professional closing with appreciation
+
+**Tone Guidelines:**
+- Professional: Formal, respectful, business-like
+- Collaborative: Partnership-focused, "we" language, solution-oriented
+- Concerned but Respectful: Expresses concern while maintaining professionalism
+
+Generate the email now. No markdown formatting.`;
+        userPrompt = `Generate a professional advocacy email with the following details:
+- Recipient: ${data.recipient || 'School Administrator'}
+- Issue Type: ${data.issueType || 'General Concern'}
+- Tone: ${data.tone || 'professional'}
+
+${data.message || 'Please generate a professional email addressing this issue.'}`;
     } 
     else if (type === 'goal') {
         systemInstruction = "Write a SMART IEP goal. No markdown. Format clearly and professionally.";

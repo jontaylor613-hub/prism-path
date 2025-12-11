@@ -345,7 +345,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
             </button>
             <div className="flex items-center gap-2">
                 <Brain className="text-yellow-500" /> {/* Brain Logo allowed Yellow */}
-                <span className="font-bold text-xl tracking-tight">Neuro Driver</span>
+                <span className="font-bold text-xl tracking-tight">Neuro Driver™</span>
             </div>
         </div>
 

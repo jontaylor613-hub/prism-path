@@ -816,7 +816,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
                 )}
                 <Sparkles className="text-cyan-400" size={24} />
                 <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-fuchsia-500">
-                  Accessible Learning Companion
+                  Accessible Learning Companion™
                 </span>
               </div>
               {onBack && (
@@ -839,7 +839,7 @@ export default function AccommodationGem({ isDark, user, onBack, isEmbedded = fa
               <Sparkles className="text-cyan-400" size={48} />
             </div>
             <h1 className={`text-4xl font-bold ${theme.text} mb-4`}>
-              Welcome to your Accessible Learning Companion!
+              Welcome to your Accessible Learning Companion™!
             </h1>
             <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8 max-w-3xl mx-auto text-left mb-8`}>
               <p className={`${theme.text} mb-6 leading-relaxed`}>

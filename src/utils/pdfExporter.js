@@ -60,10 +60,10 @@ function wrapText(doc, text, x, y, maxWidth, lineHeight) {
  * @param {string} title - Document title (e.g., "Behavior Intervention Plan")
  * @param {string} content - Markdown-formatted content
  * @param {string} schoolName - School name for header
- * @param {string} appName - App name for footer (default: "PrismPath")
+ * @param {string} appName - App name for footer (default: "PrismPath™")
  * @param {string} fontFamily - Font family: 'arial' (default) or 'times' (Times New Roman)
  */
-export async function generatePDF(title, content, schoolName = '', appName = 'PrismPath', fontFamily = 'arial') {
+export async function generatePDF(title, content, schoolName = '', appName = 'PrismPath™', fontFamily = 'arial') {
   // Dynamic import to avoid build-time errors if jspdf isn't installed
   let jsPDF;
   try {

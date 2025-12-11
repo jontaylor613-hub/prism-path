@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Zap
+  User, ArrowRight, Calendar, FileText, Zap, Shield
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
 import AccommodationGem from './AccommodationGem';
 import CommandBar from './CommandBar';
+import AdvocacyDashboard from './AdvocacyDashboard';
 
 // Sample demo children for demo mode
 const getIepDueDate = () => {
@@ -155,7 +156,7 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
   const [loading, setLoading] = useState(true);
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro'
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy'
   const [demoMode, setDemoMode] = useState(initialDemoMode); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
@@ -410,30 +411,48 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
                 className="w-full"
                 theme={theme}
               >
-                Open Accommodation Gem
+                Open Accommodation Gem™
               </Button>
             </Card>
 
             <Card className="p-6" theme={theme}>
-              <h2 className={`text-xl font-bold ${theme.text} mb-4`}>Child Information</h2>
-              <div className="space-y-3">
-                <div>
-                  <span className={`text-xs uppercase ${theme.textMuted}`}>Name</span>
-                  <p className={`${theme.text} font-medium`}>{selectedStudent.name}</p>
-                </div>
-                <div>
-                  <span className={`text-xs uppercase ${theme.textMuted}`}>Grade</span>
-                  <p className={theme.text}>{selectedStudent.grade || 'Not specified'}</p>
-                </div>
-                {(selectedStudent.primaryNeed || selectedStudent.need) && (
-                  <div>
-                    <span className={`text-xs uppercase ${theme.textMuted}`}>Primary Need</span>
-                    <p className={theme.text}>{selectedStudent.primaryNeed || selectedStudent.need}</p>
-                  </div>
-                )}
-              </div>
+              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                <Shield className="text-fuchsia-400" size={24} />
+                Advocacy Center
+              </h2>
+              <p className={`${theme.textMuted} mb-4`}>
+                Access email assistance, rights information, and step-by-step advocacy tools.
+              </p>
+              <Button
+                onClick={() => setActiveView('advocacy')}
+                className="w-full"
+                theme={theme}
+              >
+                Open Advocacy Center
+              </Button>
             </Card>
           </div>
+
+          {/* Child Information Card */}
+          <Card className="p-6 mb-6" theme={theme}>
+            <h2 className={`text-xl font-bold ${theme.text} mb-4`}>Child Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <span className={`text-xs uppercase ${theme.textMuted}`}>Name</span>
+                <p className={`${theme.text} font-medium`}>{selectedStudent.name}</p>
+              </div>
+              <div>
+                <span className={`text-xs uppercase ${theme.textMuted}`}>Grade</span>
+                <p className={theme.text}>{selectedStudent.grade || 'Not specified'}</p>
+              </div>
+              {(selectedStudent.primaryNeed || selectedStudent.need) && (
+                <div>
+                  <span className={`text-xs uppercase ${theme.textMuted}`}>Primary Need</span>
+                  <p className={theme.text}>{selectedStudent.primaryNeed || selectedStudent.need}</p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
     );
@@ -452,6 +471,16 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
           isParentContext={true}
         />
       </div>
+    );
+  }
+
+  // Advocacy Center View
+  if (activeView === 'advocacy') {
+    return (
+      <AdvocacyDashboard
+        isDark={isDark}
+        onBack={() => setActiveView('dashboard')}
+      />
     );
   }
 
@@ -494,6 +523,16 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
           <div>
             <h1 className={`text-4xl font-bold ${theme.text} mb-2`}>My Family</h1>
             <p className={theme.textMuted}>Manage your children's learning profiles</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setActiveView('advocacy')}
+              variant="secondary"
+              icon={Shield}
+              theme={theme}
+            >
+              Advocacy Center
+            </Button>
           </div>
           <div className="flex items-center gap-4">
             {/* Demo Mode Toggle */}

@@ -5,7 +5,7 @@ import {
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Info, 
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
-  SmilePlus, Sun, Moon, Loader2
+  SmilePlus, Sun, Moon, Loader2, Target
 } from 'lucide-react';
 
 // EasterEgg removed for performance optimization
@@ -22,6 +22,7 @@ const ArchiveOfPotentials = lazy(() => import('./components/ArchiveOfPotentials'
 const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
+const Mission = lazy(() => import('./components/Mission'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -200,7 +201,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                     {/* ORDER: Neuro, Cockpit, Schedules, Resume, Map */}
                     
                     <Link to="/neuro" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
-                        <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver
+                        <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver™
                     </Link>
                     
                     <Link to="/cockpit" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
@@ -223,7 +224,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             </div>
 
             <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors`}>Features</a>
-            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accommodation Assistant</Link>
+            <Link to="/mission" className={`px-4 py-2 text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden rounded-full`}>
+              <span className="relative z-10 flex items-center gap-2">
+                <Target size={16} className="text-cyan-400" />
+                Our Mission
+              </span>
+              <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
+            </Link>
+            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accommodation Gem™</Link>
           </div>
 
           <button className={`md:hidden ${theme.text}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -235,12 +243,13 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
+             <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400 flex items-center gap-2"><Target size={14} /> Our Mission</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
              <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
              <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
-             <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver</Link>
+             <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver™</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
              <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
              <Link to="/resume" className="block w-full text-left py-2 font-bold text-cyan-500">Resume Builder</Link>
@@ -256,7 +265,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         <h1 className={`text-5xl md:text-7xl font-extrabold tracking-tight ${theme.text} mb-6`}>Personalized Learning <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400">Without Limits.</span></h1>
         <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>Empowering <strong>educators, students</strong> and <strong>parents</strong>. Get instant, AI-powered accommodations tailored to match your learner's energy and unique learning profile.</p>
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accommodation Assistant <Zap size={18}/></Link>
+          <Link to="/mission" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all relative group overflow-hidden`}>
+            <span className="relative z-10 flex items-center gap-2">
+              <Target size={18} className="text-cyan-400" />
+              Our Mission
+            </span>
+            <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
+          </Link>
+          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accommodation Gem™ <Zap size={18}/></Link>
           <a href="#accommodations" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</a>
         </div>
         {devModeActive && (
@@ -340,7 +356,8 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 
       <footer className={`relative z-10 ${isDark ? 'bg-slate-950 border-t border-slate-900' : 'bg-white border-t border-slate-100'} pt-20 pb-10`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500">
-          &copy; {new Date().getFullYear()} PrismPath Accommodations. All rights reserved.
+          <p>&copy; {new Date().getFullYear()} PrismPath™ Accommodations. All rights reserved.</p>
+          <p className="mt-2 text-xs">PrismPath™, Accommodation Gem™, Neuro Driver™, Bridge Builder™, and Accessible Learning Companion™ are trademarks of PrismPath Accommodations.</p>
         </div>
       </footer>
     </>
@@ -441,7 +458,7 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
           <Sparkles className="text-cyan-400 mx-auto mb-4" size={48} />
           <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>Free Trial Limit Reached</h2>
           <p className={`${theme.textMuted} mb-6`}>
-            You've used your one free GEM session. Create an account for unlimited access to the Accommodation Assistant and all educator tools.
+            You've used your one free GEM session. Create an account for unlimited access to the Accommodation Gem™ and all educator tools.
           </p>
           <Link to="/educator" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all inline-block mb-4">
             Create Free Account
@@ -602,6 +619,14 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <QuickTrack isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/mission" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <Mission isDark={isDark} onBack={handleExit} />
             </div>
           </Suspense>
         } />

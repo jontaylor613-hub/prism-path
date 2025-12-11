@@ -176,6 +176,18 @@ async function getStudentData(studentId = null) {
 // GEMINI API HELPER (Isolated per request)
 // ============================================================================
 
+// Helper function to list available models (for debugging)
+async function listAvailableModels(apiKey) {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
+    const data = await response.json();
+    return data.models || [];
+  } catch (error) {
+    console.error('Error listing models:', error);
+    return [];
+  }
+}
+
 async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileData = []) {
   // Use Google Generative AI SDK instead of REST API for better compatibility
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -215,25 +227,33 @@ async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileD
   }
 
   // Model fallback chain: Try newer models first, then fall back to stable models
+  // Updated to use model names that are more likely to work
   const modelFallbacks = {
-    'gemini-1.5-flash': ['gemini-1.5-flash', 'gemini-pro'],
-    'gemini-1.5-pro': ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'],
-    'gemini-pro': ['gemini-pro'],
+    'gemini-1.5-flash': ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro'],
+    'gemini-1.5-pro': ['gemini-1.5-pro-001', 'gemini-1.5-pro', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro'],
+    'gemini-pro': ['gemini-pro', 'gemini-1.0-pro'],
   };
   
   // Get the list of models to try for this model type
-  const modelsToTry = modelFallbacks[model] || ['gemini-pro'];
+  const modelsToTry = modelFallbacks[model] || ['gemini-pro', 'gemini-1.0-pro'];
   
   let lastError = null;
+  let availableModels = null;
   
   // Try each model in the fallback list
   for (const apiModelName of modelsToTry) {
     try {
-      // Get the model instance
-      const geminiModel = genAI.getGenerativeModel({ 
-        model: apiModelName,
-        systemInstruction: systemInstruction || undefined
-      });
+      // Get the model instance - try without systemInstruction first if it fails
+      let geminiModel;
+      try {
+        geminiModel = genAI.getGenerativeModel({ 
+          model: apiModelName,
+          systemInstruction: systemInstruction || undefined
+        });
+      } catch (modelError) {
+        // If model creation fails, try without systemInstruction
+        geminiModel = genAI.getGenerativeModel({ model: apiModelName });
+      }
       
       // Generate content - SDK expects parts directly
       const result = await geminiModel.generateContent(parts);
@@ -253,12 +273,32 @@ async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileD
           error.message?.includes('404') ||
           error.message?.includes('Model') && error.message?.includes('not available')) {
         lastError = error;
+        
+        // On first model error, try to list available models for better error message
+        if (!availableModels && modelsToTry.indexOf(apiModelName) === 0) {
+          try {
+            availableModels = await listAvailableModels(apiKey);
+            if (availableModels.length > 0) {
+              const modelNames = availableModels.map(m => m.name?.replace('models/', '') || m.name).filter(Boolean);
+              console.log('Available models:', modelNames);
+            }
+          } catch (listError) {
+            // Ignore list error, continue with fallback
+          }
+        }
+        
         // Check if we have more models to try
         if (modelsToTry.indexOf(apiModelName) < modelsToTry.length - 1) {
           continue; // Try next model
         }
-        // This was the last model, throw the error
-        throw new Error(`Model ${model} not available. Tried ${modelsToTry.join(', ')}. Last error: ${error.message}`);
+        
+        // This was the last model, provide helpful error message
+        let errorMsg = `Model ${model} not available. Tried ${modelsToTry.join(', ')}. Last error: ${error.message}`;
+        if (availableModels && availableModels.length > 0) {
+          const modelNames = availableModels.map(m => m.name?.replace('models/', '') || m.name).filter(Boolean).slice(0, 5);
+          errorMsg += ` Available models: ${modelNames.join(', ')}`;
+        }
+        throw new Error(errorMsg);
       }
       // For other errors, throw immediately
       throw error;

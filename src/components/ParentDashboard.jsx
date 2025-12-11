@@ -393,12 +393,11 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                     {isDark ? <Moon size={20} /> : <Sun size={20} />}
                   </button>
                 )}
-                <Button onClick={handleBackToMain} variant="ghost" theme={theme}>
-                  Back to Main
-                </Button>
-                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                  {demoMode ? 'Exit Demo' : 'Logout'}
-                </Button>
+                {!demoMode && user?.name && (
+                  <span className={`text-xs font-bold hidden sm:block ${theme.text}`}>{user.name}</span>
+                )}
+                <button onClick={handleBackToMain} className={`text-xs font-bold ${theme.textMuted} hover:${theme.text} mr-2`}>EXIT</button>
+                <button onClick={handleLogout} className={`p-2 rounded-full border ${theme.cardBorder} hover:text-red-400`}><LogOut size={16}/></button>
               </div>
             </div>
           </div>
@@ -568,34 +567,11 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                   {isDark ? <Moon size={20} /> : <Sun size={20} />}
                 </button>
               )}
-              <Button onClick={handleBackToMain} variant="ghost" theme={theme}>
-                Back to Main
-              </Button>
-              {/* Demo Mode Toggle */}
-              <Button
-                onClick={() => setDemoMode(!demoMode)}
-                variant={demoMode ? "primary" : "secondary"}
-                icon={Zap}
-                theme={theme}
-              >
-                {demoMode ? 'Exit Demo' : 'Try Demo Mode'}
-              </Button>
-              {!demoMode && (
-                <>
-                  <div className={`${theme.inputBg} px-4 py-2 rounded-lg border ${theme.inputBorder} flex items-center gap-2`}>
-                    <User size={18} />
-                    <span className={theme.text}>{user?.name || 'Parent'}</span>
-                  </div>
-                  <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                    Logout
-                  </Button>
-                </>
+              {!demoMode && user?.name && (
+                <span className={`text-xs font-bold hidden sm:block ${theme.text}`}>{user.name}</span>
               )}
-              {demoMode && (
-                <Button onClick={handleLogout} variant="ghost" icon={LogOut} theme={theme}>
-                  Exit Demo
-                </Button>
-              )}
+              <button onClick={handleBackToMain} className={`text-xs font-bold ${theme.textMuted} hover:${theme.text} mr-2`}>EXIT</button>
+              <button onClick={handleLogout} className={`p-2 rounded-full border ${theme.cardBorder} hover:text-red-400`}><LogOut size={16}/></button>
             </div>
           </div>
         </div>

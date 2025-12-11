@@ -55,7 +55,7 @@ export default function Mission({ isDark, onBack }) {
                     Education isn't just my career; it is my <span className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>heritage</span>. Raised by a Special Education teacher and now married to an educator, I have lived the reality of the classroom from every angle. I've seen the late nights, the emotional investment, and the burning desire to reach every single student.
                   </p>
                   <p className="text-xl">
-                    As a Department Head and active classroom teacher, I know that true differentiation is the <span className={`font-bold ${isDark ? 'text-fuchsia-400' : 'text-fuchsia-600'}`}>'gold standard'</span>—but it is often impossible due to lack of time and manpower. I built PrismPath™ to solve this. My goal is not to replace educators, but to equip them with an accessible 'sandbox' where technology handles the heavy lifting, allowing them to focus on what matters most: <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>human connection</span>.
+                    As a Department Head and active classroom teacher, I know that true differentiation is the <span className={`font-bold ${isDark ? 'text-fuchsia-400' : 'text-fuchsia-600'}`}>'gold standard'</span>, but it is often impossible due to lack of time and manpower. I built PrismPath™ to solve this. My goal is not to replace educators, but to equip them with an accessible 'sandbox' where technology handles the heavy lifting, allowing them to focus on what matters most: <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>human connection</span>.
                   </p>
                 </div>
               </div>
@@ -73,7 +73,7 @@ export default function Mission({ isDark, onBack }) {
                   
                   {/* Professional Headshot Image */}
                   <img 
-                    src="/images/headshot.png.png" 
+                    src="/images/headshot.png" 
                     alt="Professional headshot" 
                     className="w-full h-full object-cover rounded-3xl"
                     onError={(e) => {
@@ -172,7 +172,7 @@ export default function Mission({ isDark, onBack }) {
                   Innovation with Integrity
                 </h3>
                 <p className={`${theme.textMuted} leading-relaxed text-base`}>
-                  Responsible adoption is our foundation. We prioritize 'demystifying' technology to ensure it remains trustworthy and human-centered. Our approach balances efficiency with ethics, demonstrating how AI serves people—not replaces them—in the delivery of compassionate education.
+                  Responsible adoption is our foundation. We prioritize 'demystifying' technology to ensure it remains trustworthy and human-centered. Our approach balances efficiency with ethics, demonstrating how AI serves people, not replaces them, in the delivery of compassionate education.
                 </p>
               </div>
             </div>

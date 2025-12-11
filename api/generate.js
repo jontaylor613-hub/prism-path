@@ -226,16 +226,16 @@ async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileD
     }
   }
 
-  // Model fallback chain: Try newer models first, then fall back to stable models
-  // Updated to use model names that are more likely to work
+  // Model fallback chain: Use available models (gemini-2.5 and gemini-2.0)
+  // Based on available models: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, etc.
   const modelFallbacks = {
-    'gemini-1.5-flash': ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro'],
-    'gemini-1.5-pro': ['gemini-1.5-pro-001', 'gemini-1.5-pro', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro'],
-    'gemini-pro': ['gemini-pro', 'gemini-1.0-pro'],
+    'gemini-1.5-flash': ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-001'],
+    'gemini-1.5-pro': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    'gemini-pro': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
   };
   
   // Get the list of models to try for this model type
-  const modelsToTry = modelFallbacks[model] || ['gemini-pro', 'gemini-1.0-pro'];
+  const modelsToTry = modelFallbacks[model] || ['gemini-2.5-flash', 'gemini-2.0-flash'];
   
   let lastError = null;
   let availableModels = null;
@@ -323,7 +323,7 @@ async function callGeminiAPI(apiKey, model, systemInstruction, userPrompt, fileD
  * Fast, actionable step-by-step guidance for students
  */
 async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, studentData) {
-  const model = 'gemini-1.5-flash'; // Fast/Low Latency
+  const model = 'gemini-2.5-flash'; // Fast/Low Latency (using available model)
   
   const systemInstruction = `You are an executive function coach. Your ONLY output is a numbered list of small, concrete, actionable steps to complete the task. NO introduction. NO outro. Use simple, direct language. Max 10 words per step.`;
   
@@ -375,7 +375,7 @@ async function handleNeuroDriver(apiKey, userInput, fileData, sessionHistory, st
  * CRITICAL FIX: Check for fileData/userInput first - don't show welcome if data exists
  */
 async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistory, studentData) {
-  const model = 'gemini-1.5-pro'; // High Intelligence + Vision
+  const model = 'gemini-2.5-pro'; // High Intelligence + Vision (using available model)
   
   const systemInstruction = `You are an expert curriculum differentiator. Analyze the provided image/PDF or text. Output specific differentiated instructions and modifications based on the learner's needs.`;
   
@@ -457,7 +457,7 @@ async function handleAccommodationGem(apiKey, userInput, fileData, sessionHistor
  * CRITICAL FIX: Always get fresh student data to prevent stale state
  */
 async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, studentData) {
-  const model = 'gemini-1.5-pro'; // Complex Reasoning
+  const model = 'gemini-2.5-pro'; // Complex Reasoning (using available model)
   
   const systemInstruction = `You are a Special Education Case Manager. Draft professional, objective behavior goals, BIPs, and parent emails. Use formal educational terminology suitable for legal documents. Do not use slang.`;
   
@@ -530,7 +530,7 @@ async function handleIepBuilder(apiKey, userInput, fileData, sessionHistory, stu
  * Fast accommodation strategies
  */
 async function handleInstantHelp(apiKey, userInput, fileData, sessionHistory, studentData) {
-  const model = 'gemini-1.5-flash'; // Speed
+  const model = 'gemini-2.5-flash'; // Speed (using available model)
   
   const systemInstruction = `You are an inclusion specialist. Provide exactly 3 bullet points of immediate accommodation strategies based on the student's diagnosis/struggle.`;
   
@@ -574,7 +574,7 @@ async function handleInstantHelp(apiKey, userInput, fileData, sessionHistory, st
  * Translates content to target language for parent communication
  */
 async function handleTranslator(apiKey, userInput, fileData, sessionHistory, studentData) {
-  const model = 'gemini-1.5-flash'; // Fast translation
+  const model = 'gemini-2.5-flash'; // Fast translation (using available model)
   
   // Extract translation parameters from userInput (should be JSON)
   let translationData;

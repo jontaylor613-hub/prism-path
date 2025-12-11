@@ -381,51 +381,51 @@ export default function ParentDashboard({ onBack, isDark, initialDemoMode = fals
 
           {/* Main Feature: IEP Upload and Explanation */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <Card className="p-6" theme={theme}>
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <FileText className="text-cyan-400" size={24} />
                 Upload IEP Document
               </h2>
-              <p className={`${theme.textMuted} mb-4`}>
+              <p className={`${theme.textMuted} mb-4 flex-1`}>
                 Upload your child's IEP or 504 plan to get a plain English explanation of what it means and how it helps your child.
               </p>
               <Button
                 onClick={() => setActiveView('gem')}
-                className="w-full"
+                className="w-full mt-auto"
                 theme={theme}
               >
                 Upload & Explain IEP
               </Button>
             </Card>
 
-            <Card className="p-6" theme={theme}>
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Sparkles className="text-cyan-400" size={24} />
                 Differentiate Work
               </h2>
-              <p className={`${theme.textMuted} mb-4`}>
+              <p className={`${theme.textMuted} mb-4 flex-1`}>
                 Get help adapting curriculum and assignments for homeschool or when helping your child with schoolwork.
               </p>
               <Button
                 onClick={() => setActiveView('gem')}
-                className="w-full"
+                className="w-full mt-auto"
                 theme={theme}
               >
                 Open Accommodation Gem™
               </Button>
             </Card>
 
-            <Card className="p-6" theme={theme}>
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Shield className="text-fuchsia-400" size={24} />
                 Advocacy Center
               </h2>
-              <p className={`${theme.textMuted} mb-4`}>
+              <p className={`${theme.textMuted} mb-4 flex-1`}>
                 Access email assistance, rights information, and step-by-step advocacy tools.
               </p>
               <Button
                 onClick={() => setActiveView('advocacy')}
-                className="w-full"
+                className="w-full mt-auto"
                 theme={theme}
               >
                 Open Advocacy Center

@@ -171,23 +171,6 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             
             <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
             
-            <div className="relative group">
-              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1`}>
-                <Zap size={14} /> Demos <ChevronDown size={12} className="transition-transform group-hover:rotate-180" />
-              </button>
-              <div className={`absolute top-full right-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
-                <Link to="/parent/dashboard?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2`}>
-                  <Heart size={14} className="text-indigo-400" /> Parent Portal Demo
-                </Link>
-                <Link to="/educator?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
-                  <GraduationCap size={14} className="text-cyan-400" /> Educator Portal Demo
-                </Link>
-                <Link to="/educator?demo=admin" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
-                  <GraduationCap size={14} className="text-fuchsia-400" /> Admin Dashboard Demo
-                </Link>
-              </div>
-            </div>
-            
             <div className="relative" ref={studentMenuRef}>
               <button 
                 onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
@@ -222,11 +205,27 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                 </div>
               )}
             </div>
+            
+            <div className="relative group">
+              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1`}>
+                <Zap size={14} /> Demos <ChevronDown size={12} className="transition-transform group-hover:rotate-180" />
+              </button>
+              <div className={`absolute top-full right-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
+                <Link to="/parent/dashboard?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2`}>
+                  <Heart size={14} className="text-indigo-400" /> Parent Portal Demo
+                </Link>
+                <Link to="/educator?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
+                  <GraduationCap size={14} className="text-cyan-400" /> Educator Portal Demo
+                </Link>
+                <Link to="/educator?demo=admin" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
+                  <GraduationCap size={14} className="text-fuchsia-400" /> Admin Dashboard Demo
+                </Link>
+              </div>
+            </div>
 
             <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors`}>Features</a>
             <Link to="/mission" className={`px-4 py-2 text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden rounded-full`}>
-              <span className="relative z-10 flex items-center gap-2">
-                <Target size={16} className="text-cyan-400" />
+              <span className="relative z-10">
                 Our Mission
               </span>
               <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
@@ -243,17 +242,21 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
-             <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400 flex items-center gap-2"><Target size={14} /> Our Mission</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
-             <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
-             <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
-             <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
-             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
+             <div className="text-xs uppercase font-bold text-slate-500 mb-2">For Students</div>
              <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver™</Link>
              <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
              <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
              <Link to="/resume" className="block w-full text-left py-2 font-bold text-cyan-500">Resume Builder</Link>
              <Link to="/map" className="block w-full text-left py-2 font-bold text-emerald-500">Social Map</Link>
+             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
+             <div className="text-xs uppercase font-bold text-slate-500 mb-2">Demos</div>
+             <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
+             <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
+             <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
+             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
+             <a href="#features" className="block w-full text-left py-2 font-bold text-slate-400">Features</a>
+             <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400">Our Mission</Link>
           </div>
         )}
       </nav>
@@ -266,8 +269,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>Empowering <strong>educators, students</strong> and <strong>parents</strong>. Get instant, AI-powered accommodations tailored to match your learner's energy and unique learning profile.</p>
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
           <Link to="/mission" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all relative group overflow-hidden`}>
-            <span className="relative z-10 flex items-center gap-2">
-              <Target size={18} className="text-cyan-400" />
+            <span className="relative z-10">
               Our Mission
             </span>
             <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>

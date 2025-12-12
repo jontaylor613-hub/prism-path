@@ -130,7 +130,7 @@ const CockpitAudio = {
 };
 
 // --- SUB-COMPONENT: WORRY SHREDDER ---
-const WorryShredder = ({ theme }) => {
+const WorryShredder = ({ theme, onExerciseComplete }) => {
     const [worry, setWorry] = useState('');
     const [isShredding, setIsShredding] = useState(false);
     const [shredded, setShredded] = useState(false);
@@ -142,7 +142,12 @@ const WorryShredder = ({ theme }) => {
             setWorry('');
             setIsShredding(false);
             setShredded(true);
-            setTimeout(() => setShredded(false), 2000);
+            setTimeout(() => {
+                setShredded(false);
+                if (onExerciseComplete) {
+                    setTimeout(() => onExerciseComplete(), 500);
+                }
+            }, 2000);
         }, 1500);
     };
 
@@ -176,7 +181,7 @@ const WorryShredder = ({ theme }) => {
 };
 
 // --- SUB-COMPONENT: GROUNDING ---
-const GroundingTool = ({ theme }) => {
+const GroundingTool = ({ theme, onExerciseComplete }) => {
     const [step, setStep] = useState(5); 
     const [count, setCount] = useState(0); 
 
@@ -190,9 +195,18 @@ const GroundingTool = ({ theme }) => {
 
     const handleClick = () => {
         if (count + 1 >= step) {
-            if (step === 1) setStep(0);
-            else { setStep(step - 1); setCount(0); }
-        } else { setCount(count + 1); }
+            if (step === 1) {
+                setStep(0);
+                if (onExerciseComplete) {
+                    setTimeout(() => onExerciseComplete(), 1000);
+                }
+            } else { 
+                setStep(step - 1); 
+                setCount(0); 
+            }
+        } else { 
+            setCount(count + 1); 
+        }
     };
 
     if (step === 0) return (
@@ -289,17 +303,24 @@ const Soundscapes = ({ theme }) => {
 };
 
 // --- SUB-COMPONENT: BUBBLE WRAP ---
-const BubbleWrap = ({ theme }) => {
+const BubbleWrap = ({ theme, onExerciseComplete }) => {
   const [bubbles, setBubbles] = useState(Array(20).fill(false));
   const [timeLeft, setTimeLeft] = useState(120); 
   const [isActive, setIsActive] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+  const [hasCompleted, setHasCompleted] = useState(false);
 
   useEffect(() => {
-      if (!isActive || timeLeft <= 0) return;
+      if (!isActive || timeLeft <= 0) {
+          if (timeLeft <= 0 && !hasCompleted && onExerciseComplete) {
+              setHasCompleted(true);
+              setTimeout(() => onExerciseComplete(), 1000);
+          }
+          return;
+      }
       const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
       return () => clearInterval(timer);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, hasCompleted, onExerciseComplete]);
 
   const pop = (index) => {
     if (!isActive || timeLeft <= 0) return;
@@ -348,8 +369,71 @@ const BubbleWrap = ({ theme }) => {
   );
 };
 
+// --- SUB-COMPONENT: PULSE CHECK (Emoji Slider) ---
+const PulseCheck = ({ theme, onComplete, label = "How are you feeling?" }) => {
+  const [score, setScore] = useState(3); // Default to middle (3)
+  
+  const emojis = ['😠', '😕', '😐', '🙂', '😊'];
+  const labels = ['Angry', 'Frustrated', 'Okay', 'Good', 'Happy'];
+  
+  const handleSubmit = () => {
+    if (onComplete) {
+      onComplete(score);
+    }
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-4">
+      <h2 className={`text-3xl font-bold ${theme.text} mb-8 text-center`}>{label}</h2>
+      
+      {/* Emoji Slider */}
+      <div className="w-full mb-8">
+        <div className="flex justify-between items-center mb-4">
+          {emojis.map((emoji, index) => (
+            <button
+              key={index}
+              onClick={() => setScore(index + 1)}
+              className={`text-5xl transition-all transform ${
+                score === index + 1 
+                  ? 'scale-125 filter drop-shadow-lg' 
+                  : 'scale-100 opacity-60 hover:opacity-80 hover:scale-110'
+              }`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+        
+        {/* Labels */}
+        <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
+          <span className={theme.textMuted}>{labels[0]}</span>
+          <span className={theme.textMuted}>{labels[4]}</span>
+        </div>
+        
+        {/* Selected Score Display */}
+        <div className="mt-6 text-center">
+          <div className={`text-2xl font-bold ${theme.text} mb-2`}>
+            {labels[score - 1]}
+          </div>
+          <div className={`text-sm ${theme.textMuted}`}>
+            Score: {score} / 5
+          </div>
+        </div>
+      </div>
+      
+      {/* Submit Button */}
+      <button
+        onClick={handleSubmit}
+        className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-xl transition-all active:scale-95"
+      >
+        Continue
+      </button>
+    </div>
+  );
+};
+
 // --- SUB-COMPONENT: BOX BREATHING ---
-const BreathingOrb = ({ theme }) => {
+const BreathingOrb = ({ theme, onExerciseComplete }) => {
   const [phase, setPhase] = useState('Inhale'); 
 
   useEffect(() => {
@@ -453,7 +537,12 @@ const NoiseMeter = ({ theme }) => {
 
 // --- MAIN CONTROLLER ---
 export default function EmotionalCockpit({ onBack, isLowStim }) {
-  const [tool, setTool] = useState('menu'); 
+  const [tool, setTool] = useState('menu');
+  const [showPulseBefore, setShowPulseBefore] = useState(false);
+  const [showPulseAfter, setShowPulseAfter] = useState(false);
+  const [pendingTool, setPendingTool] = useState(null);
+  const [beforeScore, setBeforeScore] = useState(null);
+  const [afterScore, setAfterScore] = useState(null);
   const theme = getTheme(!isLowStim);
 
   useEffect(() => {
@@ -461,6 +550,58 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
           CockpitAudio.stopAll();
       };
   }, [tool]);
+
+  // Log pulse check results to localStorage
+  const logPulseCheck = (toolName, before, after) => {
+    try {
+      const logs = JSON.parse(localStorage.getItem('cockpit_pulse_logs') || '[]');
+      logs.push({
+        tool: toolName,
+        before,
+        after,
+        timestamp: new Date().toISOString(),
+        effectiveness: after - before
+      });
+      // Keep only last 50 logs
+      const recentLogs = logs.slice(-50);
+      localStorage.setItem('cockpit_pulse_logs', JSON.stringify(recentLogs));
+    } catch (e) {
+      console.error('Failed to log pulse check:', e);
+    }
+  };
+
+  const handleToolSelect = (toolName) => {
+    setPendingTool(toolName);
+    setShowPulseBefore(true);
+  };
+
+  const handleBeforeComplete = (score) => {
+    setBeforeScore(score);
+    setShowPulseBefore(false);
+    if (pendingTool) {
+      setTool(pendingTool);
+      setPendingTool(null);
+    }
+  };
+
+  const handleExerciseComplete = () => {
+    setShowPulseAfter(true);
+  };
+
+  const handleAfterComplete = (score) => {
+    setAfterScore(score);
+    setShowPulseAfter(false);
+    
+    // Log the results
+    if (beforeScore !== null && tool) {
+      logPulseCheck(tool, beforeScore, score);
+    }
+    
+    // Reset for next time
+    setBeforeScore(null);
+    setAfterScore(null);
+    setTool('menu');
+  };
 
   return (
     <div className={`fixed inset-0 z-[100] ${theme.bg} ${theme.text} flex flex-col`}>
@@ -474,23 +615,71 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
       </div>
 
       <div className="flex-1 overflow-hidden relative">
-        {tool === 'menu' && (
+        {/* Pulse Check Before */}
+        {showPulseBefore && (
+          <PulseCheck 
+            theme={theme} 
+            onComplete={handleBeforeComplete}
+            label="How are you feeling right now?"
+          />
+        )}
+        
+        {/* Pulse Check After */}
+        {showPulseAfter && (
+          <PulseCheck 
+            theme={theme} 
+            onComplete={handleAfterComplete}
+            label="How are you feeling now?"
+          />
+        )}
+        
+        {tool === 'menu' && !showPulseBefore && !showPulseAfter && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 h-full max-w-5xl mx-auto items-center justify-center content-center">
-                <button onClick={() => setTool('breathe')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-cyan-500 transition-all`}><Wind size={32} className="text-cyan-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Breathing Orb</h3></button>
-                <button onClick={() => setTool('grounding')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-emerald-500 transition-all`}><Eye size={32} className="text-emerald-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>5-4-3-2-1 Grounding</h3></button>
-                <button onClick={() => setTool('shredder')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-red-500 transition-all`}><Trash2 size={32} className="text-red-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Worry Shredder</h3></button>
-                <button onClick={() => setTool('sound')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-blue-500 transition-all`}><CloudRain size={32} className="text-blue-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Sonic Sanctuary</h3></button>
-                <button onClick={() => setTool('fidget')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-fuchsia-500 transition-all`}><Move size={32} className="text-fuchsia-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Bubble Pop</h3></button>
-                <button onClick={() => setTool('noise')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-yellow-500 transition-all`}><Volume2 size={32} className="text-yellow-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Noise Meter</h3></button>
+                <button onClick={() => handleToolSelect('breathe')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-cyan-500 transition-all`}><Wind size={32} className="text-cyan-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Breathing Orb</h3></button>
+                <button onClick={() => handleToolSelect('grounding')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-emerald-500 transition-all`}><Eye size={32} className="text-emerald-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>5-4-3-2-1 Grounding</h3></button>
+                <button onClick={() => handleToolSelect('shredder')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-red-500 transition-all`}><Trash2 size={32} className="text-red-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Worry Shredder</h3></button>
+                <button onClick={() => handleToolSelect('sound')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-blue-500 transition-all`}><CloudRain size={32} className="text-blue-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Sonic Sanctuary</h3></button>
+                <button onClick={() => handleToolSelect('fidget')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-fuchsia-500 transition-all`}><Move size={32} className="text-fuchsia-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Bubble Pop</h3></button>
+                <button onClick={() => handleToolSelect('noise')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-yellow-500 transition-all`}><Volume2 size={32} className="text-yellow-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Noise Meter</h3></button>
             </div>
         )}
 
-        {tool === 'breathe' && <BreathingOrb theme={theme} />}
-        {tool === 'fidget' && <BubbleWrap theme={theme} />}
-        {tool === 'noise' && <NoiseMeter theme={theme} />}
-        {tool === 'shredder' && <WorryShredder theme={theme} />}
-        {tool === 'grounding' && <GroundingTool theme={theme} />}
-        {tool === 'sound' && <Soundscapes theme={theme} />}
+        {tool === 'breathe' && !showPulseBefore && !showPulseAfter && (
+          <div className="relative h-full">
+            <BreathingOrb theme={theme} onExerciseComplete={handleExerciseComplete} />
+            <button
+              onClick={handleExerciseComplete}
+              className={`absolute bottom-6 right-6 px-6 py-3 ${theme.cardBg} border ${theme.cardBorder} rounded-full font-bold ${theme.text} hover:border-cyan-400 transition-all`}
+            >
+              I'm Done
+            </button>
+          </div>
+        )}
+        {tool === 'fidget' && !showPulseBefore && !showPulseAfter && <BubbleWrap theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'noise' && !showPulseBefore && !showPulseAfter && (
+          <div className="relative h-full">
+            <NoiseMeter theme={theme} />
+            <button
+              onClick={handleExerciseComplete}
+              className={`absolute bottom-6 right-6 px-6 py-3 ${theme.cardBg} border ${theme.cardBorder} rounded-full font-bold ${theme.text} hover:border-cyan-400 transition-all`}
+            >
+              I'm Done
+            </button>
+          </div>
+        )}
+        {tool === 'shredder' && !showPulseBefore && !showPulseAfter && <WorryShredder theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'grounding' && !showPulseBefore && !showPulseAfter && <GroundingTool theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'sound' && !showPulseBefore && !showPulseAfter && (
+          <div className="relative h-full">
+            <Soundscapes theme={theme} />
+            <button
+              onClick={handleExerciseComplete}
+              className={`absolute bottom-6 right-6 px-6 py-3 ${theme.cardBg} border ${theme.cardBorder} rounded-full font-bold ${theme.text} hover:border-cyan-400 transition-all`}
+            >
+              I'm Done
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

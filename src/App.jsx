@@ -23,6 +23,7 @@ const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
+import EjectButton from './components/EjectButton';
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -571,6 +572,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-10 pt-10">
               <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
+              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -579,6 +581,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-10 pt-20 h-screen">
               <SocialMap onBack={handleExit} isLowStim={!isDark} />
+              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -587,6 +590,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] h-screen">
               <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
+              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -595,6 +599,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <NeuroDriver onBack={handleExit} isDark={isDark} />
+              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -611,6 +616,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <VisualSchedule onBack={handleExit} isDark={isDark} />
+              <EjectButton />
             </div>
           </Suspense>
         } />

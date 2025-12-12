@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { 
   MapPin, Users, Volume2, Sun, Shield, 
-  BookOpen, ArrowLeft, Loader2, Navigation 
+  BookOpen, ArrowLeft, Loader2, Navigation, FileText, X
 } from 'lucide-react';
 
 // Default Fallback (Cincinnati) if GPS is denied
@@ -143,6 +143,109 @@ const SensoryBadge = ({ type, value }) => {
   );
 };
 
+// --- SOCIAL SCRIPTS DATA ---
+const SOCIAL_SCRIPTS = {
+  'Library': [
+    { title: 'Asking for Help Finding a Book', script: 'Excuse me, can you help me find a book about [topic]? I\'m looking for something at my reading level.' },
+    { title: 'Checking Out Books', script: 'Hi, I\'d like to check out these books. Do I need my library card?' },
+    { title: 'Asking About Quiet Spaces', script: 'Is there a quieter area where I can read? I get distracted easily.' },
+    { title: 'Using the Computer', script: 'Can I use one of the computers? How do I log in?' }
+  ],
+  'Game Store': [
+    { title: 'Asking About a Game', script: 'Hi, do you have [game name]? I\'m looking for something I can play with friends.' },
+    { title: 'Asking for Recommendations', script: 'I like [genre] games. Can you suggest something similar?' },
+    { title: 'Buying a Game', script: 'I\'d like to buy this game. Can you tell me if it\'s age-appropriate for me?' },
+    { title: 'Trading In Games', script: 'Do you accept trade-ins? I have some games I don\'t play anymore.' }
+  ],
+  'Park': [
+    { title: 'Asking to Join a Game', script: 'Hi, can I join your game? I\'m looking for people to play with.' },
+    { title: 'Finding a Quiet Spot', script: 'Is there a quieter area away from the playground? I need a break.' },
+    { title: 'Asking About Facilities', script: 'Where are the restrooms? Are they open right now?' },
+    { title: 'Asking About Events', script: 'Are there any events happening here today? I saw a sign but wasn\'t sure.' }
+  ],
+  'Community Center': [
+    { title: 'Asking About Programs', script: 'Hi, I\'m interested in joining a program. What activities do you have for someone my age?' },
+    { title: 'Registering for a Class', script: 'I\'d like to sign up for [class name]. How do I register?' },
+    { title: 'Asking About Quiet Rooms', script: 'Do you have a quiet room I can use? I need a break from the noise.' },
+    { title: 'Getting Directions', script: 'Can you tell me where the [room/area] is? I\'m not sure where to go.' }
+  ],
+  'Museum': [
+    { title: 'Buying Tickets', script: 'Hi, I\'d like to buy a ticket. How much does it cost? Do you have student discounts?' },
+    { title: 'Asking About Exhibits', script: 'What exhibits are open today? I\'m interested in [topic].' },
+    { title: 'Asking for Help', script: 'I\'m looking for the [exhibit name]. Can you point me in the right direction?' },
+    { title: 'Asking About Accessibility', script: 'I have sensory sensitivities. Are there quieter times or areas I should know about?' }
+  ],
+  'Cinema': [
+    { title: 'Buying Tickets', script: 'Hi, I\'d like two tickets for [movie name] at [time]. Do you have any sensory-friendly showings?' },
+    { title: 'Asking About Seating', script: 'Can I sit in a quieter area? I prefer seats away from the speakers.' },
+    { title: 'Getting Concessions', script: 'I\'d like a [item] and a [drink]. What sizes do you have?' },
+    { title: 'Asking for Help', script: 'I\'m not sure which theater [movie] is in. Can you help me find it?' }
+  ],
+  'Bowling': [
+    { title: 'Renting a Lane', script: 'Hi, I\'d like to rent a lane for [number] people. How much does it cost per game?' },
+    { title: 'Renting Shoes', script: 'I need to rent shoes. What size do you have available?' },
+    { title: 'Asking About Noise', script: 'It\'s pretty loud in here. Do you have any quieter areas or times?' },
+    { title: 'Ordering Food', script: 'Can I order food here? What do you have available?' }
+  ]
+};
+
+// --- SCRIPT ASSIST MODAL ---
+const ScriptAssistModal = ({ isOpen, onClose, placeType }) => {
+  if (!isOpen) return null;
+  
+  const scripts = SOCIAL_SCRIPTS[placeType] || [];
+  
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+        <div className="sticky top-0 bg-slate-900 border-b border-slate-700 p-6 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              <FileText className="text-cyan-400" size={24} />
+              Social Scripts for {placeType}
+            </h2>
+            <p className="text-sm text-slate-400 mt-1">Practice these scripts to feel more confident</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          {scripts.length > 0 ? (
+            scripts.map((item, index) => (
+              <div key={index} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-3">
+                  {item.title}
+                </h3>
+                <p className="text-slate-200 leading-relaxed text-base">
+                  "{item.script}"
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 text-slate-400">
+              <p>No scripts available for this location type.</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="sticky bottom-0 bg-slate-900 border-t border-slate-700 p-4">
+          <button
+            onClick={onClose}
+            className="w-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white py-3 rounded-lg font-bold hover:shadow-lg transition-all"
+          >
+            Close Cheat Sheet
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function SocialMap({ onBack, isLowStim }) {
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [myLocation, setMyLocation] = useState(DEFAULT_CENTER);
@@ -151,6 +254,7 @@ export default function SocialMap({ onBack, isLowStim }) {
   const [statusMessage, setStatusMessage] = useState("Scanning local area...");
   const [gpsLocked, setGpsLocked] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(13);
+  const [showScriptModal, setShowScriptModal] = useState(false);
 
   // --- ON LOAD: Smart Search ---
   useEffect(() => {
@@ -253,6 +357,14 @@ export default function SocialMap({ onBack, isLowStim }) {
                     </p>
                 </div>
 
+                {/* CHEAT SHEET BUTTON */}
+                <button
+                    onClick={() => setShowScriptModal(true)}
+                    className="w-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg mb-4"
+                >
+                    <FileText size={18}/> Cheat Sheet
+                </button>
+
                 {/* GOOGLE MAPS LINK */}
                 <a 
                     href={`https://www.google.com/maps/search/?api=1&query=${selectedSpot.position[0]},${selectedSpot.position[1]}`} 
@@ -265,6 +377,13 @@ export default function SocialMap({ onBack, isLowStim }) {
             </div>
         )}
       </div>
+
+      {/* SCRIPT ASSIST MODAL */}
+      <ScriptAssistModal 
+        isOpen={showScriptModal}
+        onClose={() => setShowScriptModal(false)}
+        placeType={selectedSpot?.type}
+      />
 
       {/* MAP */}
       <div className="w-full md:w-2/3 h-2/3 md:h-full relative z-10 bg-slate-800">

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Brain, CheckCircle, Clock, RotateCcw, Zap, 
   CloudRain, Trees, Coffee, Music, VolumeX, 
-  Play, Pause, Plus, Trash2, ArrowLeft, Star, Layout, Pointer, Target
+  Play, Pause, Plus, Trash2, ArrowLeft, Star, Layout, Pointer, Target,
+  Save, Download, ChevronDown
 } from 'lucide-react';
 import { getTheme, GeminiService } from '../utils';
 
@@ -156,7 +157,11 @@ const NeuroDriver = ({ onBack, isDark }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeSound, setActiveSound] = useState(null);
   const [showVictory, setShowVictory] = useState(false);
-  const [highlightedStep, setHighlightedStep] = useState(null); 
+  const [highlightedStep, setHighlightedStep] = useState(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [showLoadDropdown, setShowLoadDropdown] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState([]); 
   
   // Timer State
   const [timerMode, setTimerMode] = useState('duration'); // 'duration' or 'until'
@@ -183,6 +188,72 @@ const NeuroDriver = ({ onBack, isDark }) => {
   };
 
   useEffect(() => { return () => DriverAudio.stopAll(); }, []);
+
+  // Load saved templates from localStorage
+  useEffect(() => {
+    try {
+      const templates = JSON.parse(localStorage.getItem('neuro_routines') || '[]');
+      setSavedTemplates(templates);
+    } catch (e) {
+      console.error('Failed to load templates:', e);
+    }
+  }, []);
+
+  // Save routine as template
+  const handleSaveTemplate = () => {
+    if (!task.trim() || steps.length === 0) {
+      alert('Please create a task with steps before saving.');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const confirmSaveTemplate = () => {
+    if (!templateName.trim()) {
+      alert('Please enter a name for this routine.');
+      return;
+    }
+
+    try {
+      const templates = JSON.parse(localStorage.getItem('neuro_routines') || '[]');
+      const newTemplate = {
+        id: Date.now().toString(),
+        name: templateName.trim(),
+        task: task,
+        steps: steps.map(s => ({ text: s.text, done: false })), // Reset done status
+        createdAt: new Date().toISOString()
+      };
+      
+      templates.push(newTemplate);
+      localStorage.setItem('neuro_routines', JSON.stringify(templates));
+      setSavedTemplates(templates);
+      setShowSaveModal(false);
+      setTemplateName('');
+    } catch (e) {
+      alert('Failed to save template: ' + e.message);
+    }
+  };
+
+  // Load routine from template
+  const loadTemplate = (template) => {
+    setTask(template.task);
+    setSteps(template.steps.map(s => ({ ...s, done: false })));
+    setShowLoadDropdown(false);
+  };
+
+  // Delete template
+  const deleteTemplate = (templateId, e) => {
+    e.stopPropagation();
+    if (confirm('Delete this saved routine?')) {
+      try {
+        const templates = savedTemplates.filter(t => t.id !== templateId);
+        localStorage.setItem('neuro_routines', JSON.stringify(templates));
+        setSavedTemplates(templates);
+      } catch (e) {
+        alert('Failed to delete template: ' + e.message);
+      }
+    }
+  };
 
   // --- TIMER LOGIC ---
   useEffect(() => {
@@ -497,6 +568,56 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
         {/* --- TASK SLICER --- */}
         <div className="relative mb-6">
+            <div className="flex gap-2 mb-2">
+                {/* Load Routine Dropdown */}
+                {savedTemplates.length > 0 && (
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowLoadDropdown(!showLoadDropdown)}
+                            className={`px-4 py-2 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2`}
+                        >
+                            <Download size={18} />
+                            Load Routine
+                            <ChevronDown size={16} className={`transition-transform ${showLoadDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {showLoadDropdown && (
+                            <div className={`absolute top-full left-0 mt-2 w-64 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto`}>
+                                {savedTemplates.map((template) => (
+                                    <div
+                                        key={template.id}
+                                        onClick={() => loadTemplate(template)}
+                                        className={`p-3 hover:bg-slate-500/10 cursor-pointer border-b ${theme.cardBorder} last:border-b-0 flex items-center justify-between group`}
+                                    >
+                                        <div className="flex-1">
+                                            <div className={`font-bold ${theme.text}`}>{template.name}</div>
+                                            <div className={`text-xs ${theme.textMuted} mt-1`}>{template.task}</div>
+                                        </div>
+                                        <button
+                                            onClick={(e) => deleteTemplate(template.id, e)}
+                                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 p-1 transition-opacity"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                {/* Save Template Button */}
+                {steps.length > 0 && (
+                    <button
+                        onClick={handleSaveTemplate}
+                        className={`px-4 py-2 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2`}
+                    >
+                        <Save size={18} />
+                        Save as Template
+                    </button>
+                )}
+            </div>
+            
             <input 
                 type="text" 
                 value={task}
@@ -514,6 +635,39 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 Slice
             </button>
         </div>
+
+        {/* Save Template Modal */}
+        {showSaveModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
+                <div className={`${theme.cardBg} border ${theme.cardBorder} p-8 rounded-3xl shadow-2xl max-w-md w-full`}>
+                    <h3 className={`text-2xl font-bold ${theme.text} mb-4`}>Save Routine</h3>
+                    <p className={`${theme.textMuted} mb-4`}>Give this routine a name so you can use it again later.</p>
+                    <input
+                        type="text"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="e.g., Morning Routine, Homework Steps"
+                        className={`w-full p-4 rounded-xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none mb-6`}
+                        onKeyDown={(e) => e.key === 'Enter' && confirmSaveTemplate()}
+                        autoFocus
+                    />
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => { setShowSaveModal(false); setTemplateName(''); }}
+                            className={`flex-1 py-3 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold ${theme.text} hover:border-red-400 transition-all`}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmSaveTemplate}
+                            className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                        >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* STEPS LIST */}
         <div className="space-y-3 relative">
@@ -560,6 +714,14 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 <button onClick={() => {setSteps([]); setTask('');}} className={`mt-6 w-full py-3 ${theme.inputBg} border ${theme.inputBorder} ${theme.textMuted} hover:text-red-400 hover:border-red-400 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors`}>
                     <Trash2 size={16} /> Clear List
                 </button>
+            )}
+            
+            {/* Click outside to close dropdown */}
+            {showLoadDropdown && (
+                <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowLoadDropdown(false)}
+                />
             )}
         </div>
 

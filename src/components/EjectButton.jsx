@@ -7,20 +7,21 @@ const BreathingBox = ({ onClose }) => {
   const [cycle, setCycle] = useState(0);
 
   useEffect(() => {
+    let timeoutId;
     const breathingCycle = () => {
       // 4 seconds: Inhale
       setPhase('Inhale');
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         // 7 seconds: Hold
         setPhase('Hold');
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           // 8 seconds: Exhale
           setPhase('Exhale');
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             // Brief pause before next cycle
             setPhase('Ready');
             setCycle(prev => prev + 1);
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
               breathingCycle();
             }, 1000);
           }, 8000);
@@ -29,16 +30,10 @@ const BreathingBox = ({ onClose }) => {
     };
     
     breathingCycle();
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
-
-  const getPhaseColor = () => {
-    switch(phase) {
-      case 'Inhale': return 'from-cyan-400 to-blue-500';
-      case 'Hold': return 'from-blue-500 to-indigo-500';
-      case 'Exhale': return 'from-indigo-500 to-purple-500';
-      default: return 'from-slate-400 to-slate-500';
-    }
-  };
 
   const getPhaseText = () => {
     switch(phase) {
@@ -51,10 +46,19 @@ const BreathingBox = ({ onClose }) => {
 
   const getScale = () => {
     switch(phase) {
-      case 'Inhale': return 'scale-150';
-      case 'Hold': return 'scale-150';
-      case 'Exhale': return 'scale-100';
-      default: return 'scale-100';
+      case 'Inhale': return 1.5;
+      case 'Hold': return 1.5;
+      case 'Exhale': return 1;
+      default: return 1;
+    }
+  };
+
+  const getOpacity = () => {
+    switch(phase) {
+      case 'Inhale': return 1;
+      case 'Hold': return 1;
+      case 'Exhale': return 0.7;
+      default: return 0.5;
     }
   };
 
@@ -69,19 +73,25 @@ const BreathingBox = ({ onClose }) => {
           <X size={28} />
         </button>
 
-        {/* Breathing Box */}
-        <div className="relative flex items-center justify-center">
-          <div className={`w-64 h-64 rounded-2xl bg-gradient-to-br ${getPhaseColor()} transition-all duration-1000 ease-in-out ${getScale()} shadow-[0_0_100px_rgba(6,182,212,0.5)] flex items-center justify-center`}>
+        {/* Breathing Circle */}
+        <div className="relative flex items-center justify-center mb-16">
+          <div 
+            className="w-64 h-64 rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-500 shadow-[0_0_80px_rgba(6,182,212,0.6)] flex items-center justify-center transition-all duration-[4000ms] ease-in-out"
+            style={{ 
+              transform: `scale(${getScale()})`,
+              opacity: getOpacity()
+            }}
+          >
             <Wind size={64} className="text-white/90" />
           </div>
         </div>
 
         {/* Instructions */}
-        <div className="mt-12 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4 tracking-widest uppercase">
+        <div className="text-center">
+          <h2 className="text-5xl font-bold text-white mb-6 tracking-widest uppercase">
             {getPhaseText()}
           </h2>
-          <p className="text-white/70 text-lg">
+          <p className="text-white/80 text-xl mb-2">
             {phase === 'Inhale' && 'Count to 4 slowly'}
             {phase === 'Hold' && 'Count to 7 slowly'}
             {phase === 'Exhale' && 'Count to 8 slowly'}

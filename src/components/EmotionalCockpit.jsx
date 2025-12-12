@@ -370,21 +370,30 @@ const BubbleWrap = ({ theme, onExerciseComplete }) => {
 };
 
 // --- SUB-COMPONENT: PULSE CHECK (Emoji Slider) ---
-const PulseCheck = ({ theme, onComplete, label = "How are you feeling?" }) => {
-  const [score, setScore] = useState(3); // Default to middle (3)
+const PulseCheck = ({ theme, onComplete, beforeScore, setBeforeScore }) => {
+  const [currentScore, setCurrentScore] = useState(3);
+  const [step, setStep] = useState('before');
   
   const emojis = ['😠', '😕', '😐', '🙂', '😊'];
   const labels = ['Angry', 'Frustrated', 'Okay', 'Good', 'Happy'];
   
   const handleSubmit = () => {
-    if (onComplete) {
-      onComplete(score);
+    if (step === 'before') {
+      setBeforeScore(currentScore);
+      setCurrentScore(3);
+      setStep('after');
+    } else {
+      if (onComplete) {
+        onComplete(beforeScore, currentScore);
+      }
     }
   };
   
+  const currentLabel = step === 'before' ? 'How did you feel before?' : 'How do you feel now?';
+  
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-4">
-      <h2 className={`text-3xl font-bold ${theme.text} mb-8 text-center`}>{label}</h2>
+      <h2 className={`text-2xl font-bold ${theme.text} mb-8 text-center`}>{currentLabel}</h2>
       
       {/* Emoji Slider */}
       <div className="w-full mb-8">
@@ -392,9 +401,9 @@ const PulseCheck = ({ theme, onComplete, label = "How are you feeling?" }) => {
           {emojis.map((emoji, index) => (
             <button
               key={index}
-              onClick={() => setScore(index + 1)}
+              onClick={() => setCurrentScore(index + 1)}
               className={`text-5xl transition-all transform ${
-                score === index + 1 
+                currentScore === index + 1 
                   ? 'scale-125 filter drop-shadow-lg' 
                   : 'scale-100 opacity-60 hover:opacity-80 hover:scale-110'
               }`}
@@ -413,10 +422,7 @@ const PulseCheck = ({ theme, onComplete, label = "How are you feeling?" }) => {
         {/* Selected Score Display */}
         <div className="mt-6 text-center">
           <div className={`text-2xl font-bold ${theme.text} mb-2`}>
-            {labels[score - 1]}
-          </div>
-          <div className={`text-sm ${theme.textMuted}`}>
-            Score: {score} / 5
+            {labels[currentScore - 1]}
           </div>
         </div>
       </div>
@@ -426,7 +432,7 @@ const PulseCheck = ({ theme, onComplete, label = "How are you feeling?" }) => {
         onClick={handleSubmit}
         className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-xl transition-all active:scale-95"
       >
-        Continue
+        {step === 'before' ? 'Continue' : 'Done'}
       </button>
     </div>
   );
@@ -538,11 +544,8 @@ const NoiseMeter = ({ theme }) => {
 // --- MAIN CONTROLLER ---
 export default function EmotionalCockpit({ onBack, isLowStim }) {
   const [tool, setTool] = useState('menu');
-  const [showPulseBefore, setShowPulseBefore] = useState(false);
-  const [showPulseAfter, setShowPulseAfter] = useState(false);
-  const [pendingTool, setPendingTool] = useState(null);
+  const [showPulseCheck, setShowPulseCheck] = useState(false);
   const [beforeScore, setBeforeScore] = useState(null);
-  const [afterScore, setAfterScore] = useState(null);
   const theme = getTheme(!isLowStim);
 
   useEffect(() => {
@@ -571,35 +574,22 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
   };
 
   const handleToolSelect = (toolName) => {
-    setPendingTool(toolName);
-    setShowPulseBefore(true);
-  };
-
-  const handleBeforeComplete = (score) => {
-    setBeforeScore(score);
-    setShowPulseBefore(false);
-    if (pendingTool) {
-      setTool(pendingTool);
-      setPendingTool(null);
-    }
+    setTool(toolName);
   };
 
   const handleExerciseComplete = () => {
-    setShowPulseAfter(true);
+    setShowPulseCheck(true);
   };
 
-  const handleAfterComplete = (score) => {
-    setAfterScore(score);
-    setShowPulseAfter(false);
-    
+  const handlePulseComplete = (before, after) => {
     // Log the results
-    if (beforeScore !== null && tool) {
-      logPulseCheck(tool, beforeScore, score);
+    if (tool) {
+      logPulseCheck(tool, before, after);
     }
     
     // Reset for next time
     setBeforeScore(null);
-    setAfterScore(null);
+    setShowPulseCheck(false);
     setTool('menu');
   };
 
@@ -615,25 +605,17 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
       </div>
 
       <div className="flex-1 overflow-hidden relative">
-        {/* Pulse Check Before */}
-        {showPulseBefore && (
+        {/* Pulse Check (only at end) */}
+        {showPulseCheck && (
           <PulseCheck 
             theme={theme} 
-            onComplete={handleBeforeComplete}
-            label="How are you feeling right now?"
+            onComplete={handlePulseComplete}
+            beforeScore={beforeScore}
+            setBeforeScore={setBeforeScore}
           />
         )}
         
-        {/* Pulse Check After */}
-        {showPulseAfter && (
-          <PulseCheck 
-            theme={theme} 
-            onComplete={handleAfterComplete}
-            label="How are you feeling now?"
-          />
-        )}
-        
-        {tool === 'menu' && !showPulseBefore && !showPulseAfter && (
+        {tool === 'menu' && !showPulseCheck && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 h-full max-w-5xl mx-auto items-center justify-center content-center">
                 <button onClick={() => handleToolSelect('breathe')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-cyan-500 transition-all`}><Wind size={32} className="text-cyan-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>Breathing Orb</h3></button>
                 <button onClick={() => handleToolSelect('grounding')} className={`group h-40 ${theme.cardBg} border ${theme.cardBorder} rounded-2xl flex flex-col items-center justify-center hover:border-emerald-500 transition-all`}><Eye size={32} className="text-emerald-400 mb-2"/><h3 className={`font-bold ${theme.text}`}>5-4-3-2-1 Grounding</h3></button>
@@ -644,7 +626,7 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
             </div>
         )}
 
-        {tool === 'breathe' && !showPulseBefore && !showPulseAfter && (
+        {tool === 'breathe' && !showPulseCheck && (
           <div className="relative h-full">
             <BreathingOrb theme={theme} onExerciseComplete={handleExerciseComplete} />
             <button
@@ -655,8 +637,8 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
             </button>
           </div>
         )}
-        {tool === 'fidget' && !showPulseBefore && !showPulseAfter && <BubbleWrap theme={theme} onExerciseComplete={handleExerciseComplete} />}
-        {tool === 'noise' && !showPulseBefore && !showPulseAfter && (
+        {tool === 'fidget' && !showPulseCheck && <BubbleWrap theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'noise' && !showPulseCheck && (
           <div className="relative h-full">
             <NoiseMeter theme={theme} />
             <button
@@ -667,9 +649,9 @@ export default function EmotionalCockpit({ onBack, isLowStim }) {
             </button>
           </div>
         )}
-        {tool === 'shredder' && !showPulseBefore && !showPulseAfter && <WorryShredder theme={theme} onExerciseComplete={handleExerciseComplete} />}
-        {tool === 'grounding' && !showPulseBefore && !showPulseAfter && <GroundingTool theme={theme} onExerciseComplete={handleExerciseComplete} />}
-        {tool === 'sound' && !showPulseBefore && !showPulseAfter && (
+        {tool === 'shredder' && !showPulseCheck && <WorryShredder theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'grounding' && !showPulseCheck && <GroundingTool theme={theme} onExerciseComplete={handleExerciseComplete} />}
+        {tool === 'sound' && !showPulseCheck && (
           <div className="relative h-full">
             <Soundscapes theme={theme} />
             <button

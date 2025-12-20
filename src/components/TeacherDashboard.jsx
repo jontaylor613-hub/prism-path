@@ -917,11 +917,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         ...activeStudent,
         profileText: studentProfile
       });
-      setActiveTab('gem');
+      setActiveTab('accommodations');
     } catch (error) {
       console.error('Error preparing student for gem:', error);
       setSelectedStudentForGem(activeStudent);
-      setActiveTab('gem');
+      setActiveTab('accommodations');
     }
   };
 
@@ -1435,14 +1435,14 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Gem', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
-              const isGem = tab === 'Gem';
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Accommodations', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
+              const isGem = tab === 'Accommodations';
               const isWellness = tab === 'Wellness';
               return (
                 <button 
                   key={tab} 
                   onClick={() => {
-                    if (tab === 'Gem' && activeStudent) {
+                    if (tab === 'Accommodations' && activeStudent) {
                       handleOpenGemWithStudent();
                     } else {
                       setActiveTab(tab.toLowerCase());
@@ -1789,7 +1789,7 @@ Format the summary clearly with sections. Only include information that is actua
                                profileText: typeof chat.profile === 'object' ? chat.profile.profileText || JSON.stringify(chat.profile) : chat.profile,
                                name: typeof chat.profile === 'object' && chat.profile.name ? chat.profile.name : activeStudent?.name
                              });
-                             setActiveTab('gem');
+                             setActiveTab('accommodations');
                            }}
                            className={`p-3 rounded-lg border cursor-pointer transition-all ${
                              theme.cardBorder
@@ -2278,7 +2278,7 @@ Format the summary clearly with sections. Only include information that is actua
         )}
 
         {/* --- GEM TAB (NEW) --- */}
-        {activeTab === 'gem' && (
+        {activeTab === 'accommodations' && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
                 <AccommodationGem 
                   isDark={isDark} 

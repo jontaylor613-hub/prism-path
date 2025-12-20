@@ -77,46 +77,50 @@ export default function CommunityServices({ isDark, onBack }) {
 
   // Get user location and fetch services
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          setMyLocation([latitude, longitude]);
-          setGpsLocked(true);
-          
-          // Try close search first (5km)
-          let foundServices = await fetchSupportServices(latitude, longitude, 5000);
-          
-          // If not enough results, expand search (50km)
-          if (foundServices.length < 5) {
-            setStatusMessage("Expanding search radius...");
-            foundServices = await fetchSupportServices(latitude, longitude, 50000);
-            setZoomLevel(10);
+    const loadServices = async () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            setMyLocation([latitude, longitude]);
+            setGpsLocked(true);
+            
+            // Try close search first (5km)
+            let foundServices = await fetchSupportServices(latitude, longitude, 5000);
+            
+            // If not enough results, expand search (50km)
+            if (foundServices.length < 5) {
+              setStatusMessage("Expanding search radius...");
+              foundServices = await fetchSupportServices(latitude, longitude, 50000);
+              setZoomLevel(10);
+            }
+
+            // Sort by distance and take top 20 closest
+            foundServices.sort((a, b) => {
+              const distA = getDistance(latitude, longitude, a.position[0], a.position[1]);
+              const distB = getDistance(latitude, longitude, b.position[0], b.position[1]);
+              return distA - distB;
+            });
+
+            setServices(foundServices.slice(0, 20));
+            setLoading(false);
+          },
+          async (error) => {
+            console.error("GPS Denied");
+            const foundServices = await fetchSupportServices(DEFAULT_CENTER[0], DEFAULT_CENTER[1], 5000);
+            setServices(foundServices);
+            setLoading(false);
           }
+        );
+      } else {
+        // No geolocation support
+        const foundServices = await fetchSupportServices(DEFAULT_CENTER[0], DEFAULT_CENTER[1], 5000);
+        setServices(foundServices);
+        setLoading(false);
+      }
+    };
 
-          // Sort by distance and take top 20 closest
-          foundServices.sort((a, b) => {
-            const distA = getDistance(latitude, longitude, a.position[0], a.position[1]);
-            const distB = getDistance(latitude, longitude, b.position[0], b.position[1]);
-            return distA - distB;
-          });
-
-          setServices(foundServices.slice(0, 20));
-          setLoading(false);
-        },
-        async (error) => {
-          console.error("GPS Denied");
-          const foundServices = await fetchSupportServices(DEFAULT_CENTER[0], DEFAULT_CENTER[1], 5000);
-          setServices(foundServices);
-          setLoading(false);
-        }
-      );
-    } else {
-      // No geolocation support
-      const foundServices = await fetchSupportServices(DEFAULT_CENTER[0], DEFAULT_CENTER[1], 5000);
-      setServices(foundServices);
-      setLoading(false);
-    }
+    loadServices();
   }, []);
 
   return (

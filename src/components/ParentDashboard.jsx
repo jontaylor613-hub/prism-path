@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon
+  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
@@ -10,6 +10,8 @@ import { getTheme } from '../utils';
 import AccommodationGem from './AccommodationGem';
 import CommandBar from './CommandBar';
 import AdvocacyDashboard from './AdvocacyDashboard';
+import TaskSlicer from './TaskSlicer';
+import CommunityServices from './CommunityServices';
 
 // Sample demo children for demo mode
 const getIepDueDate = () => {
@@ -156,7 +158,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
   const [loading, setLoading] = useState(true);
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy'
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy', 'taskslicer', 'community'
   const [demoMode, setDemoMode] = useState(initialDemoMode); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
@@ -458,6 +460,43 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
             </Card>
           </div>
 
+          {/* Additional Tools */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <Card className="p-6 flex flex-col" theme={theme}>
+              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                <Zap className="text-amber-400" size={24} />
+                Task Slicer
+              </h2>
+              <p className={`${theme.textMuted} mb-4 flex-1`}>
+                Break down chores or homework into manageable steps. Help your child tackle tasks one step at a time.
+              </p>
+              <Button
+                onClick={() => setActiveView('taskslicer')}
+                className="w-full mt-auto"
+                theme={theme}
+              >
+                Open Task Slicer
+              </Button>
+            </Card>
+
+            <Card className="p-6 flex flex-col" theme={theme}>
+              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                <MapPin className="text-emerald-400" size={24} />
+                Community Services
+              </h2>
+              <p className={`${theme.textMuted} mb-4 flex-1`}>
+                Find local resources, advocacy groups, and support networks near you.
+              </p>
+              <Button
+                onClick={() => setActiveView('community')}
+                className="w-full mt-auto"
+                theme={theme}
+              >
+                Find Local Services
+              </Button>
+            </Card>
+          </div>
+
           {/* Child Information Card */}
           <Card className="p-6 mb-6" theme={theme}>
             <h2 className={`text-xl font-bold ${theme.text} mb-4`}>Child Information</h2>
@@ -509,6 +548,36 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
     );
   }
 
+  // Task Slicer View
+  if (activeView === 'taskslicer') {
+    return (
+      <div className={`min-h-screen ${theme.bg} ${theme.text} p-6`}>
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <Button
+              onClick={() => setActiveView('student')}
+              variant="ghost"
+              icon={ArrowRight}
+              theme={theme}
+            >
+              Back to {selectedStudent?.name || 'Student'}
+            </Button>
+          </div>
+          <TaskSlicer isDark={isDark} />
+        </div>
+      </div>
+    );
+  }
+
+  // Community Services View
+  if (activeView === 'community') {
+    return (
+      <CommunityServices
+        isDark={isDark}
+        onBack={() => setActiveView('student')}
+      />
+    );
+  }
 
   // Main Dashboard View
   return (

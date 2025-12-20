@@ -5,7 +5,7 @@ import {
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Info, 
   MapPin, FileText, ChevronDown, Activity, GraduationCap,
-  SmilePlus, Sun, Moon, Loader2, Target
+  SmilePlus, Sun, Moon, Loader2, Target, Briefcase
 } from 'lucide-react';
 
 // EasterEgg removed for performance optimization
@@ -23,6 +23,7 @@ const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
+const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -204,6 +205,10 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                     <Link to="/map" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
                         <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-500"><MapPin size={16}/></div> Social Map
                     </Link>
+                    
+                    <Link to="/transition-planning" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
+                        <div className="p-1.5 rounded bg-blue-500/10 text-blue-500"><Briefcase size={16}/></div> Future Ready
+                    </Link>
                 </div>
               )}
             </div>
@@ -251,6 +256,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
              <Link to="/resume" className="block w-full text-left py-2 font-bold text-cyan-500">Resume Builder</Link>
              <Link to="/map" className="block w-full text-left py-2 font-bold text-emerald-500">Social Map</Link>
+             <Link to="/transition-planning" className="block w-full text-left py-2 font-bold text-blue-500">Future Ready</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <div className="text-xs uppercase font-bold text-slate-500 mb-2">Demos</div>
              <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
@@ -276,7 +282,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             </span>
             <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
           </Link>
-          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accessible Learning Companion™ <Zap size={18}/></Link>
+          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accessible Learning Companion™</Link>
           <a href="#accommodations" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</a>
         </div>
         {devModeActive && (
@@ -655,6 +661,14 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <Mission isDark={isDark} onBack={handleExit} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/transition-planning" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <TransitionPlanning isDark={isDark} onBack={handleExit} />
             </div>
           </Suspense>
         } />

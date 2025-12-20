@@ -23,7 +23,6 @@ const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
-import EjectButton from './components/EjectButton';
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -233,7 +232,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
               </span>
               <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
             </Link>
-            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accommodation Gem™</Link>
+            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">ALC</Link>
           </div>
 
           <button className={`md:hidden ${theme.text}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -277,7 +276,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             </span>
             <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
           </Link>
-          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accommodation Gem™ <Zap size={18}/></Link>
+          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">Accessible Learning Companion™ <Zap size={18}/></Link>
           <a href="#accommodations" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</a>
         </div>
         {devModeActive && (
@@ -367,7 +366,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
       <footer className={`relative z-10 ${isDark ? 'bg-slate-950 border-t border-slate-900' : 'bg-white border-t border-slate-100'} pt-20 pb-10`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500">
           <p>&copy; {new Date().getFullYear()} PrismPath™ Accommodations. All rights reserved.</p>
-          <p className="mt-2 text-xs">PrismPath™, Accommodation Gem™, Neuro Driver™, Bridge Builder™, and Accessible Learning Companion™ are trademarks of PrismPath Accommodations.</p>
+          <p className="mt-2 text-xs">PrismPath™, Accessible Learning Companion™, Neuro Driver™, and Bridge Builder™ are trademarks of PrismPath Accommodations.</p>
         </div>
       </footer>
     </>
@@ -468,7 +467,7 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
           <Sparkles className="text-cyan-400 mx-auto mb-4" size={48} />
           <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>Free Trial Limit Reached</h2>
           <p className={`${theme.textMuted} mb-6`}>
-            You've used your one free GEM session. Create an account for unlimited access to the Accommodation Gem™ and all educator tools.
+            You've used your one free GEM session. Create an account for unlimited access to the Accessible Learning Companion™ and all educator tools.
           </p>
           <Link to="/educator" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all inline-block mb-4">
             Create Free Account
@@ -572,7 +571,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-10 pt-10">
               <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
-              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -581,7 +579,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-10 pt-20 h-screen">
               <SocialMap onBack={handleExit} isLowStim={!isDark} />
-              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -590,7 +587,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] h-screen">
               <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
-              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -599,7 +595,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <NeuroDriver onBack={handleExit} isDark={isDark} />
-              <EjectButton />
             </div>
           </Suspense>
         } />
@@ -616,7 +611,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <VisualSchedule onBack={handleExit} isDark={isDark} />
-              <EjectButton />
             </div>
           </Suspense>
         } />

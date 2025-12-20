@@ -68,3 +68,6 @@ git show HEAD:src/TeacherDashboard.jsx | Select-String -Pattern "backdrop-blur|g
 All Tesla-style UI elements are committed and pushed to GitHub!
 
 
+
+
+

@@ -199,18 +199,6 @@ const NeuroDriver = ({ onBack, isDark }) => {
     }
   }, []);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!showLoadDropdown) return;
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('.load-routine-dropdown')) {
-        setShowLoadDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showLoadDropdown]);
-
   // Save routine as template
   const handleSaveTemplate = () => {
     if (!task.trim() || steps.length === 0) {
@@ -579,19 +567,18 @@ const NeuroDriver = ({ onBack, isDark }) => {
         )}
 
         {/* --- TASK SLICER --- */}
-        <div className="mb-6">
-            {/* Control Buttons Row */}
-            <div className="flex gap-2 mb-3">
+        <div className="relative mb-6">
+            <div className="flex gap-2 mb-2">
                 {/* Load Routine Dropdown */}
                 {savedTemplates.length > 0 && (
-                    <div className="relative load-routine-dropdown">
+                    <div className="relative">
                         <button
                             onClick={() => setShowLoadDropdown(!showLoadDropdown)}
-                            className={`px-4 py-2.5 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold text-sm ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2 whitespace-nowrap`}
+                            className={`px-4 py-2 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2`}
                         >
-                            <Download size={16} />
+                            <Download size={18} />
                             Load Routine
-                            <ChevronDown size={14} className={`transition-transform ${showLoadDropdown ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={16} className={`transition-transform ${showLoadDropdown ? 'rotate-180' : ''}`} />
                         </button>
                         
                         {showLoadDropdown && (
@@ -603,7 +590,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
                                         className={`p-3 hover:bg-slate-500/10 cursor-pointer border-b ${theme.cardBorder} last:border-b-0 flex items-center justify-between group`}
                                     >
                                         <div className="flex-1">
-                                            <div className={`font-bold text-sm ${theme.text}`}>{template.name}</div>
+                                            <div className={`font-bold ${theme.text}`}>{template.name}</div>
                                             <div className={`text-xs ${theme.textMuted} mt-1`}>{template.task}</div>
                                         </div>
                                         <button
@@ -623,33 +610,30 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 {steps.length > 0 && (
                     <button
                         onClick={handleSaveTemplate}
-                        className={`px-4 py-2.5 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold text-sm ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2 whitespace-nowrap`}
+                        className={`px-4 py-2 ${theme.inputBg} border ${theme.inputBorder} rounded-xl font-bold ${theme.text} hover:border-cyan-400 transition-all flex items-center gap-2`}
                     >
-                        <Save size={16} />
+                        <Save size={18} />
                         Save as Template
                     </button>
                 )}
             </div>
             
-            {/* Input with Slice Button */}
-            <div className="relative">
-                <input 
-                    type="text" 
-                    value={task}
-                    onChange={(e) => setTask(e.target.value)}
-                    placeholder="What task do you need help breaking down?"
-                    className={`w-full p-5 pr-28 rounded-2xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none shadow-xl text-lg transition-colors placeholder:text-slate-400`}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
-                />
-                <button 
-                    onClick={handleSlice}
-                    disabled={isProcessing || !task.trim()}
-                    className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
-                >
-                    {isProcessing ? <Clock className="animate-spin" size={16}/> : <Zap fill="white" size={16} />}
-                    Slice
-                </button>
-            </div>
+            <input 
+                type="text" 
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                placeholder="What task do you need help breaking down?"
+                className={`w-full p-5 pr-36 rounded-2xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none shadow-xl text-lg transition-colors placeholder:text-slate-400`}
+                onKeyDown={(e) => e.key === 'Enter' && handleSlice()}
+            />
+            <button 
+                onClick={handleSlice}
+                disabled={isProcessing || !task.trim()}
+                className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 rounded-xl font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+                {isProcessing ? <Clock className="animate-spin"/> : <Zap fill="white" />}
+                Slice
+            </button>
         </div>
 
         {/* Save Template Modal */}
@@ -730,6 +714,14 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 <button onClick={() => {setSteps([]); setTask('');}} className={`mt-6 w-full py-3 ${theme.inputBg} border ${theme.inputBorder} ${theme.textMuted} hover:text-red-400 hover:border-red-400 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors`}>
                     <Trash2 size={16} /> Clear List
                 </button>
+            )}
+            
+            {/* Click outside to close dropdown */}
+            {showLoadDropdown && (
+                <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowLoadDropdown(false)}
+                />
             )}
         </div>
 

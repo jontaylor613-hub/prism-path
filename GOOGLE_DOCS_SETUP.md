@@ -69,7 +69,7 @@ VITE_GOOGLE_CLIENT_ID=your-client-id-here.apps.googleusercontent.com
 ## Step 5: Test the Integration
 
 1. Start your development server: `npm run dev`
-2. Navigate to the Accommodation Gem
+2. Navigate to the Accessible Learning Companion
 3. Generate some differentiated work
 4. Click **Google Docs** export button
 5. You should be prompted to sign in with Google
@@ -128,6 +128,9 @@ If you encounter issues, check:
 2. Network tab for API request/response details
 3. Google Cloud Console for API quotas and limits
 4. OAuth consent screen configuration
+
+
+
 
 
 

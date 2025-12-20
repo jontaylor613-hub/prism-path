@@ -1,4 +1,4 @@
-// Built-in Accommodation Gem - Professional AI Assistant
+// Built-in Accessible Learning Companion - Professional AI Assistant
 // Replaces external Gemini Gem link with integrated functionality
 import React, { useState, useRef, useEffect } from 'react';
 import { 

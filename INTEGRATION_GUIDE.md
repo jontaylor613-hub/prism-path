@@ -274,3 +274,6 @@ useEffect(() => {
 5. **Auto-Lock**: Wait 15 minutes without activity, verify lock screen appears
 
 
+
+
+

@@ -405,8 +405,8 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
 
 
           {/* Main Feature: IEP Upload and Explanation */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-stretch">
-            <Card className="p-6 flex flex-col h-full" theme={theme}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <FileText className="text-cyan-400" size={24} />
                 Upload IEP Document
@@ -423,7 +423,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
               </Button>
             </Card>
 
-            <Card className="p-6 flex flex-col h-full" theme={theme}>
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Sparkles className="text-cyan-400" size={24} />
                 Differentiate Work
@@ -436,11 +436,11 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 className="w-full mt-auto"
                 theme={theme}
               >
-                Open Accommodation Gem™
+                Open Accessible Learning Companion™
               </Button>
             </Card>
 
-            <Card className="p-6 flex flex-col h-full" theme={theme}>
+            <Card className="p-6 flex flex-col" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Shield className="text-fuchsia-400" size={24} />
                 Advocacy Center

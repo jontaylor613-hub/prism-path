@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin, GraduationCap
+  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin, GraduationCap, Info
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
+import { formatAccessCode } from '../utils/accessCodeGenerator';
 import AccommodationGem from './AccommodationGem';
 import CommandBar from './CommandBar';
 import AdvocacyDashboard from './AdvocacyDashboard';
@@ -236,24 +237,27 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
   }, [user, demoMode]);
 
   const handleAddChild = async () => {
-    if (!newChild.name) {
-      alert('Please enter a child name');
+    if (!newChild.name || !newChild.name.trim()) {
+      alert('Please enter a student name');
       return;
     }
     
     // Handle demo mode - store locally
     if (demoMode || user?.isDemo) {
+      // Generate a demo access code
+      const demoCode = `DEM${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
       const newChildData = {
         id: `demo-${Date.now()}`,
-        name: newChild.name,
-        grade: newChild.grade,
-        need: newChild.need,
-        primaryNeed: newChild.need,
-        nextIep: newChild.nextIep,
-        nextEval: newChild.nextEval,
-        next504: newChild.next504,
+        name: newChild.name.trim(),
+        grade: newChild.grade || '',
+        need: newChild.need || '',
+        primaryNeed: newChild.need || '',
+        nextIep: newChild.nextIep || '',
+        nextEval: newChild.nextEval || '',
+        next504: newChild.next504 || '',
         behaviorPlan: false,
         summary: 'No summary available. Click "Open in Gem" to start working with this student.',
+        accessCode: demoCode,
         isDemo: true
       };
       
@@ -271,23 +275,24 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
     }
     
     if (!user?.uid) {
-      alert('Please sign in to add a child');
+      alert('Please sign in to add a student');
       return;
     }
     
     try {
+      // Create student profile - just name is required, access code is auto-generated
       const childData = {
-        name: newChild.name,
-        grade: newChild.grade,
-        need: newChild.need,
-        nextIep: newChild.nextIep,
-        nextEval: newChild.nextEval,
-        next504: newChild.next504
+        name: newChild.name.trim(),
+        grade: newChild.grade || '',
+        need: newChild.need || '',
+        nextIep: newChild.nextIep || '',
+        nextEval: newChild.nextEval || '',
+        next504: newChild.next504 || ''
       };
       
       const createdChild = await createStudent(childData, user.uid, 'parent');
       
-      // Reload students
+      // Reload students to get the access code
       const studentList = await getStudentsForUser(user.uid, 'parent');
       setStudents(studentList);
       
@@ -300,7 +305,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
         setActiveView('student');
       }
     } catch (error) {
-      alert(`Error adding child: ${error.message}`);
+      alert(`Error adding student: ${error.message}`);
     }
   };
 
@@ -672,85 +677,110 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
         </div>
 
 
-        {/* Students Grid */}
-        {loading ? (
-          <div className={`text-center py-12 ${theme.textMuted}`}>
-            <Loader2 className="animate-spin mx-auto mb-4" size={32} />
-            <p>Loading children...</p>
-          </div>
-        ) : students.length === 0 ? (
-          <Card className="p-12 text-center" theme={theme}>
-            <Users size={64} className="mx-auto mb-6 opacity-50 text-cyan-400" />
-            <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>No children added yet</h2>
-            <p className={`${theme.textMuted} mb-6`}>
-              {demoMode 
-                ? 'Click "Add Your First Child" to create a demo child, or explore the sample children.'
-                : 'Add your first child to get started with personalized learning support.'}
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
-                Add Your First Child
-              </Button>
-              {demoMode && (
-                <Button onClick={() => setDemoMode(false)} variant="secondary" theme={theme}>
-                  Exit Demo Mode
-                </Button>
-              )}
+        {/* Student Profiles Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className={`text-2xl font-bold ${theme.text} mb-2`}>Student Profiles</h2>
+              <p className={theme.textMuted}>Manage student access codes and profiles</p>
             </div>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {students.map((student) => (
-              <Card
-                key={student.id}
-                className="p-6 cursor-pointer hover:scale-105 transition-transform"
-                onClick={() => handleStudentClick(student)}
-                theme={theme}
-              >
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl ${theme.inputBg} border ${theme.cardBorder}`}>
-                    {student.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className={`text-xl font-bold ${theme.text}`}>{student.name}</h3>
-                    <p className={theme.textMuted}>{student.grade || 'No grade'}</p>
-                  </div>
-                </div>
-                {student.primaryNeed || student.need ? (
-                  <p className={`text-sm ${theme.textMuted} mb-4`}>
-                    {student.primaryNeed || student.need}
-                  </p>
-                ) : null}
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStudentClick(student);
-                  }}
-                  className="w-full"
-                  theme={theme}
-                >
-                  View Profile <ArrowRight size={16} className="ml-2" />
-                </Button>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Add Child Button */}
-        {students.length > 0 && (
-          <div className="mt-8 flex justify-center">
             <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
-              Add Child
+              Add Student
             </Button>
           </div>
-        )}
 
-        {/* Add Child Modal */}
+          {/* Students Grid */}
+          {loading ? (
+            <div className={`text-center py-12 ${theme.textMuted}`}>
+              <Loader2 className="animate-spin mx-auto mb-4" size={32} />
+              <p>Loading children...</p>
+            </div>
+          ) : students.length === 0 ? (
+            <Card className="p-12 text-center" theme={theme}>
+              <Users size={64} className="mx-auto mb-6 opacity-50 text-cyan-400" />
+              <h2 className={`text-2xl font-bold ${theme.text} mb-4`}>No children added yet</h2>
+              <p className={`${theme.textMuted} mb-6`}>
+                {demoMode 
+                  ? 'Click "Add Student" to create a demo child, or explore the sample children.'
+                  : 'Add your first child to get started with personalized learning support.'}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => setIsAddingChild(true)} icon={Plus} theme={theme}>
+                  Add Your First Child
+                </Button>
+                {demoMode && (
+                  <Button onClick={() => setDemoMode(false)} variant="secondary" theme={theme}>
+                    Exit Demo Mode
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {students.map((student) => (
+                <Card
+                  key={student.id}
+                  className="p-6 cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => handleStudentClick(student)}
+                  theme={theme}
+                >
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl ${theme.inputBg} border ${theme.cardBorder}`}>
+                      {student.name.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`text-xl font-bold ${theme.text}`}>{student.name}</h3>
+                      <p className={theme.textMuted}>{student.grade || 'No grade'}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Access Code Display */}
+                  {student.accessCode && (
+                    <div className="mb-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs font-bold uppercase tracking-wider ${theme.textMuted}`}>
+                          Access Code:
+                        </span>
+                        <div className="relative group">
+                          <Info size={14} className={`${theme.textMuted} cursor-help`} />
+                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg border border-slate-700">
+                            Give this code to your student to let them save their work.
+                          </div>
+                        </div>
+                      </div>
+                      <p className={`text-lg font-bold font-mono ${theme.text}`}>
+                        {formatAccessCode(student.accessCode)}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {student.primaryNeed || student.need ? (
+                    <p className={`text-sm ${theme.textMuted} mb-4`}>
+                      {student.primaryNeed || student.need}
+                    </p>
+                  ) : null}
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStudentClick(student);
+                    }}
+                    className="w-full"
+                    theme={theme}
+                  >
+                    View Profile <ArrowRight size={16} className="ml-2" />
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Add Student Modal - Simplified for Student Profile Creation */}
         {isAddingChild && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}>
               <div className="flex justify-between items-center mb-6">
-                <h2 className={`text-2xl font-bold ${theme.text}`}>Add Child</h2>
+                <h2 className={`text-2xl font-bold ${theme.text}`}>Add Student Profile</h2>
                 <button
                   onClick={() => setIsAddingChild(false)}
                   className={`${theme.textMuted} hover:${theme.text}`}
@@ -759,61 +789,31 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 </button>
               </div>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-bold ${theme.textMuted} mb-2 uppercase tracking-wider`}>
+                    Student Name
+                  </label>
                   <input
-                    placeholder="Child Name"
-                    className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
+                    placeholder="Enter student name"
+                    className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
                     value={newChild.name}
                     onChange={e => setNewChild({...newChild, name: e.target.value})}
+                    autoFocus
                   />
-                  <input
-                    placeholder="Grade"
-                    className={`${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
-                    value={newChild.grade}
-                    onChange={e => setNewChild({...newChild, grade: e.target.value})}
-                  />
-                </div>
-                <input
-                  placeholder="Primary Need (optional)"
-                  className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
-                  value={newChild.need}
-                  onChange={e => setNewChild({...newChild, need: e.target.value})}
-                />
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>IEP Due Date</label>
-                    <input
-                      type="date"
-                      className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
-                      value={newChild.nextIep}
-                      onChange={e => setNewChild({...newChild, nextIep: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>504 Due Date</label>
-                    <input
-                      type="date"
-                      className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
-                      value={newChild.next504}
-                      onChange={e => setNewChild({...newChild, next504: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className={`text-[10px] uppercase font-bold ${theme.textMuted} mb-1 block`}>Eval Date</label>
-                    <input
-                      type="date"
-                      className={`w-full ${theme.inputBg} p-3 rounded-lg border ${theme.inputBorder} ${theme.text} outline-none focus:border-cyan-500`}
-                      value={newChild.nextEval}
-                      onChange={e => setNewChild({...newChild, nextEval: e.target.value})}
-                    />
-                  </div>
+                  <p className={`text-xs ${theme.textMuted} mt-2`}>
+                    A unique access code will be automatically generated for this student.
+                  </p>
                 </div>
                 <div className="pt-4 flex justify-end gap-2">
                   <Button variant="ghost" onClick={() => setIsAddingChild(false)} theme={theme}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddChild} theme={theme}>
-                    Save
+                  <Button 
+                    onClick={handleAddChild} 
+                    theme={theme}
+                    disabled={!newChild.name.trim()}
+                  >
+                    Create Profile
                   </Button>
                 </div>
               </div>

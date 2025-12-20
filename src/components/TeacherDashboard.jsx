@@ -7,11 +7,12 @@ import {
   MessageSquare, Edit2, FileDown, Menu, X, MapPin, Activity, 
   Eye, EyeOff, AlertTriangle, Mail, UploadCloud, BarChart3, ShieldAlert,
   Star, Smile, Settings, Users, ToggleLeft, ToggleRight, FileCheck, Minus, Lock, Printer,
-  Sun, Moon, Loader2, Thermometer
+  Sun, Moon, Loader2, Thermometer, Info
 } from 'lucide-react';
 
 // --- IMPORTS ---
 import { ComplianceService, GeminiService, getTheme } from '../utils';
+import { formatAccessCode } from '../utils/accessCodeGenerator';
 import { signUp, signIn, onAuthChange, logout, ROLES, getCurrentUserProfile } from '../auth';
 import AccommodationGem from './AccommodationGem';
 import { 
@@ -737,7 +738,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
 
   // Handlers
   const handleAddStudent = async () => {
-      if(!newStudent.name) {
+      if(!newStudent.name || !newStudent.name.trim()) {
         alert('Please enter a student name');
         return;
       }
@@ -752,11 +753,15 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
           return;
         }
         
+        // Generate a demo access code
+        const demoCode = `DEM${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
         const student = { 
-          ...newStudent, 
+          ...newStudent,
+          name: newStudent.name.trim(),
           id: Date.now(), 
           summary: "New student profile created locally. This data is not saved.",
           behaviorPlan: false,
+          accessCode: demoCode,
           isDemo: true // Mark as demo student
         };
         setStudents([...students, student]);
@@ -768,17 +773,18 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       }
       
       try {
+        // Create student profile - name is required, access code is auto-generated
         const studentData = {
-          name: newStudent.name,
-          grade: newStudent.grade,
-          need: newStudent.need,
-          nextIep: newStudent.nextIep,
-          nextEval: newStudent.nextEval,
-          next504: newStudent.next504
+          name: newStudent.name.trim(),
+          grade: newStudent.grade || '',
+          need: newStudent.need || '',
+          nextIep: newStudent.nextIep || '',
+          nextEval: newStudent.nextEval || '',
+          next504: newStudent.next504 || ''
         };
         
         const createdStudent = await createStudent(studentData, user.uid, user.role);
-        // Reload students from Firebase to get the updated list
+        // Reload students from Firebase to get the access code
         const firebaseStudents = await getStudentsForUser(user.uid, user.role);
         const allStudents = showSamples 
           ? [...SAMPLE_STUDENTS, ...firebaseStudents]
@@ -2365,6 +2371,7 @@ Format the summary clearly with sections. Only include information that is actua
                         <th className="p-4">Student</th>
                         <th className="p-4">Grade</th>
                         <th className="p-4">Primary Need</th>
+                        <th className="p-4">Access Code</th>
                         <th className="p-4">IEP Due Date</th>
                         <th className="p-4">Evaluation Due</th>
                         <th className="p-4">Actions</th>
@@ -2387,6 +2394,23 @@ Format the summary clearly with sections. Only include information that is actua
                             </td>
                             <td className={`p-4 ${theme.textMuted}`}>{student.grade || 'N/A'}</td>
                             <td className={`p-4 ${theme.textMuted}`}>{student.need || student.primaryNeed || 'N/A'}</td>
+                            <td className="p-4">
+                              {student.accessCode ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-mono font-bold ${theme.text}`}>
+                                    {formatAccessCode(student.accessCode)}
+                                  </span>
+                                  <div className="relative group">
+                                    <Info size={14} className={`${theme.textMuted} cursor-help`} />
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg border border-slate-700">
+                                      Give this code to your student to let them save their work.
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className={`${theme.textMuted} text-sm`}>N/A</span>
+                              )}
+                            </td>
                             <td className="p-4">
                               {student.nextIep || student.nextIepDate ? (
                                 <div className="flex flex-col gap-1 min-w-[120px]">
@@ -2551,7 +2575,7 @@ Format the summary clearly with sections. Only include information that is actua
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <Card className="w-full max-w-lg p-8 border-slate-600 shadow-2xl" theme={theme}>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className={`text-2xl font-bold ${theme.text}`}>Add to Caseload</h2>
+                  <h2 className={`text-2xl font-bold ${theme.text}`}>Add Student Profile</h2>
                   <button onClick={() => setIsAddingStudent(false)} className={`${theme.textMuted} hover:${theme.text}`}>
                     <X />
                   </button>
@@ -2630,7 +2654,13 @@ Format the summary clearly with sections. Only include information that is actua
                   </div>
                   <div className="pt-4 flex justify-end gap-2">
                     <Button variant="ghost" onClick={() => setIsAddingStudent(false)} theme={theme}>Cancel</Button>
-                    <Button onClick={handleAddStudent} theme={theme}>Save</Button>
+                    <Button 
+                      onClick={handleAddStudent} 
+                      theme={theme}
+                      disabled={!newStudent.name.trim()}
+                    >
+                      Create Profile
+                    </Button>
                   </div>
                 </div>
               </Card>

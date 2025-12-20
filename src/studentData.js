@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { logAuditEvent } from './auditLog';
+import { generateAccessCode } from './utils/accessCodeGenerator';
 
 // Student data structure (FERPA-compliant)
 export const createStudent = async (studentData, userId, userRole) => {
@@ -24,11 +25,37 @@ export const createStudent = async (studentData, userId, userRole) => {
       throw new Error('Unauthorized: Only SPED teachers, admins, and parents can create student records');
     }
 
+    // Generate unique access code (check for uniqueness)
+    let accessCode = generateAccessCode();
+    let codeExists = true;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    // Ensure code is unique (check against existing codes)
+    while (codeExists && attempts < maxAttempts) {
+      const codeCheckQuery = query(
+        collection(db, 'students'),
+        where('accessCode', '==', accessCode)
+      );
+      const codeCheckSnapshot = await getDocs(codeCheckQuery);
+      codeExists = !codeCheckSnapshot.empty;
+      
+      if (codeExists) {
+        accessCode = generateAccessCode();
+        attempts++;
+      }
+    }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Failed to generate unique access code. Please try again.');
+    }
+    
     const studentRef = doc(collection(db, 'students'));
     const student = {
       // Basic info (non-PII can be stored)
       name: studentData.name,
       grade: studentData.grade,
+      gradeLevel: studentData.grade || studentData.gradeLevel, // Support both field names
       primaryNeed: studentData.need,
       
       // Dates
@@ -39,6 +66,10 @@ export const createStudent = async (studentData, userId, userRole) => {
       // Plan types
       hasIep: !!studentData.nextIep,
       has504: !!studentData.next504,
+      
+      // Student Access Code System
+      accessCode: accessCode, // Unique 6-character code for student access
+      transitionData: studentData.transitionData || null, // JSON object for transition survey results
       
       // Access control
       createdBy: userId,
@@ -622,6 +653,67 @@ export const getGoalProgress = async (studentId, goalId) => {
     }));
   } catch (error) {
     console.error('Error fetching progress:', error);
+    throw error;
+  }
+};
+
+// Get student by access code (for student access without email)
+export const getStudentByAccessCode = async (accessCode) => {
+  try {
+    if (!accessCode || typeof accessCode !== 'string' || accessCode.length !== 6) {
+      return null;
+    }
+    
+    const studentsRef = collection(db, 'students');
+    const q = query(
+      studentsRef, 
+      where('accessCode', '==', accessCode.toUpperCase()),
+      where('isActive', '==', true)
+    );
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const studentDoc = snapshot.docs[0];
+    const studentData = { id: studentDoc.id, ...studentDoc.data() };
+    
+    // Return minimal data needed for student identification
+    return {
+      id: studentData.id,
+      name: studentData.name,
+      gradeLevel: studentData.gradeLevel || studentData.grade,
+      accessCode: studentData.accessCode,
+      transitionData: studentData.transitionData || null
+    };
+  } catch (error) {
+    console.error('Error fetching student by access code:', error);
+    throw error;
+  }
+};
+
+// Update student transition data (survey results)
+export const updateStudentTransitionData = async (studentId, transitionData, userId) => {
+  try {
+    const studentRef = doc(db, 'students', studentId);
+    await updateDoc(studentRef, {
+      transitionData: transitionData,
+      transitionDataUpdatedAt: serverTimestamp(),
+      transitionDataUpdatedBy: userId || 'student', // If no userId, it's the student themselves
+      updatedAt: serverTimestamp()
+    });
+
+    await logAuditEvent({
+      userId: userId || 'student',
+      action: 'UPDATE_TRANSITION_DATA',
+      resourceType: 'student',
+      resourceId: studentId
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating transition data:', error);
     throw error;
   }
 };

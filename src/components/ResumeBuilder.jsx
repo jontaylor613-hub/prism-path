@@ -49,24 +49,50 @@ export default function ResumeBuilder({ onBack, isLowStim }) {
     name: '', title: '', contact: '', relation: ''
   });
 
-  // Handle skills from ArchiveOfPotentials (from navigation state)
+  // Handle pre-filled data from Transition Planning (from navigation state)
   useEffect(() => {
-    if (location.state?.skills && Array.isArray(location.state.skills)) {
+    if (location.state) {
       setData(prev => {
-        const newSkills = location.state.skills.filter(skill => 
-          skill && !prev.skills.includes(skill)
-        );
-        if (newSkills.length > 0) {
-          // Navigate to skills step (step 5, which is the skills step)
-          setStep(5);
-          // Clear location state
-          window.history.replaceState({}, document.title);
-          return {
-            ...prev,
-            skills: [...prev.skills, ...newSkills]
-          };
+        let updated = { ...prev };
+        let shouldNavigateToStep = null;
+        
+        // Handle job title (pre-fill title field and go to step 0)
+        if (location.state.jobTitle) {
+          updated.title = location.state.jobTitle;
+          shouldNavigateToStep = 0; // Start at basics step
         }
-        return prev;
+        
+        // Handle summary/objective (pre-fill summary field)
+        if (location.state.summary) {
+          updated.summary = location.state.summary;
+          if (shouldNavigateToStep === null) {
+            shouldNavigateToStep = 1; // Navigate to summary step if title wasn't provided
+          }
+        }
+        
+        // Handle skills (add to skills array)
+        if (location.state.skills && Array.isArray(location.state.skills)) {
+          const newSkills = location.state.skills.filter(skill => 
+            skill && !prev.skills.includes(skill)
+          );
+          if (newSkills.length > 0) {
+            updated.skills = [...prev.skills, ...newSkills];
+            // If we haven't set a step yet, navigate to skills step
+            if (shouldNavigateToStep === null) {
+              shouldNavigateToStep = 5; // Skills step
+            }
+          }
+        }
+        
+        // Navigate to appropriate step based on what data was provided
+        if (shouldNavigateToStep !== null) {
+          setStep(shouldNavigateToStep);
+        }
+        
+        // Clear location state after processing
+        window.history.replaceState({}, document.title);
+        
+        return updated;
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

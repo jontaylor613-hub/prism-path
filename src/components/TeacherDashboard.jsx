@@ -917,11 +917,11 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
         ...activeStudent,
         profileText: studentProfile
       });
-      setActiveTab('accommodations');
+      setActiveTab('alc');
     } catch (error) {
       console.error('Error preparing student for gem:', error);
       setSelectedStudentForGem(activeStudent);
-      setActiveTab('accommodations');
+      setActiveTab('alc');
     }
   };
 
@@ -1435,14 +1435,14 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'Accommodations', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
-              const isGem = tab === 'Accommodations';
+            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'ALC', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
+              const isALC = tab === 'ALC';
               const isWellness = tab === 'Wellness';
               return (
                 <button 
                   key={tab} 
                   onClick={() => {
-                    if (tab === 'Accommodations' && activeStudent) {
+                    if (tab === 'ALC' && activeStudent) {
                       handleOpenGemWithStudent();
                     } else {
                       setActiveTab(tab.toLowerCase());
@@ -1450,15 +1450,13 @@ Format the summary clearly with sections. Only include information that is actua
                   }} 
                   className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
                     activeTab === tab.toLowerCase() 
-                      ? isGem 
+                      ? isALC 
                         ? 'bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-purple-500 text-white shadow-lg shadow-cyan-500/50' 
                         : 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg'
-                      : isGem
-                        ? `${theme.textMuted} hover:text-cyan-400 border border-cyan-500/30 hover:border-cyan-500/50`
-                        : `${theme.textMuted} hover:${theme.text}`
-                  } ${isGem ? 'ring-2 ring-cyan-500/20' : ''}`}
+                      : `${theme.textMuted} hover:${theme.text}`
+                  }`}
                 >
-                  {isGem && <Sparkles size={12} className="inline mr-1" />}
+                  {isALC && <Sparkles size={12} className="inline mr-1" />}
                   {tab}
                 </button>
               );
@@ -1789,7 +1787,7 @@ Format the summary clearly with sections. Only include information that is actua
                                profileText: typeof chat.profile === 'object' ? chat.profile.profileText || JSON.stringify(chat.profile) : chat.profile,
                                name: typeof chat.profile === 'object' && chat.profile.name ? chat.profile.name : activeStudent?.name
                              });
-                             setActiveTab('accommodations');
+                             setActiveTab('alc');
                            }}
                            className={`p-3 rounded-lg border cursor-pointer transition-all ${
                              theme.cardBorder
@@ -2278,7 +2276,7 @@ Format the summary clearly with sections. Only include information that is actua
         )}
 
         {/* --- GEM TAB (NEW) --- */}
-        {activeTab === 'accommodations' && (
+        {activeTab === 'alc' && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
                 <AccommodationGem 
                   isDark={isDark} 

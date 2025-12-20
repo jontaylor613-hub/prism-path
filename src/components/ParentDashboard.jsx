@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
-  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin
+  User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin, GraduationCap
 } from 'lucide-react';
 import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
@@ -12,6 +12,7 @@ import CommandBar from './CommandBar';
 import AdvocacyDashboard from './AdvocacyDashboard';
 import TaskSlicer from './TaskSlicer';
 import CommunityServices from './CommunityServices';
+import TransitionPlanning from './TransitionPlanning';
 
 // Sample demo children for demo mode
 const getIepDueDate = () => {
@@ -158,7 +159,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
   const [loading, setLoading] = useState(true);
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy', 'taskslicer', 'community'
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy', 'taskslicer', 'community', 'transition'
   const [demoMode, setDemoMode] = useState(initialDemoMode); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
@@ -406,14 +407,14 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
           </div>
 
 
-          {/* Main Feature: IEP Upload and Explanation */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <Card className="p-6 flex flex-col" theme={theme}>
+          {/* Feature Cards - 3 columns, 2 rows for 6 features */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <FileText className="text-cyan-400" size={24} />
                 Upload IEP Document
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1`}>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
                 Upload your child's IEP or 504 plan to get a plain English explanation of what it means and how it helps your child.
               </p>
               <Button
@@ -425,12 +426,12 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
               </Button>
             </Card>
 
-            <Card className="p-6 flex flex-col" theme={theme}>
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Sparkles className="text-cyan-400" size={24} />
                 Differentiate Work
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1`}>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
                 Get help adapting curriculum and assignments for homeschool or when helping your child with schoolwork.
               </p>
               <Button
@@ -442,12 +443,12 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
               </Button>
             </Card>
 
-            <Card className="p-6 flex flex-col" theme={theme}>
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Shield className="text-fuchsia-400" size={24} />
                 Advocacy Center
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1`}>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
                 Access email assistance, rights information, and step-by-step advocacy tools.
               </p>
               <Button
@@ -458,16 +459,13 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 Open Advocacy Center
               </Button>
             </Card>
-          </div>
 
-          {/* Additional Tools */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <Card className="p-6 flex flex-col" theme={theme}>
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <Zap className="text-amber-400" size={24} />
                 Task Slicer
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1`}>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
                 Break down chores or homework into manageable steps. Help your child tackle tasks one step at a time.
               </p>
               <Button
@@ -479,12 +477,12 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
               </Button>
             </Card>
 
-            <Card className="p-6 flex flex-col" theme={theme}>
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
               <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
                 <MapPin className="text-emerald-400" size={24} />
                 Community Services
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1`}>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
                 Find local resources, advocacy groups, and support networks near you.
               </p>
               <Button
@@ -493,6 +491,23 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 theme={theme}
               >
                 Find Local Services
+              </Button>
+            </Card>
+
+            <Card className="p-6 flex flex-col h-full" theme={theme}>
+              <h2 className={`text-xl font-bold ${theme.text} mb-4 flex items-center gap-2`}>
+                <GraduationCap className="text-blue-400" size={24} />
+                Transition Planning
+              </h2>
+              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+                Plan your child's future with post-high school readiness tools, resume building, and career planning.
+              </p>
+              <Button
+                onClick={() => setActiveView('transition')}
+                className="w-full mt-auto"
+                theme={theme}
+              >
+                Open Transition Planning
               </Button>
             </Card>
           </div>
@@ -573,6 +588,16 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
   if (activeView === 'community') {
     return (
       <CommunityServices
+        isDark={isDark}
+        onBack={() => setActiveView('student')}
+      />
+    );
+  }
+
+  // Transition Planning View
+  if (activeView === 'transition') {
+    return (
+      <TransitionPlanning
         isDark={isDark}
         onBack={() => setActiveView('student')}
       />

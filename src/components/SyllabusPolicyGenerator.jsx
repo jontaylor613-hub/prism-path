@@ -6,39 +6,42 @@ const CELT_LEVELS = [
   {
     level: 0,
     title: 'Level 0: Sole Author',
-    description: 'Student generates all ideas and content independently.',
-    policy: 'AI Policy: Level 0. Generative AI may not be used for any reason in this assignment. All work must be your own original creation.'
+    description: 'Student generates all ideas and content. AI is prohibited.',
+    policy: 'AI Policy: Level 0 (Sole Author). Generative AI may not be used for any reason in this assignment. All work must be your own original creation. Use of AI tools will be considered academic misconduct.'
   },
   {
     level: 1,
     title: 'Level 1: Primary Creator',
-    description: 'AI used only for specific tasks like proofreading.',
-    policy: 'AI Policy: Level 1. You may use AI for limited tasks like grammar checking, but the final submission must represent your original work.'
+    description: 'AI used only for limited tasks like proofreading.',
+    policy: 'AI Policy: Level 1 (Primary Creator). You may use AI for specific, limited tasks like grammar checking or formatting, but the final submission must represent your original thoughts and labor.'
   },
   {
     level: 2,
     title: 'Level 2: Conceptual Architect',
-    description: 'AI used for brainstorming and outlining.',
-    policy: 'AI Policy: Level 2. You may use AI to brainstorm or outline ideas, but you must be the "Conceptual Architect" of the final content.'
+    description: 'AI used as a "Thought Partner" for brainstorming.',
+    policy: 'AI Policy: Level 2 (Conceptual Architect). You may use AI to brainstorm, elaborate, or expand on ideas, but you must be the "Conceptual Architect." You must critically evaluate and refine any AI output.'
   },
   {
     level: 3,
     title: 'Level 3: Critical Collaborator',
-    description: 'AI used for partial drafting with critical oversight.',
-    policy: 'AI Policy: Level 3. You may use AI to co-draft sections, but you must critically evaluate and refine all outputs.'
+    description: 'AI used as a "Co-Creator" for drafting sections.',
+    policy: 'AI Policy: Level 3 (Critical Collaborator). You may collaborate with AI to draft content, but you must maintain critical oversight. You are responsible for the accuracy of all AI-generated text.'
   },
   {
     level: 4,
     title: 'Level 4: Project Manager',
-    description: 'AI used as a primary engine for creation.',
-    policy: 'AI Policy: Level 4. You are encouraged to leverage AI for complex problem-solving. You must cite your usage using the official CELT disclosure format.'
+    description: 'AI used as an "Engine for Creation" for complex problems.',
+    policy: 'AI Policy: Level 4 (Project Manager). You are encouraged to leverage AI for complex problem-solving. However, you must cite your usage using the official CELT disclosure format.'
   }
 ];
+
+const CELT_DISCLOSURE_FORMAT = 'I acknowledge my use of Generative AI in the preparation of this assignment in the form of [insert GenAI tool name]. The [GenAI tool name] was used in the following ways: [List and explain all uses including steps to clarify, fact-check, and cite]. I have taken all necessary steps to ensure the accuracy of the material and data I used.';
 
 export default function SyllabusPolicyGenerator({ isDark, onBack }) {
   const theme = getTheme(isDark);
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copiedDisclosure, setCopiedDisclosure] = useState(false);
 
   const handleLevelClick = (level) => {
     setSelectedLevel(level);
@@ -66,7 +69,7 @@ export default function SyllabusPolicyGenerator({ isDark, onBack }) {
 
         {/* Header Section */}
         <div className="mb-12 text-center">
-          <h1 className={`text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-cyan-400' : 'from-cyan-600 via-fuchsia-600 to-cyan-600'}`}>
+          <h1 className={`text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-cyan-400' : 'from-cyan-600 via-fuchsia-600 to-cyan-600'} leading-tight`}>
             UK CELT Syllabus Policy Generator
           </h1>
           <p className={`text-lg ${theme.textMuted} max-w-3xl mx-auto mb-4`}>
@@ -135,7 +138,7 @@ export default function SyllabusPolicyGenerator({ isDark, onBack }) {
               </p>
             </div>
 
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end mb-6">
               <button
                 onClick={async () => {
                   try {
@@ -166,6 +169,52 @@ export default function SyllabusPolicyGenerator({ isDark, onBack }) {
                 )}
               </button>
             </div>
+
+            {/* Disclosure Format for Level 4 */}
+            {selectedLevel === 4 && (
+              <div className={`${theme.inputBg} border ${theme.inputBorder} rounded-xl p-6 mt-6`}>
+                <h3 className={`text-lg font-bold ${theme.text} mb-3`}>Official CELT Disclosure Format</h3>
+                <p className={`text-sm ${theme.textMuted} mb-4`}>
+                  Use this format when citing your AI usage:
+                </p>
+                <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} border ${theme.inputBorder} rounded-lg p-4 mb-4`}>
+                  <p className={`text-sm leading-relaxed ${theme.text} whitespace-pre-wrap font-mono`}>
+                    {CELT_DISCLOSURE_FORMAT}
+                  </p>
+                </div>
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(CELT_DISCLOSURE_FORMAT);
+                        setCopiedDisclosure(true);
+                        setTimeout(() => setCopiedDisclosure(false), 2000);
+                      } catch (err) {
+                        console.error('Failed to copy text:', err);
+                      }
+                    }}
+                    className={`
+                      inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold
+                      bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white
+                      shadow-lg hover:shadow-cyan-500/25 transition-all duration-300
+                      hover:scale-105 active:scale-95
+                    `}
+                  >
+                    {copiedDisclosure ? (
+                      <>
+                        <Check size={18} />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={18} />
+                        Copy Disclosure Format
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

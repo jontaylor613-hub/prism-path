@@ -24,6 +24,8 @@ const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
 const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
+const StudentLanding = lazy(() => import('./components/StudentLanding'));
+const StudentPortal = lazy(() => import('./components/StudentPortal'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -174,44 +176,9 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             
             <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
             
-            <div className="relative" ref={studentMenuRef}>
-              <button 
-                onClick={() => setStudentMenuOpen(!studentMenuOpen)} 
-                className={`flex items-center gap-1 text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors focus:outline-none`}
-              >
-                <SmilePlus size={16} /> For Students <ChevronDown size={14} className={`transition-transform ${studentMenuOpen ? 'rotate-180' : ''}`}/>
-              </button>
-              {studentMenuOpen && (
-                <div className={`absolute top-full left-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50`}>
-                    
-                    {/* ORDER: Neuro, Cockpit, Schedules, Resume, Map */}
-                    
-                    <Link to="/neuro" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group`}>
-                        <div className="p-1.5 rounded bg-amber-500/10 text-amber-500"><Brain size={16}/></div> Neuro Driver™
-                    </Link>
-                    
-                    <Link to="/cockpit" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500"><Activity size={16}/></div> Emotional Cockpit
-                    </Link>
-
-                    <Link to="/schedule" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-fuchsia-500/10 text-fuchsia-500"><Calendar size={16}/></div> Visual Schedules
-                    </Link>
-
-                    <Link to="/resume" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500"><FileText size={16}/></div> Resume Builder
-                    </Link>
-                    
-                    <Link to="/map" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-500"><MapPin size={16}/></div> Social Map
-                    </Link>
-                    
-                    <Link to="/transition-planning" className={`w-full text-left px-4 py-3 hover:bg-slate-500/10 flex items-center gap-3 text-sm ${theme.text} group border-t ${theme.cardBorder}`}>
-                        <div className="p-1.5 rounded bg-blue-500/10 text-blue-500"><Briefcase size={16}/></div> Future Ready
-                    </Link>
-                </div>
-              )}
-            </div>
+            <Link to="/student" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}>
+              <SmilePlus size={16} /> For Students
+            </Link>
             
             <div className="relative group">
               <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1`}>
@@ -249,14 +216,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
-             <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
-             <div className="text-xs uppercase font-bold text-slate-500 mb-2">For Students</div>
-             <Link to="/neuro" className="block w-full text-left py-2 font-bold text-amber-500">Neuro Driver™</Link>
-             <Link to="/cockpit" className="block w-full text-left py-2 font-bold text-indigo-500">Emotional Cockpit</Link>
-             <Link to="/schedule" className="block w-full text-left py-2 font-bold text-fuchsia-500">Visual Schedules</Link>
-             <Link to="/resume" className="block w-full text-left py-2 font-bold text-cyan-500">Resume Builder</Link>
-             <Link to="/map" className="block w-full text-left py-2 font-bold text-emerald-500">Social Map</Link>
-             <Link to="/transition-planning" className="block w-full text-left py-2 font-bold text-blue-500">Future Ready</Link>
+             <Link to="/student" className="block w-full text-left py-2 font-bold text-indigo-400">For Students</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <div className="text-xs uppercase font-bold text-slate-500 mb-2">Demos</div>
              <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
@@ -669,6 +629,22 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <TransitionPlanning isDark={isDark} onBack={handleExit} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/student" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <StudentLanding isDark={isDark} onBack={handleExit} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/student/portal" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />

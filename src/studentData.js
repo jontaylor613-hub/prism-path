@@ -718,4 +718,31 @@ export const updateStudentTransitionData = async (studentId, transitionData, use
   }
 };
 
+// Update student profile data (for NeuroDriver routines and other student data)
+export const updateStudentProfile = async (studentId, profileData) => {
+  try {
+    const studentRef = doc(db, 'students', studentId);
+    const updateData = {
+      ...profileData,
+      updatedAt: serverTimestamp(),
+      updatedBy: 'student' // Student self-service update
+    };
+
+    await updateDoc(studentRef, updateData);
+
+    await logAuditEvent({
+      userId: 'student',
+      action: 'UPDATE_STUDENT_PROFILE',
+      resourceType: 'student',
+      resourceId: studentId,
+      details: { fields: Object.keys(profileData) }
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating student profile:', error);
+    throw error;
+  }
+};
+
 

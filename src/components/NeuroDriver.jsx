@@ -6,6 +6,7 @@ import {
   Save, Download, ChevronDown
 } from 'lucide-react';
 import { getTheme, GeminiService } from '../utils';
+import { updateStudentProfile } from '../studentData';
 
 // --- INTERNAL AUDIO ENGINE ---
 const DriverAudio = {
@@ -189,14 +190,38 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
   useEffect(() => { return () => DriverAudio.stopAll(); }, []);
 
-  // Load saved templates from localStorage
+  // Load saved templates from localStorage or database
   useEffect(() => {
-    try {
-      const templates = JSON.parse(localStorage.getItem('neuro_routines') || '[]');
-      setSavedTemplates(templates);
-    } catch (e) {
-      console.error('Failed to load templates:', e);
-    }
+    const loadTemplates = async () => {
+      const studentId = localStorage.getItem('studentId');
+      
+      // Try to load from database if studentId exists
+      if (studentId) {
+        try {
+          // Check local cache first
+          const cachedData = localStorage.getItem(`student_${studentId}_neuroDriver`);
+          if (cachedData) {
+            const data = JSON.parse(cachedData);
+            if (data.routines && data.routines.length > 0) {
+              setSavedTemplates(data.routines);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Error loading templates from cache:', error);
+        }
+      }
+      
+      // Fallback to regular localStorage
+      try {
+        const templates = JSON.parse(localStorage.getItem('neuro_routines') || '[]');
+        setSavedTemplates(templates);
+      } catch (e) {
+        console.error('Failed to load templates:', e);
+      }
+    };
+    
+    loadTemplates();
   }, []);
 
   // Save routine as template
@@ -208,7 +233,7 @@ const NeuroDriver = ({ onBack, isDark }) => {
     setShowSaveModal(true);
   };
 
-  const confirmSaveTemplate = () => {
+  const confirmSaveTemplate = async () => {
     if (!templateName.trim()) {
       alert('Please enter a name for this routine.');
       return;
@@ -229,6 +254,32 @@ const NeuroDriver = ({ onBack, isDark }) => {
       setSavedTemplates(templates);
       setShowSaveModal(false);
       setTemplateName('');
+
+      // Save to database if studentId exists in session
+      const studentId = localStorage.getItem('studentId');
+      if (studentId) {
+        try {
+          // Get existing neuroDriverData or initialize
+          const existingData = JSON.parse(localStorage.getItem(`student_${studentId}_neuroDriver`) || '{}');
+          const updatedRoutines = existingData.routines || [];
+          updatedRoutines.push(newTemplate);
+          
+          await updateStudentProfile(studentId, {
+            neuroDriverData: {
+              routines: updatedRoutines,
+              lastSaved: new Date().toISOString()
+            }
+          });
+          
+          // Also update local cache
+          localStorage.setItem(`student_${studentId}_neuroDriver`, JSON.stringify({
+            routines: updatedRoutines
+          }));
+        } catch (dbError) {
+          console.error('Failed to save routine to database:', dbError);
+          // Don't show error to user - local save already succeeded
+        }
+      }
     } catch (e) {
       alert('Failed to save template: ' + e.message);
     }
@@ -242,13 +293,34 @@ const NeuroDriver = ({ onBack, isDark }) => {
   };
 
   // Delete template
-  const deleteTemplate = (templateId, e) => {
+  const deleteTemplate = async (templateId, e) => {
     e.stopPropagation();
     if (confirm('Delete this saved routine?')) {
       try {
         const templates = savedTemplates.filter(t => t.id !== templateId);
         localStorage.setItem('neuro_routines', JSON.stringify(templates));
         setSavedTemplates(templates);
+
+        // Update database if studentId exists
+        const studentId = localStorage.getItem('studentId');
+        if (studentId) {
+          try {
+            await updateStudentProfile(studentId, {
+              neuroDriverData: {
+                routines: templates,
+                lastSaved: new Date().toISOString()
+              }
+            });
+            
+            // Update local cache
+            localStorage.setItem(`student_${studentId}_neuroDriver`, JSON.stringify({
+              routines: templates
+            }));
+          } catch (dbError) {
+            console.error('Failed to delete routine from database:', dbError);
+            // Don't show error to user - local delete already succeeded
+          }
+        }
       } catch (e) {
         alert('Failed to delete template: ' + e.message);
       }

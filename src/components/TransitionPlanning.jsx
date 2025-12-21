@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Heart, Target, Briefcase, GraduationCap, Building2, Wand2, Sparkles, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { getTheme } from '../utils';
 import InterestSelector from './InterestSelector';
+import { updateStudentTransitionData } from '../studentData';
 
 export default function TransitionPlanning({ onBack, isDark }) {
   const theme = getTheme(isDark);
@@ -19,6 +20,73 @@ export default function TransitionPlanning({ onBack, isDark }) {
   const [selectedPathway, setSelectedPathway] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
+  const [resumeData, setResumeData] = useState('');
+  const [collegeGoals, setCollegeGoals] = useState('');
+  const [tradeGoals, setTradeGoals] = useState('');
+  const [employmentGoals, setEmploymentGoals] = useState('');
+  const [studentId, setStudentId] = useState(null);
+
+  // Load transition data from student profile
+  const loadTransitionData = async (id) => {
+    try {
+      // This would typically fetch from database, but for now we'll check localStorage cache
+      const cachedData = localStorage.getItem(`student_${id}_transition`);
+      if (cachedData) {
+        const data = JSON.parse(cachedData);
+        if (data.selectedInterests) setSelectedInterests(data.selectedInterests);
+        if (data.skillRatings) setSkillRatings(data.skillRatings);
+        if (data.selectedPathway !== undefined) setSelectedPathway(data.selectedPathway);
+        if (data.pathways) setPathways(data.pathways);
+        if (data.resumeData) setResumeData(data.resumeData);
+        if (data.collegeGoals) setCollegeGoals(data.collegeGoals);
+        if (data.tradeGoals) setTradeGoals(data.tradeGoals);
+        if (data.employmentGoals) setEmploymentGoals(data.employmentGoals);
+      }
+    } catch (error) {
+      console.error('Error loading transition data:', error);
+    }
+  };
+
+  // Save transition data to database
+  const saveTransitionData = async () => {
+    if (!studentId) return false;
+
+    try {
+      const transitionData = {
+        selectedInterests,
+        skillRatings,
+        selectedPathway,
+        pathways,
+        resumeData,
+        goals: {
+          college: collegeGoals,
+          trade: tradeGoals,
+          employment: employmentGoals
+        },
+        lastSaved: new Date().toISOString()
+      };
+
+      await updateStudentTransitionData(studentId, transitionData);
+      
+      // Update local cache
+      localStorage.setItem(`student_${studentId}_transition`, JSON.stringify(transitionData));
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving transition data:', error);
+      return false;
+    }
+  };
+
+  // Load studentId from session
+  useEffect(() => {
+    const id = localStorage.getItem('studentId');
+    if (id) {
+      setStudentId(id);
+      // Load existing transition data if available
+      loadTransitionData(id);
+    }
+  }, []);
 
   const handleGenerateCareerPaths = async () => {
     setIsGenerating(true);
@@ -46,6 +114,10 @@ export default function TransitionPlanning({ onBack, isDark }) {
       const data = await response.json();
       if (data.pathways && Array.isArray(data.pathways)) {
         setPathways(data.pathways);
+        // Auto-save when pathways are generated
+        if (studentId) {
+          setTimeout(() => saveTransitionData(), 500);
+        }
       } else {
         throw new Error('Invalid response format from server');
       }
@@ -130,6 +202,8 @@ export default function TransitionPlanning({ onBack, isDark }) {
                   Skills & Experience
                 </label>
                 <textarea
+                  value={resumeData}
+                  onChange={(e) => setResumeData(e.target.value)}
                   placeholder="List your skills, work experience, volunteer work, and achievements..."
                   className={`w-full h-40 p-4 rounded-xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none resize-none`}
                 />
@@ -143,7 +217,17 @@ export default function TransitionPlanning({ onBack, isDark }) {
                   <Wand2 size={18} />
                   Generate with AI
                 </button>
-                <button className={`px-6 py-3 ${theme.inputBg} border ${theme.inputBorder} ${theme.text} rounded-xl font-bold hover:border-cyan-400 transition-all`}>
+                <button 
+                  onClick={async () => {
+                    const saved = await saveTransitionData();
+                    if (saved) {
+                      alert('Draft saved successfully!');
+                    } else {
+                      alert('Failed to save draft. Please try again.');
+                    }
+                  }}
+                  className={`px-6 py-3 ${theme.inputBg} border ${theme.inputBorder} ${theme.text} rounded-xl font-bold hover:border-cyan-400 transition-all`}
+                >
                   Save Draft
                 </button>
               </div>
@@ -329,9 +413,13 @@ export default function TransitionPlanning({ onBack, isDark }) {
 
                           <div className={`mt-6 pt-4 border-t ${theme.cardBorder} space-y-3`}>
                             <button
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
                                 setSelectedPathway(index);
+                                // Auto-save when pathway is selected
+                                if (studentId) {
+                                  await saveTransitionData();
+                                }
                               }}
                               className={`w-full px-4 py-2 rounded-lg font-bold transition-all ${
                                 isSelected
@@ -419,6 +507,8 @@ export default function TransitionPlanning({ onBack, isDark }) {
                   <h3 className={`text-lg font-bold ${theme.text}`}>College</h3>
                 </div>
                 <textarea
+                  value={collegeGoals}
+                  onChange={(e) => setCollegeGoals(e.target.value)}
                   placeholder="List colleges you're interested in, programs, deadlines..."
                   className={`w-full h-32 p-3 rounded-lg border ${theme.inputBorder} ${theme.cardBg} ${theme.text} focus:border-blue-500 outline-none resize-none text-sm`}
                 />
@@ -433,6 +523,8 @@ export default function TransitionPlanning({ onBack, isDark }) {
                   <h3 className={`text-lg font-bold ${theme.text}`}>Trade School</h3>
                 </div>
                 <textarea
+                  value={tradeGoals}
+                  onChange={(e) => setTradeGoals(e.target.value)}
                   placeholder="List trade programs, certifications, apprenticeships..."
                   className={`w-full h-32 p-3 rounded-lg border ${theme.inputBorder} ${theme.cardBg} ${theme.text} focus:border-purple-500 outline-none resize-none text-sm`}
                 />
@@ -447,13 +539,29 @@ export default function TransitionPlanning({ onBack, isDark }) {
                   <h3 className={`text-lg font-bold ${theme.text}`}>Employment</h3>
                 </div>
                 <textarea
+                  value={employmentGoals}
+                  onChange={(e) => setEmploymentGoals(e.target.value)}
                   placeholder="List job types, companies, career paths you're exploring..."
                   className={`w-full h-32 p-3 rounded-lg border ${theme.inputBorder} ${theme.cardBg} ${theme.text} focus:border-emerald-500 outline-none resize-none text-sm`}
                 />
               </div>
             </div>
 
-            <button className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-xl font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">
+            <button 
+              onClick={async () => {
+                if (studentId) {
+                  const saved = await saveTransitionData();
+                  if (saved) {
+                    alert('Goals saved successfully!');
+                  } else {
+                    alert('Failed to save goals. Please try again.');
+                  }
+                } else {
+                  alert('Please log in with your access code to save goals.');
+                }
+              }}
+              className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-xl font-bold shadow-lg hover:shadow-cyan-500/25 transition-all"
+            >
               Save Goals
             </button>
           </div>

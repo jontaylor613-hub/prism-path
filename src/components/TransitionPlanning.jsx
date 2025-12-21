@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Heart, Target, Briefcase, GraduationCap, Building2
 import { getTheme } from '../utils';
 import InterestSelector from './InterestSelector';
 import { updateStudentTransitionData } from '../studentData';
+import ResumeBuilder from './ResumeBuilder';
 
 export default function TransitionPlanning({ onBack, isDark }) {
   const theme = getTheme(isDark);
@@ -20,7 +21,6 @@ export default function TransitionPlanning({ onBack, isDark }) {
   const [selectedPathway, setSelectedPathway] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
-  const [resumeData, setResumeData] = useState('');
   const [collegeGoals, setCollegeGoals] = useState('');
   const [tradeGoals, setTradeGoals] = useState('');
   const [employmentGoals, setEmploymentGoals] = useState('');
@@ -37,7 +37,6 @@ export default function TransitionPlanning({ onBack, isDark }) {
         if (data.skillRatings) setSkillRatings(data.skillRatings);
         if (data.selectedPathway !== undefined) setSelectedPathway(data.selectedPathway);
         if (data.pathways) setPathways(data.pathways);
-        if (data.resumeData) setResumeData(data.resumeData);
         if (data.collegeGoals) setCollegeGoals(data.collegeGoals);
         if (data.tradeGoals) setTradeGoals(data.tradeGoals);
         if (data.employmentGoals) setEmploymentGoals(data.employmentGoals);
@@ -57,7 +56,6 @@ export default function TransitionPlanning({ onBack, isDark }) {
         skillRatings,
         selectedPathway,
         pathways,
-        resumeData,
         goals: {
           college: collegeGoals,
           trade: tradeGoals,
@@ -185,53 +183,11 @@ export default function TransitionPlanning({ onBack, isDark }) {
 
         {/* Resume Builder Section */}
         {activeTab === 'resume' && (
-          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-8`}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 rounded-xl bg-cyan-500/10">
-                <FileText className="text-cyan-400" size={32} />
-              </div>
-              <div>
-                <h2 className={`text-2xl font-bold ${theme.text}`}>Resume Builder</h2>
-                <p className={theme.textMuted}>Build your resume with AI-powered suggestions</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <label className={`block text-sm font-bold ${theme.textMuted} mb-2 uppercase tracking-wider`}>
-                  Skills & Experience
-                </label>
-                <textarea
-                  value={resumeData}
-                  onChange={(e) => setResumeData(e.target.value)}
-                  placeholder="List your skills, work experience, volunteer work, and achievements..."
-                  className={`w-full h-40 p-4 rounded-xl border-2 ${theme.inputBorder} ${theme.inputBg} ${theme.text} focus:border-cyan-500 outline-none resize-none`}
-                />
-                <p className={`text-xs ${theme.textMuted} mt-2`}>
-                  💡 AI will help format and enhance your resume content
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-xl font-bold shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2">
-                  <Wand2 size={18} />
-                  Generate with AI
-                </button>
-                <button 
-                  onClick={async () => {
-                    const saved = await saveTransitionData();
-                    if (saved) {
-                      alert('Draft saved successfully!');
-                    } else {
-                      alert('Failed to save draft. Please try again.');
-                    }
-                  }}
-                  className={`px-6 py-3 ${theme.inputBg} border ${theme.inputBorder} ${theme.text} rounded-xl font-bold hover:border-cyan-400 transition-all`}
-                >
-                  Save Draft
-                </button>
-              </div>
-            </div>
+          <div className="relative">
+            <ResumeBuilder 
+              onBack={onBack}
+              isLowStim={!isDark}
+            />
           </div>
         )}
 

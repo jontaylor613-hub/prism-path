@@ -2477,7 +2477,7 @@ Format the summary clearly with sections. Only include information that is actua
                                   icon={Sparkles}
                                   theme={theme}
                                 >
-                                  Gem
+                                  ALC
                                 </Button>
                                 <button
                                   onClick={() => handleRemoveStudent(student.id)}

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Calendar, Clock, Plus, Trash2, Download, Mic, 
   MicOff, ArrowLeft, Layout
 } from 'lucide-react';
 import { getTheme } from '../utils';
+import { updateStudentProfile } from '../studentData';
 
 const BLOCK_COLORS = [
     'bg-red-200 text-red-900 border-red-300',
@@ -18,6 +19,7 @@ const BLOCK_COLORS = [
 
 const VisualSchedule = ({ onBack, isDark }) => {
   const theme = getTheme(isDark);
+  const [studentId, setStudentId] = useState(null);
   
   const [items, setItems] = useState([
       { id: 1, time: '08:00', task: 'Wake Up & Breakfast', color: 0 },
@@ -28,6 +30,61 @@ const VisualSchedule = ({ onBack, isDark }) => {
   const [isListening, setIsListening] = useState(false);
   
   const recognitionRef = useRef(null);
+
+  // Load schedule from cache or database
+  const loadSchedule = useCallback(async (id) => {
+    try {
+      const cachedData = localStorage.getItem(`student_${id}_schedule`);
+      if (cachedData) {
+        const scheduleData = JSON.parse(cachedData);
+        if (scheduleData.items && Array.isArray(scheduleData.items)) {
+          setItems(scheduleData.items);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading schedule:', error);
+    }
+  }, []);
+
+  // Load studentId and saved schedule
+  useEffect(() => {
+    const id = localStorage.getItem('studentId');
+    if (id) {
+      setStudentId(id);
+      loadSchedule(id);
+    }
+  }, [loadSchedule]);
+
+  // Auto-save when items change (with debounce)
+  useEffect(() => {
+    if (!studentId) return;
+
+    const saveSchedule = async () => {
+      try {
+        const scheduleData = {
+          items: items,
+          lastSaved: new Date().toISOString()
+        };
+
+        await updateStudentProfile(studentId, {
+          visualScheduleData: scheduleData
+        });
+        
+        // Update local cache
+        localStorage.setItem(`student_${studentId}_schedule`, JSON.stringify(scheduleData));
+      } catch (error) {
+        console.error('Error saving schedule:', error);
+      }
+    };
+
+    if (items.length > 0) {
+      const timeoutId = setTimeout(() => {
+        saveSchedule();
+      }, 1000); // Save 1 second after last change
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [items, studentId]);
 
   useEffect(() => {
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -72,10 +129,12 @@ const VisualSchedule = ({ onBack, isDark }) => {
       setItems(updated);
       setNewTask('');
       setNewTime('');
+      // Save will be triggered by useEffect
   };
 
   const deleteItem = (id) => {
       setItems(items.filter(i => i.id !== id));
+      // Save will be triggered by useEffect
   };
 
   const handlePrint = () => {

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Brain, Heart, Calendar, FileText, MapPin, Briefcase, 
   ArrowLeft, CheckCircle2, AlertCircle, Sparkles, 
-  Activity, Target, LogOut
+  Activity, Target, LogOut, Moon, Sun
 } from 'lucide-react';
 import { getTheme } from '../utils';
 
@@ -62,22 +62,22 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       savesData: true
     },
     {
-      id: 'cockpit',
-      title: 'Emotional Cockpit',
-      description: 'Tools for emotional regulation and sensory breaks',
-      icon: Activity,
-      color: 'indigo',
-      path: '/cockpit',
-      requiresAccount: false,
-      savesData: false
-    },
-    {
       id: 'schedule',
       title: 'Visual Schedules',
       description: 'Create clear, structured visual timelines for your day',
       icon: Calendar,
       color: 'fuchsia',
       path: '/schedule',
+      requiresAccount: false,
+      savesData: true
+    },
+    {
+      id: 'cockpit',
+      title: 'Emotional Cockpit',
+      description: 'Tools for emotional regulation and sensory breaks',
+      icon: Activity,
+      color: 'indigo',
+      path: '/cockpit',
       requiresAccount: false,
       savesData: false
     },
@@ -140,7 +140,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
                   onClick={onToggleTheme}
                   className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}
                 >
-                  {isDark ? '🌙' : '☀️'}
+                  {isDark ? <Moon size={20} /> : <Sun size={20} />}
                 </button>
               )}
               {hasAccount && (
@@ -191,7 +191,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
           {features.map((feature) => {
             const Icon = feature.icon;
             const colorClasses = {
-              amber: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+              amber: isDark ? 'bg-amber-500/10 text-yellow-500 border-amber-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20',
               blue: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
               indigo: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
               fuchsia: 'bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20',

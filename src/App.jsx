@@ -26,6 +26,7 @@ const Mission = lazy(() => import('./components/Mission'));
 const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
 const StudentLanding = lazy(() => import('./components/StudentLanding'));
 const StudentPortal = lazy(() => import('./components/StudentPortal'));
+const SyllabusPolicyGenerator = lazy(() => import('./components/SyllabusPolicyGenerator'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -164,7 +165,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-fuchsia-500">PrismPath</span>
           </div>
 
-          <div className="hidden md:flex items-center justify-evenly flex-1">
+          <div className="hidden md:flex items-center justify-evenly flex-1 max-w-5xl mx-auto">
             <div className="flex items-center gap-4">
               <button onClick={setIsDark} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
                   {isDark ? <Moon size={20} /> : <Sun size={20} />}
@@ -172,16 +173,16 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
               <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
             </div>
             
-            <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1`}><GraduationCap size={16} /> For Educators</Link>
+            <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1 whitespace-nowrap`}><GraduationCap size={16} /> For Educators</Link>
             
-            <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}><Heart size={16} /> For Parents</Link>
+            <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}><Heart size={16} /> For Parents</Link>
             
-            <Link to="/student" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1`}>
+            <Link to="/student" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}>
               <SmilePlus size={16} /> For Students
             </Link>
             
             <div className="relative group">
-              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1`}>
+              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1 whitespace-nowrap`}>
                 <Zap size={14} /> Demos <ChevronDown size={12} className="transition-transform group-hover:rotate-180" />
               </button>
               <div className={`absolute top-full right-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
@@ -194,17 +195,20 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                 <Link to="/educator?demo=admin" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
                   <GraduationCap size={14} className="text-fuchsia-400" /> Admin Dashboard Demo
                 </Link>
+                <Link to="/demos/syllabus-generator" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
+                  <FileText size={14} className="text-emerald-400" /> Syllabus Policy Generator
+                </Link>
               </div>
             </div>
 
-            <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors`}>Features</a>
-            <Link to="/mission" className={`px-4 py-2 text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden rounded-full`}>
+            <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors whitespace-nowrap`}>Features</a>
+            <Link to="/mission" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden whitespace-nowrap`}>
               <span className="relative z-10">
                 Our Mission
               </span>
               <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
             </Link>
-            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">ALC</Link>
+            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all whitespace-nowrap">Learning Companion</Link>
           </div>
 
           <button className={`md:hidden ${theme.text}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -222,6 +226,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
              <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
              <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
+             <Link to="/demos/syllabus-generator" className="block w-full text-left py-2 font-bold text-emerald-500 flex items-center gap-2"><FileText size={14} /> Syllabus Policy Generator</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
              <a href="#features" className="block w-full text-left py-2 font-bold text-slate-400">Features</a>
              <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400">Our Mission</Link>
@@ -645,6 +650,14 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/demos/syllabus-generator" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <SyllabusPolicyGenerator isDark={isDark} onBack={handleExit} />
             </div>
           </Suspense>
         } />

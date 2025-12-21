@@ -419,7 +419,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <FileText className="text-cyan-400" size={24} />
                 Upload IEP Document
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Upload your child's IEP or 504 plan to get a plain English explanation of what it means and how it helps your child.
               </p>
               <Button
@@ -436,7 +436,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <Sparkles className="text-cyan-400" size={24} />
                 Differentiate Work
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Get help adapting curriculum and assignments for homeschool or when helping your child with schoolwork.
               </p>
               <Button
@@ -453,7 +453,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <Shield className="text-fuchsia-400" size={24} />
                 Advocacy Center
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Access email assistance, rights information, and step-by-step advocacy tools.
               </p>
               <Button
@@ -470,7 +470,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <Zap className="text-amber-400" size={24} />
                 Task Slicer
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Break down chores or homework into manageable steps. Help your child tackle tasks one step at a time.
               </p>
               <Button
@@ -487,7 +487,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <MapPin className="text-emerald-400" size={24} />
                 Community Services
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Find local resources, advocacy groups, and support networks near you.
               </p>
               <Button
@@ -504,7 +504,7 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
                 <GraduationCap className="text-blue-400" size={24} />
                 Transition Planning
               </h2>
-              <p className={`${theme.textMuted} mb-4 flex-1 min-h-[3rem]`}>
+              <p className={`${theme.textMuted} flex-1 min-h-[3rem]`}>
                 Plan your child's future with post-high school readiness tools, resume building, and career planning.
               </p>
               <Button

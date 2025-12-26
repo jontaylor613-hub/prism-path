@@ -67,7 +67,7 @@ export default function SyllabusPolicyGenerator({ isDark, onBack }) {
           <span>Back</span>
         </button>
 
-        {/* Header Section */}
+        {/* Header Section - Baseline: 6bef251 */}
         <div className="mb-12 text-center overflow-visible">
           <h1 className={`text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-cyan-400 via-fuchsia-400 to-cyan-400' : 'from-cyan-600 via-fuchsia-600 to-cyan-600'} leading-[1.2] py-2 overflow-visible`} style={{ WebkitBackgroundClip: 'text', backgroundClip: 'text', display: 'block' }}>
             UK CELT Syllabus Policy Generator

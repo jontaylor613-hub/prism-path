@@ -1,44 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Brain, Heart, Calendar, FileText, MapPin, Briefcase, 
-  ArrowLeft, CheckCircle2, AlertCircle, Sparkles, 
-  Activity, Target, LogOut, Moon, Sun
+  ArrowLeft, Sparkles, Activity, Target, Moon, Sun
 } from 'lucide-react';
 import { getTheme } from '../utils';
 
 export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
   const theme = getTheme(isDark);
-  const navigate = useNavigate();
-  const [studentId, setStudentId] = useState(null);
-  const [studentName, setStudentName] = useState(null);
-  const [hasAccount, setHasAccount] = useState(false);
-
-  useEffect(() => {
-    // Check if student has an account
-    const id = localStorage.getItem('studentId');
-    const name = localStorage.getItem('studentName');
-    
-    if (id) {
-      setStudentId(id);
-      setHasAccount(true);
-    }
-    if (name) {
-      setStudentName(name);
-    }
-    
-    // Allow access even without account - all features are available
-    // Only saving requires an account
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('studentId');
-    localStorage.removeItem('studentName');
-    setStudentId(null);
-    setStudentName(null);
-    setHasAccount(false);
-    navigate('/student');
-  };
 
   const features = [
     {
@@ -48,8 +17,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: Brain,
       color: 'amber',
       path: '/neuro',
-      requiresAccount: false,
-      savesData: true
+      savesData: false
     },
     {
       id: 'transition',
@@ -58,8 +26,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: Briefcase,
       color: 'blue',
       path: '/transition-planning',
-      requiresAccount: false,
-      savesData: true
+      savesData: false
     },
     {
       id: 'schedule',
@@ -68,8 +35,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: Calendar,
       color: 'fuchsia',
       path: '/schedule',
-      requiresAccount: false,
-      savesData: true
+      savesData: false
     },
     {
       id: 'cockpit',
@@ -78,7 +44,6 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: Activity,
       color: 'indigo',
       path: '/cockpit',
-      requiresAccount: false,
       savesData: false
     },
     {
@@ -88,7 +53,6 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: FileText,
       color: 'cyan',
       path: '/resume',
-      requiresAccount: false,
       savesData: false
     },
     {
@@ -98,7 +62,6 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
       icon: MapPin,
       color: 'emerald',
       path: '/map',
-      requiresAccount: false,
       savesData: false
     }
   ];
@@ -124,17 +87,12 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
                 </div>
                 <div>
                   <h1 className={`text-3xl font-bold ${theme.text}`}>Student Portal</h1>
-                  <p className={`${theme.textMuted} text-sm`}>
-                    {hasAccount && studentName 
-                      ? `Welcome back, ${studentName}!`
-                      : 'Explore all available tools'
-                    }
-                  </p>
+                  <p className={`${theme.textMuted} text-sm`}>Explore all available tools</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center">
               {onToggleTheme && (
                 <button 
                   onClick={onToggleTheme}
@@ -143,47 +101,15 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
                   {isDark ? <Moon size={20} /> : <Sun size={20} />}
                 </button>
               )}
-              {hasAccount && (
-                <button
-                  onClick={handleLogout}
-                  className={`px-4 py-2 rounded-lg border ${theme.cardBorder} ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-2`}
-                >
-                  <LogOut size={16} />
-                  Log Out
-                </button>
-              )}
             </div>
           </div>
 
-          {/* Account Status Banner */}
-          {hasAccount ? (
-            <div className={`p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 mb-6`}>
-              <CheckCircle2 className="text-emerald-400 flex-shrink-0 mt-0.5" size={20} />
-              <div className="flex-1">
-                <p className={`font-bold ${theme.text} mb-1`}>Account Connected</p>
-                <p className={`text-sm ${theme.textMuted}`}>
-                  Your progress will be saved automatically. All your data is secure and can be accessed from any device.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className={`p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 mb-6`}>
-              <AlertCircle className="text-amber-400 flex-shrink-0 mt-0.5" size={20} />
-              <div className="flex-1">
-                <p className={`font-bold ${theme.text} mb-1`}>Using Without Account</p>
-                <p className={`text-sm ${theme.textMuted} mb-3`}>
-                  You can explore all features, but your progress won't be saved. Get an access code from your teacher or parent to save your work.
-                </p>
-                <Link 
-                  to="/student"
-                  className={`inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all`}
-                >
-                  Enter Access Code
-                  <ArrowLeft size={16} className="rotate-180" />
-                </Link>
-              </div>
-            </div>
-          )}
+          <div className={`p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 mb-6`}>
+            <p className={`font-bold ${theme.text} mb-1`}>No Login Required</p>
+            <p className={`text-sm ${theme.textMuted}`}>
+              Student tools are open access so you can jump in immediately.
+            </p>
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -220,26 +146,7 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
                     {feature.description}
                   </p>
 
-                  {/* Save Status Indicator */}
-                  {feature.savesData && (
-                    <div className={`mt-auto pt-4 border-t ${theme.cardBorder} flex items-center gap-2`}>
-                      {hasAccount ? (
-                        <>
-                          <CheckCircle2 size={16} className="text-emerald-400" />
-                          <span className={`text-xs font-medium text-emerald-400`}>
-                            Progress will be saved
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle size={16} className="text-amber-400" />
-                          <span className={`text-xs font-medium text-amber-400`}>
-                            Enter access code to save
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  {feature.savesData && <div className={`mt-auto pt-4 border-t ${theme.cardBorder}`}></div>}
                 </div>
               </Link>
             );
@@ -261,11 +168,11 @@ export default function StudentPortal({ onBack, isDark, onToggleTheme }) {
             </div>
             <div>
               <h3 className={`font-bold ${theme.text} mb-2 flex items-center gap-2`}>
-                <CheckCircle2 size={18} className="text-emerald-400" />
-                Save Your Progress
+                <Target size={18} className="text-fuchsia-400" />
+                Build Momentum
               </h3>
               <p className={`${theme.textMuted} text-sm leading-relaxed`}>
-                Get an access code from your teacher or parent to save your work. Your progress will be saved automatically across all sessions.
+                Use these tools freely to organize tasks, regulate focus, and create your next steps.
               </p>
             </div>
             <div>

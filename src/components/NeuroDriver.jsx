@@ -7,6 +7,48 @@ import {
 } from 'lucide-react';
 import { getTheme, GeminiService } from '../utils';
 import { updateStudentProfile } from '../studentData';
+import { DevModeService } from '../devMode';
+
+const DAILY_NEURO_LIMIT = 2;
+const DAILY_USAGE_STORAGE_KEY = 'prismpath_neurodriver_daily_ip_usage';
+
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const readUsageStore = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DAILY_USAGE_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const getUsageForIpToday = (ip) => {
+  if (!ip) return 0;
+  const store = readUsageStore();
+  const today = getTodayKey();
+  return store[today]?.[ip] || 0;
+};
+
+const incrementUsageForIpToday = (ip) => {
+  if (!ip) return 0;
+  const store = readUsageStore();
+  const today = getTodayKey();
+  const dailyBucket = store[today] || {};
+  const updatedCount = (dailyBucket[ip] || 0) + 1;
+
+  store[today] = { ...dailyBucket, [ip]: updatedCount };
+
+  // Keep only the last 7 days to avoid unbounded localStorage growth.
+  Object.keys(store).forEach((dateKey) => {
+    const daysOld = (Date.parse(today) - Date.parse(dateKey)) / (1000 * 60 * 60 * 24);
+    if (daysOld > 7) {
+      delete store[dateKey];
+    }
+  });
+
+  localStorage.setItem(DAILY_USAGE_STORAGE_KEY, JSON.stringify(store));
+  return updatedCount;
+};
 
 // --- INTERNAL AUDIO ENGINE ---
 const DriverAudio = {
@@ -163,6 +205,8 @@ const NeuroDriver = ({ onBack, isDark }) => {
   const [templateName, setTemplateName] = useState('');
   const [showLoadDropdown, setShowLoadDropdown] = useState(false);
   const [savedTemplates, setSavedTemplates] = useState([]); 
+  const [clientIp, setClientIp] = useState('local');
+  const [sliceLimitMessage, setSliceLimitMessage] = useState('');
   
   // Timer State
   const [timerMode, setTimerMode] = useState('duration'); // 'duration' or 'until'
@@ -189,6 +233,22 @@ const NeuroDriver = ({ onBack, isDark }) => {
   };
 
   useEffect(() => { return () => DriverAudio.stopAll(); }, []);
+
+  useEffect(() => {
+    const resolveClientIp = async () => {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        if (data?.ip) {
+          setClientIp(data.ip);
+        }
+      } catch {
+        // Keep fallback "local" if external IP lookup fails.
+      }
+    };
+
+    resolveClientIp();
+  }, []);
 
   // Load saved templates from localStorage or database
   useEffect(() => {
@@ -435,6 +495,14 @@ const NeuroDriver = ({ onBack, isDark }) => {
 
   const handleSlice = async () => {
     if (!task.trim()) return;
+
+    const devModeActive = DevModeService.isActive();
+    if (!devModeActive && getUsageForIpToday(clientIp) >= DAILY_NEURO_LIMIT) {
+      setSliceLimitMessage('Daily limit reached for this IP address (2 prompts per day).');
+      return;
+    }
+
+    setSliceLimitMessage('');
     setIsProcessing(true);
     try {
         const result = await GeminiService.generate({ task }, 'slicer');
@@ -444,6 +512,10 @@ const NeuroDriver = ({ onBack, isDark }) => {
             done: false 
         }));
         setSteps(cleanSteps.length > 0 ? cleanSteps : [{ text: "Could not parse steps. Try simpler task.", done: false }]);
+
+        if (!devModeActive) {
+          incrementUsageForIpToday(clientIp);
+        }
     } catch (error) {
         setSteps([{ text: "Connection error. Please try again.", done: false }]);
     }
@@ -706,6 +778,16 @@ const NeuroDriver = ({ onBack, isDark }) => {
                 {isProcessing ? <Clock className="animate-spin"/> : <Zap fill="white" />}
                 Slice
             </button>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className={`text-xs ${theme.textMuted}`}>
+                {DevModeService.isActive()
+                  ? 'Dev mode active: Neuro Driver limit bypassed.'
+                  : `${Math.max(0, DAILY_NEURO_LIMIT - getUsageForIpToday(clientIp))} of ${DAILY_NEURO_LIMIT} prompts remaining today`}
+              </span>
+              {sliceLimitMessage && (
+                <span className="text-xs text-amber-400">{sliceLimitMessage}</span>
+              )}
+            </div>
         </div>
 
         {/* Save Template Modal */}

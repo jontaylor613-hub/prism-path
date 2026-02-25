@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import { 
   Sparkles, Brain, Heart, Calendar, ExternalLink, Menu, X, Zap, 
   ShieldCheck, Clock, MessageSquare, Info, 
-  MapPin, FileText, ChevronDown, Activity, GraduationCap,
-  SmilePlus, Sun, Moon, Loader2, Target, Briefcase
+  MapPin, ChevronDown, Activity, GraduationCap,
+  SmilePlus, Sun, Moon, Loader2, Target, Briefcase, Bell
 } from 'lucide-react';
 
 // EasterEgg removed for performance optimization
@@ -24,9 +24,7 @@ const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
 const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
-const StudentLanding = lazy(() => import('./components/StudentLanding'));
 const StudentPortal = lazy(() => import('./components/StudentPortal'));
-const SyllabusPolicyGenerator = lazy(() => import('./components/SyllabusPolicyGenerator'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -98,6 +96,7 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [studentMenuOpen, setStudentMenuOpen] = useState(false);
+  const [showUpdatesModal, setShowUpdatesModal] = useState(false);
   const studentMenuRef = useRef(null);
   
   // Instant Accommodations Logic
@@ -195,13 +194,18 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                 <Link to="/educator?demo=admin" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
                   <GraduationCap size={14} className="text-fuchsia-400" /> Admin Dashboard Demo
                 </Link>
-                <Link to="/demos/syllabus-generator" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2 border-t ${theme.cardBorder}`}>
-                  <FileText size={14} className="text-emerald-400" /> Syllabus Policy Generator
-                </Link>
               </div>
             </div>
 
             <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors whitespace-nowrap`}>Features</a>
+            <button
+              onClick={() => setShowUpdatesModal(true)}
+              className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors flex items-center gap-1 whitespace-nowrap`}
+            >
+              <Bell size={14} />
+              Updates
+              <span className="inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+            </button>
             <Link to="/mission" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden whitespace-nowrap`}>
               <span className="relative z-10">
                 Our Mission
@@ -226,13 +230,41 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              <Link to="/parent/dashboard?demo=true" className="block w-full text-left py-2 font-bold text-indigo-400 flex items-center gap-2"><Zap size={14} /> Parent Portal Demo</Link>
              <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
              <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
-             <Link to="/demos/syllabus-generator" className="block w-full text-left py-2 font-bold text-emerald-500 flex items-center gap-2"><FileText size={14} /> Syllabus Policy Generator</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
+             <button
+               onClick={() => { setShowUpdatesModal(true); setMobileMenuOpen(false); }}
+               className="block w-full text-left py-2 font-bold text-red-400 flex items-center gap-2"
+             >
+               <Bell size={14} /> Updates
+             </button>
              <a href="#features" className="block w-full text-left py-2 font-bold text-slate-400">Features</a>
              <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400">Our Mission</Link>
           </div>
         )}
       </nav>
+
+      {showUpdatesModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6 max-w-xl w-full`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="text-red-400" size={18} />
+              <h3 className={`text-xl font-bold ${theme.text}`}>Project Update</h3>
+            </div>
+            <p className={`${theme.textMuted} leading-relaxed`}>
+              This project is currently in a short hiatus while I refocus as a solo developer. Updates will
+              continue, but progress will be slower for now as I narrow the core objective after trying to ship too much at once.
+            </p>
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setShowUpdatesModal(false)}
+                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-lg font-bold"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="relative z-10 pt-32 pb-20 lg:pt-48 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
         <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full ${isDark ? 'bg-slate-800/50 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'} text-cyan-500 text-xs font-bold tracking-wider uppercase mb-8 backdrop-blur-sm`}>
@@ -641,7 +673,7 @@ export default function App() {
         <Route path="/student" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
-              <StudentLanding isDark={isDark} onBack={handleExit} />
+              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />
@@ -654,13 +686,6 @@ export default function App() {
           </Suspense>
         } />
 
-        <Route path="/demos/syllabus-generator" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <SyllabusPolicyGenerator isDark={isDark} onBack={handleExit} />
-            </div>
-          </Suspense>
-        } />
       </Routes>
     </div>
   );

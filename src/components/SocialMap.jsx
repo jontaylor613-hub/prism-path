@@ -256,6 +256,22 @@ export default function SocialMap({ onBack, isLowStim }) {
   const [zoomLevel, setZoomLevel] = useState(13);
   const [showScriptModal, setShowScriptModal] = useState(false);
 
+  // Load Leaflet CSS dynamically when component mounts
+  useEffect(() => {
+    if (document.getElementById('leaflet-css')) return;
+    const link = document.createElement('link');
+    link.id = 'leaflet-css';
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+    link.crossOrigin = '';
+    document.head.appendChild(link);
+    return () => {
+      const el = document.getElementById('leaflet-css');
+      if (el) el.remove();
+    };
+  }, []);
+
   // --- ON LOAD: Smart Search ---
   useEffect(() => {
     if (navigator.geolocation) {

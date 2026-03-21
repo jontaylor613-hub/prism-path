@@ -31,6 +31,7 @@ import { ChatHistoryService } from '../chatHistory';
 import { DevModeService } from '../devMode';
 import AdminDashboard from './AdminDashboard';
 import DashboardBriefing from './DashboardBriefing';
+import ImportRoster from './features/ImportRoster';
 
 // --- SUB-COMPONENT: BURNOUT CHECK-IN (NEW) ---
 const BurnoutCheck = ({ theme }) => {
@@ -451,7 +452,7 @@ const SAMPLE_STUDENTS = [
 // --- MAIN DASHBOARD ---
 const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const theme = getTheme(isDark);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('home');
   const [students, setStudents] = useState([]);
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [briefingCollapsed, setBriefingCollapsed] = useState(() => {
@@ -558,7 +559,7 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, user?.role, showSamples]);
+  }, [user?.uid, user?.role, showSamples, rosterRefreshTrigger]);
 
   // Filter and sort students based on showSamples toggle and sort preference
   const displayedStudents = useMemo(() => {
@@ -726,6 +727,9 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
   const [checklistItems, setChecklistItems] = useState([]);
   const [generatedChecklist, setGeneratedChecklist] = useState(null); // Will store { goal, classPeriods: [{ name, signed, comment }] }
   const [checklistGoal, setChecklistGoal] = useState(null);
+  const [showImportRoster, setShowImportRoster] = useState(false);
+  const [rosterRefreshTrigger, setRosterRefreshTrigger] = useState(0);
+  const [goalsSubTab, setGoalsSubTab] = useState('profile');
 
   // Helpers
   const getBadgeColor = (text) => {
@@ -948,8 +952,8 @@ const Dashboard = ({ user, onLogout, onBack, isDark, onToggleTheme }) => {
       };
       setGoals([...goals, newGoal]);
       setActiveGoalId(newGoal.id);
-      alert("Goal Locked! Go to 'Monitor' tab to track progress.");
-      setActiveTab('monitor');
+      alert("Goal Locked! Go to Monitor to track progress.");
+      setGoalsSubTab('monitor');
   };
 
   const handleAddAnotherGoal = () => {
@@ -1423,6 +1427,22 @@ Format the summary clearly with sections. Only include information that is actua
   const removeGoal = (index) => setTrackingGoals(trackingGoals.filter((_, i) => i !== index));
   const copyTemplate = () => alert("Configuration Saved!");
 
+  // When switching to Accommodations tab with a student selected, auto-load Gem
+  useEffect(() => {
+    if (activeTab === 'alc' && activeStudent && !selectedStudentForGem) {
+      handleOpenGemWithStudent();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activeStudent?.id]);
+
+  // Greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // Don't render early return - let the main render handle it
 
   return (
@@ -1434,27 +1454,32 @@ Format the summary clearly with sections. Only include information that is actua
       {/* HEADER */}
       <header className={`sticky top-0 z-50 border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setActiveTab('profile')}>
+          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setActiveTab('home')}>
             <Sparkles className="text-cyan-400" size={24} />
             <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-fuchsia-500">PrismPath</span>
           </div>
 
           <div className={`hidden md:flex items-center gap-1 ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} p-1 rounded-full border ${theme.cardBorder}`}>
-            {['Profile', 'Identify', 'Develop', 'Monitor', 'Behavior', 'ALC', 'Roster', 'Wellness', ...(user?.role === 'admin' ? ['Admin'] : [])].map((tab) => {
-              const isALC = tab === 'ALC';
-              const isWellness = tab === 'Wellness';
+            {[
+              { id: 'home', label: 'Dashboard' },
+              { id: 'roster', label: 'My Students' },
+              { id: 'alc', label: 'Accommodations' },
+              { id: 'goals', label: 'IEP Goals' },
+              ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Admin' }] : [])
+            ].map(({ id, label }) => {
+              const isALC = id === 'alc';
               return (
                 <button 
-                  key={tab} 
+                  key={id} 
                   onClick={() => {
-                    if (tab === 'ALC' && activeStudent) {
-                      handleOpenGemWithStudent();
-                    } else {
-                      setActiveTab(tab.toLowerCase());
+                    if (id === 'alc' && displayedStudents.length > 0 && !activeStudent) {
+                      setCurrentStudentId(displayedStudents[0].id);
                     }
+                    if (id === 'alc' && displayedStudents.length === 0) return;
+                    setActiveTab(id);
                   }} 
                   className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === tab.toLowerCase() 
+                    activeTab === id 
                       ? isALC 
                         ? 'bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-purple-500 text-white shadow-lg shadow-cyan-500/50' 
                         : 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-lg'
@@ -1462,7 +1487,7 @@ Format the summary clearly with sections. Only include information that is actua
                   }`}
                 >
                   {isALC && <Sparkles size={12} className="inline mr-1" />}
-                  {tab}
+                  {label}
                 </button>
               );
             })}
@@ -1487,41 +1512,6 @@ Format the summary clearly with sections. Only include information that is actua
           </div>
         ) : (
           <>
-            {/* Morning Briefing Widget - Only show on profile tab if not dismissed */}
-            {displayedStudents.length > 0 && activeTab === 'profile' && !briefingDismissed && (
-              <DashboardBriefing
-                students={displayedStudents}
-                isDark={isDark}
-                isCollapsed={briefingCollapsed}
-                onToggleCollapse={() => {
-                  const newState = !briefingCollapsed;
-                  setBriefingCollapsed(newState);
-                  localStorage.setItem('briefingCollapsed', newState.toString());
-                }}
-                onDismiss={() => {
-                  setBriefingDismissed(true);
-                  localStorage.setItem('briefingDismissed', 'true');
-                }}
-                showDismissButton={true}
-                onReviewNow={() => {
-                  // Navigate to first student with upcoming deadline
-                  const studentWithDeadline = displayedStudents.find(s => {
-                    const iepDate = s.nextIep || s.nextIepDate;
-                    if (!iepDate) return false;
-                    const reviewDate = new Date(iepDate);
-                    const now = new Date();
-                    const sevenDaysFromNow = new Date(now);
-                    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-                    return reviewDate >= now && reviewDate <= sevenDaysFromNow;
-                  });
-                  if (studentWithDeadline) {
-                    setCurrentStudentId(studentWithDeadline.id);
-                    setActiveTab('profile');
-                  }
-                }}
-              />
-            )}
-
             <div className="flex items-center justify-between">
                 <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide flex-1 mr-4">
                 {displayedStudents.length === 0 ? (
@@ -1549,8 +1539,63 @@ Format the summary clearly with sections. Only include information that is actua
                 </div>
             </div>
 
-        {activeTab === 'profile' && (
-          activeStudent ? (
+        {/* --- DASHBOARD HOME --- */}
+        {activeTab === 'home' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            <h1 className={`text-2xl md:text-3xl font-bold ${theme.text}`}>
+              {getGreeting()}, {user?.name || 'Educator'}
+            </h1>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6`}>
+                <Users className="text-cyan-400 mb-3" size={28} />
+                <p className={`text-2xl font-bold ${theme.text}`}>{displayedStudents.length}</p>
+                <p className={`text-sm ${theme.textMuted}`}>Total Students</p>
+              </div>
+              <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6`}>
+                <Sparkles className="text-fuchsia-400 mb-3" size={28} />
+                <p className={`text-2xl font-bold ${theme.text}`}>{chatHistories.length}</p>
+                <p className={`text-sm ${theme.textMuted}`}>Accommodations Generated</p>
+              </div>
+              <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl p-6`}>
+                <Target className="text-emerald-400 mb-3" size={28} />
+                <p className={`text-2xl font-bold ${theme.text}`}>{goals.length}</p>
+                <p className={`text-sm ${theme.textMuted}`}>Goals Being Tracked</p>
+              </div>
+            </div>
+            <div>
+              <h2 className={`text-lg font-bold ${theme.text} mb-4`}>Quick Actions</h2>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => { setActiveTab('roster'); setShowImportRoster(true); }} theme={theme} icon={UploadCloud}>Import Roster</Button>
+                <Button onClick={() => { if (displayedStudents.length > 0) { setCurrentStudentId(displayedStudents[0].id); setActiveTab('alc'); } }} theme={theme} icon={Wand2}>Generate Accommodations</Button>
+                <Button onClick={() => setActiveTab('roster')} theme={theme} icon={Users}>View Students</Button>
+              </div>
+            </div>
+            <div>
+              <h2 className={`text-lg font-bold ${theme.text} mb-4`}>Recent Activity</h2>
+              <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl overflow-hidden`}>
+                {displayedStudents.slice(0, 5).length === 0 ? (
+                  <p className={`p-6 ${theme.textMuted}`}>No students yet. Add students to see recent activity.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-700/50">
+                    {displayedStudents.slice(0, 5).map((s) => (
+                      <li key={s.id}>
+                        <button onClick={() => { setCurrentStudentId(s.id); setActiveTab('goals'); }} className={`w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-500/10 transition-colors text-left`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${theme.inputBg} border ${theme.cardBorder}`}>{s.name.charAt(0)}</div>
+                          <div>
+                            <p className={`font-medium ${theme.text}`}>{s.name}</p>
+                            <p className={`text-sm ${theme.textMuted}`}>{s.need || s.primaryNeed || 'N/A'}</p>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {((activeTab === 'goals' && goalsSubTab === 'profile') || activeTab === 'profile') && activeStudent && (
           <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="lg:col-span-2 space-y-6">
                <Card className="p-6" theme={theme}>
@@ -1874,12 +1919,6 @@ Format the summary clearly with sections. Only include information that is actua
               </Card>
             </div>
           </div>
-          ) : (
-            <div className={`text-center py-12 ${theme.textMuted}`}>
-              <Users size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="mb-4">No student selected. Please select a student from the list above.</p>
-            </div>
-          )
         )}
 
         {activeTab === 'identify' && (
@@ -1924,7 +1963,22 @@ Format the summary clearly with sections. Only include information that is actua
            </div>
         )}
 
-        {activeTab === 'develop' && (
+        {activeTab === 'goals' && !activeStudent && (
+          <div className={`text-center py-12 ${theme.textMuted}`}>
+            <Target size={48} className="mx-auto mb-4 opacity-50" />
+            <p>Select a student from the list above to manage IEP goals.</p>
+          </div>
+        )}
+        {activeTab === 'goals' && activeStudent && (
+          <div className="space-y-6">
+            <div className={`flex gap-2 p-1 rounded-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-100'} border ${theme.cardBorder} w-fit`}>
+              <button onClick={() => setGoalsSubTab('profile')} className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${goalsSubTab === 'profile' ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white' : theme.textMuted}`}>Profile</button>
+              <button onClick={() => setGoalsSubTab('develop')} className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${goalsSubTab === 'develop' ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white' : theme.textMuted}`}>Develop Goals</button>
+              <button onClick={() => setGoalsSubTab('monitor')} className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${goalsSubTab === 'monitor' ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white' : theme.textMuted}`}>Monitor Progress</button>
+            </div>
+          </div>
+        )}
+        {((activeTab === 'goals' && goalsSubTab === 'develop') || activeTab === 'develop') && (
            <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4">
               <Card className="p-8" glow theme={theme}>
                  <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Target className="text-fuchsia-400"/> Goal Drafter</h2><Badge color="cyan" isDark={isDark}>AI Active</Badge></div>
@@ -1998,12 +2052,12 @@ Format the summary clearly with sections. Only include information that is actua
            </div>
         )}
 
-        {activeTab === 'monitor' && (
+        {((activeTab === 'goals' && goalsSubTab === 'monitor') || activeTab === 'monitor') && (
             <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
                 <Card className="p-6" theme={theme}>
                     <div className="flex justify-between items-center mb-6"><h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}><Activity className="text-emerald-400"/> Progress Monitoring</h2>{activeGoal && <div className={`text-xs ${theme.textMuted} ${theme.inputBg} px-3 py-1 rounded border ${theme.cardBorder}`}>Data Collection: <span className={`${theme.text} font-bold`}>{activeGoal.frequency}</span></div>}</div>
                     {goals.length === 0 ? (
-                        <div className={`text-center py-12 ${theme.textMuted}`}><p className="mb-4">No locked goals found for this student.</p><Button onClick={() => setActiveTab('develop')} variant="secondary" theme={theme}>Go to Develop Tab to Create Goals</Button></div>
+                        <div className={`text-center py-12 ${theme.textMuted}`}><p className="mb-4">No locked goals found for this student.</p><Button onClick={() => setGoalsSubTab('develop')} variant="secondary" theme={theme}>Go to Develop to Create Goals</Button></div>
                     ) : (
                         <div>
                             <div className="flex gap-4 mb-6 flex-wrap">
@@ -2275,7 +2329,7 @@ Format the summary clearly with sections. Only include information that is actua
                 <AdminDashboard 
                     user={user} 
                     theme={theme} 
-                    onBack={() => setActiveTab('profile')} 
+                    onBack={() => setActiveTab('home')} 
                 />
             </div>
         )}
@@ -2286,16 +2340,28 @@ Format the summary clearly with sections. Only include information that is actua
                 <AccommodationGem 
                   isDark={isDark} 
                   user={user} 
-                  onBack={() => setActiveTab('profile')} 
+                  onBack={() => setActiveTab('home')} 
                   isEmbedded={true}
                   selectedStudent={selectedStudentForGem}
                 />
             </div>
         )}
 
-        {/* --- ROSTER TAB (NEW) --- */}
+        {/* --- ROSTER TAB --- */}
         {activeTab === 'roster' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+            {/* Import Roster CSV */}
+            <div className={`${theme.cardBg} border ${theme.cardBorder} rounded-2xl overflow-hidden`}>
+              <button onClick={() => setShowImportRoster(!showImportRoster)} className={`w-full px-6 py-4 flex items-center justify-between ${theme.text} hover:bg-slate-500/10 transition-colors`}>
+                <span className="font-bold flex items-center gap-2"><UploadCloud size={20} /> Import Roster from CSV</span>
+                <ChevronDown size={20} className={`transition-transform ${showImportRoster ? 'rotate-180' : ''}`} />
+              </button>
+              {showImportRoster && (
+                <div className="border-t border-slate-700/50 p-6">
+                  <ImportRoster user={user} theme={theme} onImportComplete={() => { setShowImportRoster(false); setRosterRefreshTrigger(t => t + 1); }} onStudentsUpdate={() => setRosterRefreshTrigger(t => t + 1)} />
+                </div>
+              )}
+            </div>
             {/* Morning Briefing - Always available on Roster tab */}
             {displayedStudents.length > 0 && (
               <DashboardBriefing
@@ -2320,7 +2386,7 @@ Format the summary clearly with sections. Only include information that is actua
                   });
                   if (studentWithDeadline) {
                     setCurrentStudentId(studentWithDeadline.id);
-                    setActiveTab('profile');
+                    setActiveTab('goals');
                   }
                 }}
               />
@@ -2439,7 +2505,7 @@ Format the summary clearly with sections. Only include information that is actua
                                 <Button 
                                   onClick={() => {
                                     setCurrentStudentId(student.id);
-                                    setActiveTab('profile');
+                                    setActiveTab('goals');
                                   }}
                                   variant="secondary"
                                   className="text-xs"
@@ -2469,7 +2535,7 @@ Format the summary clearly with sections. Only include information that is actua
                                 <Button 
                                   onClick={() => {
                                     setCurrentStudentId(student.id);
-                                    handleOpenGemWithStudent();
+                                    setActiveTab('alc');
                                   }}
                                   variant="secondary"
                                   className="text-xs"

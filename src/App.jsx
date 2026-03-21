@@ -10,21 +10,15 @@ import {
 
 // EasterEgg removed for performance optimization
 
-// Lazy load all route components for code splitting
-const ResumeBuilder = lazy(() => import('./components/ResumeBuilder'));
-const SocialMap = lazy(() => import('./components/SocialMap'));
-const EmotionalCockpit = lazy(() => import('./components/EmotionalCockpit'));
+// Lazy load route components for code splitting (hidden tools kept as files but not routed)
 const TeacherDashboard = lazy(() => import('./components/TeacherDashboard'));
-const NeuroDriver = lazy(() => import('./components/NeuroDriver'));
-const VisualSchedule = lazy(() => import('./components/VisualSchedule'));
 const AccommodationGem = lazy(() => import('./components/AccommodationGem'));
-const ArchiveOfPotentials = lazy(() => import('./components/ArchiveOfPotentials'));
 const SignupPage = lazy(() => import('./components/SignupPage'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
 const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
-const StudentPortal = lazy(() => import('./components/StudentPortal'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
@@ -90,7 +84,42 @@ const FeatureCard = ({ icon: Icon, title, description, delay, isDark, to }) => {
     );
 };
 
-// --- THE HOME PAGE COMPONENT ---
+// --- LANDING ROUTE: Show LandingPage for unauthenticated, redirect to /educator for authenticated ---
+function LandingRoute({ isDark, setIsDark }) {
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsub = onAuthChange((u) => {
+      setUser(u);
+      setChecking(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!checking && user?.uid) {
+      navigate('/educator', { replace: true });
+    }
+  }, [checking, user, navigate]);
+
+  if (checking) {
+    return (
+      <div className={`min-h-screen ${getTheme(isDark).bg} flex items-center justify-center`}>
+        <Loader2 className="text-cyan-400 animate-spin" size={40} />
+      </div>
+    );
+  }
+  if (user?.uid) return null; // Redirecting
+  return (
+    <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+      <LandingPage isDark={isDark} setIsDark={setIsDark} />
+    </Suspense>
+  );
+}
+
+// --- LEGACY HOME (kept for reference, no longer used at /) ---
 const Home = ({ isDark, setIsDark, devModeActive }) => {
   const theme = getTheme(isDark);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -568,39 +597,7 @@ export default function App() {
       </div>
 
       <Routes>
-        <Route path="/" element={<Home isDark={isDark} setIsDark={handleToggleTheme} devModeActive={devModeActive} />} />
-        
-        <Route path="/resume" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-10 pt-10">
-              <ResumeBuilder onBack={handleExit} isLowStim={!isDark} />
-            </div>
-          </Suspense>
-        } />
-        
-        <Route path="/map" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-10 pt-20 h-screen">
-              <SocialMap onBack={handleExit} isLowStim={!isDark} />
-            </div>
-          </Suspense>
-        } />
-        
-        <Route path="/cockpit" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] h-screen">
-              <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
-            </div>
-          </Suspense>
-        } />
-        
-        <Route path="/neuro" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <NeuroDriver onBack={handleExit} isDark={isDark} />
-            </div>
-          </Suspense>
-        } />
+        <Route path="/" element={<LandingRoute isDark={isDark} setIsDark={handleToggleTheme} />} />
         
         <Route path="/educator" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
@@ -610,24 +607,8 @@ export default function App() {
           </Suspense>
         } />
 
-        <Route path="/schedule" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <VisualSchedule onBack={handleExit} isDark={isDark} />
-            </div>
-          </Suspense>
-        } />
-
         <Route path="/gem" element={
           <GemRoute isDark={isDark} devModeActive={devModeActive} onExit={handleExit} user={null} />
-        } />
-
-        <Route path="/archive" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <ArchiveOfPotentials onBack={handleExit} isDark={isDark} />
-            </div>
-          </Suspense>
         } />
 
         <Route path="/signup" element={
@@ -666,22 +647,6 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <TransitionPlanning isDark={isDark} onBack={handleExit} />
-            </div>
-          </Suspense>
-        } />
-
-        <Route path="/student" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
-            </div>
-          </Suspense>
-        } />
-
-        <Route path="/student/portal" element={
-          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-            <div className="relative z-[150] min-h-screen">
-              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />

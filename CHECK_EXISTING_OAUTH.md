@@ -93,12 +93,3 @@ After adding the Client ID to your `.env`:
 
 
 
-
-
-
-
-
-
-
-
-

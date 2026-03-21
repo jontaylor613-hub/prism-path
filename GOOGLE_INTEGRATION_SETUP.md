@@ -153,12 +153,3 @@ All Google API calls include:
 
 
 
-
-
-
-
-
-
-
-
-

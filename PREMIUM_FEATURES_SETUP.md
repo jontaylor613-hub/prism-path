@@ -127,12 +127,3 @@ The VoiceObservation component uses the existing `/api/generate` endpoint with:
 
 
 
-
-
-
-
-
-
-
-
-

@@ -151,12 +151,3 @@ showToast('Information message', 'info');
 
 
 
-
-
-
-
-
-
-
-
-

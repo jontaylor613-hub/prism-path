@@ -42,12 +42,3 @@ git log --oneline --since="24 hours ago" --all | Select-Object -First 10
 
 
 
-
-
-
-
-
-
-
-
-

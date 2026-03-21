@@ -71,12 +71,3 @@ All Tesla-style UI elements are committed and pushed to GitHub!
 
 
 
-
-
-
-
-
-
-
-
-

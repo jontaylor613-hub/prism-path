@@ -4,7 +4,7 @@ import {
   Users, Plus, X, Loader2, Heart, Sparkles, LogOut, 
   User, ArrowRight, Calendar, FileText, Zap, Shield, Sun, Moon, MapPin, GraduationCap, Info
 } from 'lucide-react';
-import { usePrismAuth } from '../auth';
+import { onAuthChange, logout } from '../auth';
 import { getStudentsForUser, createStudent } from '../studentData';
 import { getTheme } from '../utils';
 import { formatAccessCode } from '../utils/accessCodeGenerator';
@@ -155,14 +155,13 @@ const Card = ({ children, className = "", glow = false, theme }) => {
 
 export default function ParentDashboard({ onBack, isDark, onToggleTheme, initialDemoMode = false }) {
   const navigate = useNavigate();
-  const { user: clerkUser, isLoaded: authLoaded, signOut } = usePrismAuth();
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [activeView, setActiveView] = useState('dashboard');
-  const [demoMode, setDemoMode] = useState(initialDemoMode);
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard', 'student', 'gem', 'neuro', 'advocacy', 'taskslicer', 'community', 'transition'
+  const [demoMode, setDemoMode] = useState(initialDemoMode); // Demo mode toggle
   
   const [newChild, setNewChild] = useState({
     name: '',
@@ -175,23 +174,27 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
 
   const theme = getTheme(isDark);
 
-  // Resolve user: demo mode or Clerk
+  // Auth state observer - skip if in demo mode
   useEffect(() => {
     if (demoMode) {
+      // In demo mode, set a demo user
       setUser({ uid: 'demo-parent', name: 'Demo Parent', role: 'parent', isDemo: true });
       return;
     }
-    if (!authLoaded) return;
-    if (clerkUser && clerkUser.role === 'parent') {
-      setUser(clerkUser);
-    } else if (clerkUser && clerkUser.role !== 'parent') {
-      navigate('/educator');
-      setUser(null);
-    } else {
-      setUser(null);
-      navigate('/signup?type=parent');
-    }
-  }, [demoMode, authLoaded, clerkUser, navigate]);
+    
+    const unsubscribe = onAuthChange((userProfile) => {
+      if (userProfile && userProfile.role === 'parent') {
+        setUser(userProfile);
+      } else if (userProfile && userProfile.role !== 'parent') {
+        // Redirect educators to their dashboard
+        navigate('/educator');
+      } else {
+        setUser(null);
+        navigate('/signup?type=parent');
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate, demoMode]);
 
   // Load students when user is available
   useEffect(() => {
@@ -309,14 +312,14 @@ export default function ParentDashboard({ onBack, isDark, onToggleTheme, initial
   const handleLogout = async () => {
     try {
       if (!demoMode && user && !user.isDemo) {
-        await signOut();
+        await logout();
       }
       setUser(null);
       // Navigate to parent signup/login page instead of home
       navigate('/signup?type=parent');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if signOut fails, navigate to parent signup
+      // Even if logout fails, navigate to parent signup/login page
       navigate('/signup?type=parent');
     }
   };

@@ -143,12 +143,3 @@ const handleAddStudent = async () => {
 
 
 
-
-
-
-
-
-
-
-
-

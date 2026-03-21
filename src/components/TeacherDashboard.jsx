@@ -29,6 +29,7 @@ import {
 } from '../studentData';
 import { ChatHistoryService } from '../chatHistory';
 import { DevModeService } from '../devMode';
+import { usePrismAuth } from '../auth';
 import AdminDashboard from './AdminDashboard';
 import DashboardBriefing from './DashboardBriefing';
 import ImportRoster from './features/ImportRoster';
@@ -1451,8 +1452,15 @@ Format the summary clearly with sections. Only include information that is actua
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
       </div>
 
+      {/* Demo Mode Banner */}
+      {user?.isDemo && (
+        <div className={`sticky top-0 z-[60] py-2 px-4 text-center text-sm font-bold ${isDark ? 'bg-amber-900/90 text-amber-100 border-b border-amber-600/50' : 'bg-amber-100 text-amber-900 border-b border-amber-300'}`}>
+          Demo Mode — You're exploring with sample data. Create an account to save your work.
+        </div>
+      )}
+
       {/* HEADER */}
-      <header className={`sticky top-0 z-50 border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md`}>
+      <header className={`sticky ${user?.isDemo ? 'top-9' : 'top-0'} z-50 border-b ${theme.cardBorder} ${theme.navBg} backdrop-blur-md`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setActiveTab('home')}>
             <Sparkles className="text-cyan-400" size={24} />
@@ -2735,7 +2743,7 @@ Format the summary clearly with sections. Only include information that is actua
   );
 };
 
-// --- DEMO ACCESS SCREEN ---
+// --- DEMO / SIGN-IN SCREEN ---
 const LoginScreen = ({ onLogin, onBack, isDark }) => {
   const theme = getTheme(isDark);
   const launchDemo = (role) => {
@@ -2770,7 +2778,7 @@ const LoginScreen = ({ onLogin, onBack, isDark }) => {
          <div className={`inline-flex items-center justify-center p-3 rounded-2xl ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-slate-200 to-slate-100 border-slate-300'} border mb-6 shadow-lg mx-auto`}><Sparkles className="text-cyan-400" size={40} /></div>
          <h1 className={`text-3xl font-extrabold ${theme.text} mb-2 text-center`}>Prism<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400">Path</span></h1>
          <p className={`${theme.textMuted} font-medium mb-6 text-center`}>
-           Demo access only. Live sign-in and sign-up are disabled.
+           Try the demo or sign in to your account.
          </p>
 
          <div className="space-y-3">
@@ -2786,6 +2794,12 @@ const LoginScreen = ({ onLogin, onBack, isDark }) => {
            >
              Enter Admin Demo
            </button>
+           <a
+             href="/sign-in?redirect=/educator"
+             className={`block w-full px-4 py-3 text-center border ${theme.cardBorder} ${theme.text} rounded-lg text-sm font-bold transition-all hover:border-cyan-500/50 hover:text-cyan-400`}
+           >
+             Sign In to Your Account
+           </a>
          </div>
          
          <button onClick={onBack} className={`mt-4 text-xs ${theme.textMuted} hover:${theme.text} uppercase font-bold tracking-widest block mx-auto`}>Back to Home</button>
@@ -2796,6 +2810,7 @@ const LoginScreen = ({ onLogin, onBack, isDark }) => {
 
 export default function TeacherDashboard({ onBack, isDark, onToggleTheme, adminDemoMode = false }) {
   const [user, setUser] = useState(null);
+  const { user: clerkUser, isLoaded: authLoaded, signOut } = usePrismAuth();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -2824,10 +2839,37 @@ export default function TeacherDashboard({ onBack, isDark, onToggleTheme, adminD
         schoolId: 'demo-school',
         isDemo: true
       });
+      return;
     }
-  }, [adminDemoMode]);
 
-  const handleLogout = () => setUser(null);
+    // No demo: use Clerk user if signed in (and not parent)
+    if (authLoaded && clerkUser && clerkUser.role !== 'parent') {
+      setUser(clerkUser);
+    } else if (authLoaded && !clerkUser) {
+      setUser(null);
+    }
+  }, [adminDemoMode, authLoaded, clerkUser]);
+
+  const handleLogout = async () => {
+    if (user?.isDemo) {
+      setUser(null);
+    } else {
+      await signOut();
+      setUser(null);
+    }
+  };
+
+  // Show loading while auth initializes (when not in demo)
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const demoParam = urlParams.get('demo');
+  const isDemo = adminDemoMode || demoParam === 'admin' || demoParam === 'true';
+  if (!isDemo && !authLoaded) {
+    return (
+      <div className={`min-h-screen ${getTheme(isDark).bg} flex items-center justify-center`}>
+        <Loader2 className="text-cyan-400 animate-spin" size={40} />
+      </div>
+    );
+  }
 
   return user ? <Dashboard user={user} onLogout={handleLogout} onBack={onBack} isDark={isDark} onToggleTheme={onToggleTheme} /> : <LoginScreen onLogin={setUser} onBack={onBack} isDark={isDark} />;
 }

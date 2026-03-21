@@ -10,20 +10,24 @@ import {
 
 // EasterEgg removed for performance optimization
 
-// Lazy load route components for code splitting (hidden tools kept as files but not routed)
+// Lazy load route components for code splitting
+const NeuroDriver = lazy(() => import('./components/NeuroDriver'));
+const VisualSchedule = lazy(() => import('./components/VisualSchedule'));
+const EmotionalCockpit = lazy(() => import('./components/EmotionalCockpit'));
 const TeacherDashboard = lazy(() => import('./components/TeacherDashboard'));
 const AccommodationGem = lazy(() => import('./components/AccommodationGem'));
 const SignupPage = lazy(() => import('./components/SignupPage'));
+const SignInPage = lazy(() => import('./components/SignInPage'));
+const StudentPortal = lazy(() => import('./components/StudentPortal'));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard'));
 const QuickTrack = lazy(() => import('./components/QuickTrack'));
 const Mission = lazy(() => import('./components/Mission'));
 const TransitionPlanning = lazy(() => import('./components/TransitionPlanning'));
-const LandingPage = lazy(() => import('./components/LandingPage'));
 import { getTheme, GeminiService } from './utils';
 import { FreeTrialService } from './freeTrial';
 import { DevModeService } from './devMode';
 import { GemUsageTracker } from './gemUsageTracker';
-import { onAuthChange } from './auth';
+import { usePrismAuth } from './auth';
 import { useSmartLock } from './hooks/useSmartLock';
 
 // Wrapper component to handle demo mode for ParentDashboard
@@ -84,42 +88,7 @@ const FeatureCard = ({ icon: Icon, title, description, delay, isDark, to }) => {
     );
 };
 
-// --- LANDING ROUTE: Show LandingPage for unauthenticated, redirect to /educator for authenticated ---
-function LandingRoute({ isDark, setIsDark }) {
-  const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const unsub = onAuthChange((u) => {
-      setUser(u);
-      setChecking(false);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    if (!checking && user?.uid) {
-      navigate('/educator', { replace: true });
-    }
-  }, [checking, user, navigate]);
-
-  if (checking) {
-    return (
-      <div className={`min-h-screen ${getTheme(isDark).bg} flex items-center justify-center`}>
-        <Loader2 className="text-cyan-400 animate-spin" size={40} />
-      </div>
-    );
-  }
-  if (user?.uid) return null; // Redirecting
-  return (
-    <Suspense fallback={<LoadingFallback isDark={isDark} />}>
-      <LandingPage isDark={isDark} setIsDark={setIsDark} />
-    </Suspense>
-  );
-}
-
-// --- LEGACY HOME (kept for reference, no longer used at /) ---
+// --- THE HOME PAGE (landing page) ---
 const Home = ({ isDark, setIsDark, devModeActive }) => {
   const theme = getTheme(isDark);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -193,27 +162,15 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-fuchsia-500">PrismPath</span>
           </div>
 
-          <div className="hidden md:flex items-center justify-evenly flex-1 max-w-5xl mx-auto">
-            <div className="flex items-center gap-4">
-              <button onClick={setIsDark} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
-                  {isDark ? <Moon size={20} /> : <Sun size={20} />}
-              </button>
-              <div className={`h-6 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`}></div>
-            </div>
-            
-            <Link to="/educator" className={`text-sm font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1 whitespace-nowrap`}><GraduationCap size={16} /> For Educators</Link>
-            
-            <Link to="/signup?type=parent" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}><Heart size={16} /> For Parents</Link>
-            
-            <Link to="/student" className={`text-sm font-bold ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}>
-              <SmilePlus size={16} /> For Students
-            </Link>
-            
+          <div className="hidden md:flex items-center justify-center flex-1 gap-6">
+            <Link to="/educator" className={`text-base font-bold ${theme.secondaryText} hover:opacity-80 transition-colors flex items-center gap-1 whitespace-nowrap`}><GraduationCap size={16} /> For Educators</Link>
+            <Link to="/signup?type=parent" className={`text-sm font-medium ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}><Heart size={16} /> For Parents</Link>
+            <Link to="/student" className={`text-sm font-medium ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center gap-1 whitespace-nowrap`}><SmilePlus size={16} /> For Students</Link>
             <div className="relative group">
-              <button className={`text-sm font-bold ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1 whitespace-nowrap`}>
+              <button className={`text-sm font-medium ${theme.textMuted} hover:${theme.text} transition-colors flex items-center gap-1 whitespace-nowrap`}>
                 <Zap size={14} /> Demos <ChevronDown size={12} className="transition-transform group-hover:rotate-180" />
               </button>
-              <div className={`absolute top-full right-0 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
+              <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 ${theme.cardBg} border ${theme.cardBorder} rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50`}>
                 <Link to="/parent/dashboard?demo=true" className={`block w-full text-left px-4 py-3 hover:bg-slate-500/10 text-sm ${theme.text} flex items-center gap-2`}>
                   <Heart size={14} className="text-indigo-400" /> Parent Portal Demo
                 </Link>
@@ -225,23 +182,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
                 </Link>
               </div>
             </div>
+          </div>
 
-            <a href="#features" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors whitespace-nowrap`}>Features</a>
-            <button
-              onClick={() => setShowUpdatesModal(true)}
-              className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors flex items-center gap-1 whitespace-nowrap`}
-            >
-              <Bell size={14} />
-              Updates
-              <span className="inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+          <div className="hidden md:flex items-center gap-4">
+            <button onClick={setIsDark} className={`p-2 rounded-full transition-all ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-slate-200 text-orange-500'}`}>
+              {isDark ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            <Link to="/mission" className={`text-sm font-medium ${theme.textMuted} hover:text-current transition-colors relative group overflow-hidden whitespace-nowrap`}>
-              <span className="relative z-10">
-                Our Mission
-              </span>
-              <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-cyan-500/20 rounded-full opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
-            </Link>
-            <Link to="/gem" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all whitespace-nowrap">Learning Companion</Link>
+            <Link to="/sign-in" className={`text-sm font-medium ${theme.textMuted} hover:${theme.text} transition-colors whitespace-nowrap`}>Sign In</Link>
+            <Link to="/signup?type=educator" className="px-4 py-2 text-sm bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all whitespace-nowrap">Start Free Trial</Link>
           </div>
 
           <button className={`md:hidden ${theme.text}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
@@ -250,7 +198,6 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         {mobileMenuOpen && (
           <div className={`md:hidden absolute top-full left-0 w-full ${theme.bg} border-b ${theme.cardBorder} p-4 flex flex-col space-y-4 shadow-xl animate-in slide-in-from-top-5`}>
              <button onClick={setIsDark} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${theme.cardBorder} w-full`}>{isDark ? <Moon size={16} /> : <Sun size={16} />}{isDark ? "Dark Mode" : "Light Mode"}</button>
-             {/* Mobile Menu Order Updated */}
              <Link to="/educator" className="block w-full text-left py-2 font-bold text-cyan-500">For Educators</Link>
              <Link to="/signup?type=parent" className="block w-full text-left py-2 font-bold text-indigo-400">For Parents</Link>
              <Link to="/student" className="block w-full text-left py-2 font-bold text-indigo-400">For Students</Link>
@@ -260,14 +207,8 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
              <Link to="/educator?demo=true" className="block w-full text-left py-2 font-bold text-cyan-500 flex items-center gap-2"><Zap size={14} /> Educator Portal Demo</Link>
              <Link to="/educator?demo=admin" className="block w-full text-left py-2 font-bold text-fuchsia-500 flex items-center gap-2"><Zap size={14} /> Admin Dashboard Demo</Link>
              <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-300'} my-2`}></div>
-             <button
-               onClick={() => { setShowUpdatesModal(true); setMobileMenuOpen(false); }}
-               className="block w-full text-left py-2 font-bold text-red-400 flex items-center gap-2"
-             >
-               <Bell size={14} /> Updates
-             </button>
-             <a href="#features" className="block w-full text-left py-2 font-bold text-slate-400">Features</a>
-             <Link to="/mission" className="block w-full text-left py-2 font-bold text-cyan-400">Our Mission</Link>
+             <Link to="/sign-in" className="block w-full text-left py-2 font-medium text-slate-400">Sign In</Link>
+             <Link to="/signup?type=educator" className="block w-full text-center py-3 font-bold bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full">Start Free Trial</Link>
           </div>
         )}
       </nav>
@@ -299,17 +240,12 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
         <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full ${isDark ? 'bg-slate-800/50 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'} text-cyan-500 text-xs font-bold tracking-wider uppercase mb-8 backdrop-blur-sm`}>
           <span className="w-2 h-2 rounded-full bg-cyan-500 motion-safe:animate-pulse"></span><span>AI-Powered Accommodations</span>
         </div>
-        <h1 className={`text-5xl md:text-7xl font-extrabold tracking-tight ${theme.text} mb-6`}>Personalized Learning <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400">Without Limits.</span></h1>
-        <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>Empowering <strong>educators, students</strong> and <strong>parents</strong>. Get instant, AI-powered accommodations tailored to match your learner's energy and unique learning profile.</p>
+        <h1 className={`text-5xl md:text-7xl font-extrabold tracking-tight ${theme.text} mb-6`}>Personalized IEP Accommodations,<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-purple-400">Generated in Seconds.</span></h1>
+        <p className={`mt-4 max-w-2xl mx-auto text-xl ${theme.textMuted} leading-relaxed mb-10`}>PrismPath helps special education teachers generate student-specific, FERPA-compliant accommodation plans using AI — so you spend less time on paperwork and more time teaching.</p>
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <Link to="/mission" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all relative group overflow-hidden`}>
-            <span className="relative z-10">
-              Our Mission
-            </span>
-            <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500"></span>
-          </Link>
-          <Link to="/gem" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Accessible Learning Companion™</Link>
-          <a href="#accommodations" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</a>
+          <Link to="/signup?type=educator" className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-full font-bold shadow-lg hover:shadow-cyan-500/25 transition-all">Start Free Trial</Link>
+          <Link to="/educator?demo=true" className={`px-6 py-3 rounded-full font-bold border ${theme.cardBorder} hover:bg-slate-500/10 transition-all`}>Try Demo</Link>
+          <Link to="/mission" className={`text-sm font-medium ${theme.textMuted} hover:${theme.text} transition-colors`}>Our Mission</Link>
         </div>
         {devModeActive && (
           <div className="mt-4 text-center">
@@ -325,14 +261,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
       </section>
 
       <section id="features" className="relative z-10 py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <p className={`text-center text-sm font-bold uppercase tracking-wider ${theme.textMuted} mb-8`}>Built for Special Education Teachers</p>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <FeatureCard to="/neuro" icon={Brain} title="Cognitive Support" description="Neuro-divergent friendly task slicer and focus tools." delay={0} isDark={isDark} />
-          {/* UPDATED: Links to /schedule */}
-          <FeatureCard to="/schedule" icon={Calendar} title="Visual Schedules" description="Generate clear structured visual timelines." delay={100} isDark={isDark} />
-          <FeatureCard to="/cockpit" icon={Heart} title="Emotional Regulation" description="Tips for sensory breaks and emotional check-ins." delay={200} isDark={isDark} />
-          <FeatureCard to="/" icon={ShieldCheck} title="Distraction Free" description="Clean, text-based plans without clutter." delay={300} isDark={isDark} />
-          <FeatureCard to="/" icon={Clock} title="Time Saving" description="Seconds, not hours of research." delay={400} isDark={isDark} />
-          <FeatureCard to="/" icon={Zap} title="Instant Adaptation" description="Modify load instantly to match energy." delay={500} isDark={isDark} />
+          <FeatureCard to="/" icon={Zap} title="Instant Adaptation" description="Modify load instantly to match energy." delay={100} isDark={isDark} />
+          <FeatureCard to="/" icon={Clock} title="Time Saving" description="Seconds, not hours of research." delay={200} isDark={isDark} />
+          <FeatureCard to="/schedule" icon={Calendar} title="Visual Schedules" description="Generate clear structured visual timelines." delay={300} isDark={isDark} />
+          <FeatureCard to="/cockpit" icon={Heart} title="Emotional Regulation" description="Tips for sensory breaks and emotional check-ins." delay={400} isDark={isDark} />
+          <FeatureCard to="/" icon={ShieldCheck} title="Distraction Free" description="Clean, text-based plans without clutter." delay={500} isDark={isDark} />
         </div>
       </section>
 
@@ -396,9 +332,19 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
       </section>
 
       <footer className={`relative z-10 ${isDark ? 'bg-slate-950 border-t border-slate-900' : 'bg-white border-t border-slate-100'} pt-20 pb-10`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500">
-          <p>&copy; {new Date().getFullYear()} PrismPath™ Accommodations. All rights reserved.</p>
-          <p className="mt-2 text-xs">PrismPath™, Accessible Learning Companion™, Neuro Driver™, and Bridge Builder™ are trademarks of PrismPath Accommodations.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm mb-8">
+            <a href="#features" className={`${theme.textMuted} hover:${theme.text} transition-colors`}>Features</a>
+            <Link to="/mission" className={`${theme.textMuted} hover:${theme.text} transition-colors`}>Our Mission</Link>
+            <button onClick={() => setShowUpdatesModal(true)} className={`${theme.textMuted} hover:${theme.text} transition-colors bg-transparent border-none cursor-pointer`}>Updates</button>
+            <a href="#accommodations" className={`${theme.textMuted} hover:${theme.text} transition-colors`}>FERPA Compliance</a>
+            <a href="#" className={`${theme.textMuted} hover:${theme.text} transition-colors`}>Privacy Policy</a>
+            <a href="mailto:contact@prismpath.com" className={`${theme.textMuted} hover:${theme.text} transition-colors`}>Contact</a>
+          </div>
+          <div className="text-center text-sm text-slate-500">
+            <p>&copy; {new Date().getFullYear()} PrismPath™ Accommodations. All rights reserved.</p>
+            <p className="mt-2 text-xs">PrismPath™, Accessible Learning Companion™, Neuro Driver™, and Bridge Builder™ are trademarks of PrismPath Accommodations.</p>
+          </div>
         </div>
       </footer>
     </>
@@ -410,21 +356,14 @@ const Home = ({ isDark, setIsDark, devModeActive }) => {
 function GemRoute({ isDark, devModeActive, onExit, user = null }) {
   const [canUse, setCanUse] = useState(null); // null = checking, true/false = result
   const [hasUsed, setHasUsed] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const { user: currentUser, isLoaded: authLoaded } = usePrismAuth();
   const theme = getTheme(isDark);
   const location = useLocation();
 
-  // Track auth state
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      setCurrentUser(user);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
+    if (!authLoaded) return;
     const checkUsage = async () => {
-      // If user is logged in (from TeacherDashboard), they have full access
+      // If user is logged in (Clerk), they have full access
       if (currentUser && currentUser.uid) {
         setCanUse(true);
         return;
@@ -448,7 +387,7 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
     };
     
     checkUsage();
-  }, [devModeActive, currentUser]);
+  }, [devModeActive, currentUser, authLoaded]);
 
   // Track usage when GEM is actually used (when user sends first message)
   const handleGemUse = async () => {
@@ -464,7 +403,7 @@ function GemRoute({ isDark, devModeActive, onExit, user = null }) {
     }
   };
 
-  if (canUse === null) {
+  if (canUse === null || !authLoaded) {
     // Still checking
     return (
       <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center ${theme.text} p-8`}>
@@ -597,8 +536,32 @@ export default function App() {
       </div>
 
       <Routes>
-        <Route path="/" element={<LandingRoute isDark={isDark} setIsDark={handleToggleTheme} />} />
+        <Route path="/" element={<Home isDark={isDark} setIsDark={handleToggleTheme} devModeActive={devModeActive} />} />
         
+        <Route path="/neuro" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <NeuroDriver onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/schedule" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <VisualSchedule onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/cockpit" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] h-screen">
+              <EmotionalCockpit onBack={handleExit} isLowStim={!isDark} />
+            </div>
+          </Suspense>
+        } />
+
         <Route path="/educator" element={
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
@@ -615,6 +578,14 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <SignupPage onBack={handleExit} isDark={isDark} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/sign-in" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <SignInPage onBack={handleExit} isDark={isDark} />
             </div>
           </Suspense>
         } />
@@ -647,6 +618,22 @@ export default function App() {
           <Suspense fallback={<LoadingFallback isDark={isDark} />}>
             <div className="relative z-[150] min-h-screen">
               <TransitionPlanning isDark={isDark} onBack={handleExit} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/student" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
+            </div>
+          </Suspense>
+        } />
+
+        <Route path="/student/portal" element={
+          <Suspense fallback={<LoadingFallback isDark={isDark} />}>
+            <div className="relative z-[150] min-h-screen">
+              <StudentPortal isDark={isDark} onBack={handleExit} onToggleTheme={handleToggleTheme} />
             </div>
           </Suspense>
         } />

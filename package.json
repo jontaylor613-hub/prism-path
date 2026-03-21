@@ -11,9 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/react": "^6.1.2",
     "@google/generative-ai": "^0.21.0",
     "cmdk": "^1.0.0",
-    "firebase": "^10.8.0",
     "googleapis": "^168.0.0",
     "is-number": "^7.0.0",
     "jspdf": "^3.0.4",
